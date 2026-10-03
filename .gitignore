@@ -1,0 +1,14 @@
+.env
+data/
+__pycache__/
+*.pyc
+.venv/
+# Forschungsdaten (Papers, Notes, Projekte) nicht ins Repository – sie können unveröffentlicht oder urheberrechtlich geschützt sein
+research/*
+!research/.gitkeep
+migrate/
+
+# lokale Pakete und Aufräum-Ordner
+*.zip
+*.tgz
+_to_delete/

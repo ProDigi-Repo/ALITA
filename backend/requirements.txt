@@ -1,0 +1,17 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+pydantic>=2.9
+pydantic-settings>=2.6
+pydantic-ai-slim[openai,openrouter]>=1.40   # Agents + Embedder, Backend: OpenRouter
+qdrant-client>=1.12
+httpx>=0.27          # Index-Umzug (app.migrate): Qdrant-Snapshots
+pyyaml>=6.0
+pypdf>=5.0
+python-docx>=1.1
+python-pptx>=1.0
+openpyxl>=3.1
+pandas>=2.2
+pyreadstat>=1.2      # optional: liest SPSS .sav (Variablen-Labels)
+pytest>=8.0
+neo4j>=5.20          # Wissensgraph (Graph RAG, DoCO/DEO)

@@ -1,0 +1,36 @@
+# Server-Variante (Oracle Cloud Always Free, ARM) mit Cloudflare Tunnel.
+# Wird über COMPOSE_FILE in .env automatisch dazugeladen:
+#   COMPOSE_FILE=docker-compose.yml:deploy/oracle/docker-compose.oracle.yml
+#
+# - Kein Port ist aus dem Internet erreichbar. Der einzige Weg hinein ist der Tunnel (ausgehende Verbindung zu
+#   Cloudflare); davor sitzt Cloudflare Access mit Google-Login.
+# - Neo4j, Qdrant und Backend nur intern; das Frontend zusätzlich auf 127.0.0.1:8080 (für SSH-Tunnel zum Testen).
+# - Speicherlimits für die kleine Always-Free-Maschine (2 OCPU / 12 GB).
+
+services:
+  neo4j:
+    ports: !reset []
+    environment:
+      NEO4J_server_memory_heap_initial__size: ${NEO4J_HEAP:-1G}
+      NEO4J_server_memory_heap_max__size: ${NEO4J_HEAP:-1G}
+      NEO4J_server_memory_pagecache_size: ${NEO4J_PAGECACHE:-512M}
+
+  qdrant:
+    ports: !reset []
+
+  backend:
+    ports: !reset []
+
+  frontend:
+    ports: !override
+      - "127.0.0.1:8080:80"
+
+  # Cloudflare Tunnel: verbindet sich nach außen zu Cloudflare, Ziel im Dashboard: http://frontend:80
+  cloudflared:
+    image: cloudflare/cloudflared:${CLOUDFLARED_VERSION:-latest}
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?CLOUDFLARE_TUNNEL_TOKEN fehlt in .env (Cloudflare Zero Trust -> Networks -> Tunnels)}
+    depends_on:
+      - frontend

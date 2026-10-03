@@ -1,0 +1,77 @@
+# Methoden-Glossar (VORLÄUFIG)
+# --------------------------------------------------------------
+# Dieses Glossar steuert die Methoden-Klassifikation der Dokumente.
+# Es wird später durch das fachliche Glossar ersetzt. Format je Eintrag:
+#   id:          stabiler Schlüssel (wird im Index gespeichert und gefiltert)
+#   label:       Anzeigename
+#   category:    Oberkategorie (für Gruppierung / Facetten)
+#   description: Erläuterung (geht als Kontext an das LLM)
+#   synonyms:    Begriffe für die schnelle Stichwort-Erkennung (klein, de + en)
+# Nach Änderungen: `python -m app.ingest reclassify` aufrufen.
+version: 0.1
+methods:
+  - id: lab_experiment
+    label: Lab experiment
+    category: Experimentelle Designs
+    description: Kontrollierte Studie unter Laborbedingungen mit Manipulation oder Beobachtung.
+    synonyms: [laboratory experiment, lab experiment, laborexperiment, laboratory observation, experiment]
+  - id: simulation_game
+    label: Simulation / business game
+    category: Experimentelle Designs
+    description: Rollenspiel, Planspiel oder computergestützte Simulation als Untersuchungsumgebung.
+    synonyms: [role play, rollenspiel, simulation, planspiel, kreditsim, business game]
+  - id: survey
+    label: Survey
+    category: Erhebung
+    description: Standardisierte Befragung mit Fragebogen.
+    synonyms: [survey, questionnaire, fragebogen, befragung]
+  - id: interview
+    label: Qualitative interviews
+    category: Erhebung
+    description: Leitfadengestützte oder offene Interviews.
+    synonyms: [interview, interviews, expert interview, experteninterview]
+  - id: case_study
+    label: Case study
+    category: Qualitative Designs
+    description: Tiefgehende Untersuchung eines oder weniger Fälle.
+    synonyms: [case study, fallstudie, single case, multiple case]
+  - id: literature_review
+    label: Literature review
+    category: Sekundäranalyse
+    description: Systematische oder narrative Aufarbeitung bestehender Literatur.
+    synonyms: [literature review, systematic review, meta-analysis, literaturanalyse]
+  - id: regression
+    label: Regression analysis
+    category: Quantitative Analyse
+    description: Lineare oder logistische Regression, ANOVA/ANCOVA.
+    synonyms: [regression, ols, anova, ancova, unianova, logistic regression]
+  - id: multilevel
+    label: Multilevel analysis (HLM)
+    category: Quantitative Analyse
+    description: Hierarchische lineare Modelle für genestete Daten (z. B. Personen in Teams).
+    synonyms: [multilevel, hierarchical linear, hlm, mehrebenen, nested data, team level]
+  - id: sem
+    label: Structural equation modeling
+    category: Quantitative Analyse
+    description: SEM, PLS-SEM, konfirmatorische Faktorenanalyse.
+    synonyms: [structural equation, sem, pls-sem, smartpls, cfa, confirmatory factor]
+  - id: interrater_reliability
+    label: Interrater reliability
+    category: Messung
+    description: Übereinstimmung mehrerer Kodierer, z. B. Krippendorffs Alpha, Cohens Kappa, ICC.
+    synonyms: [interrater, inter-rater, krippendorff, kalpha, cohen's kappa, icc, rwg, reliabilität]
+  - id: mental_model_elicitation
+    label: Mental model elicitation
+    category: Messung
+    description: Methoden zur Erfassung und zum Vergleich mentaler Modelle (Causal Maps, Concept Maps, Wissenstests).
+    synonyms: [mental model, mentales modell, causal map, concept map, cognitive map, knowledge test, process knowledge test]
+  - id: system_dynamics
+    label: System dynamics
+    category: Modellierung
+    description: Simulationsmodelle mit Bestands- und Flussgrößen, Group Model Building.
+    synonyms: [system dynamics, stock and flow, group model building, vensim, feedback loop]
+  - id: qualitative_content_analysis
+    label: Qualitative content analysis
+    category: Qualitative Analyse
+    description: Kategorienbasierte Auswertung von Texten oder Transkripten.
+    synonyms: [content analysis, inhaltsanalyse, coding, kodierung, mayring, grounded theory]
