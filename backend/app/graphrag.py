@@ -21,6 +21,10 @@ class GraphRequest(BaseModel):
     system_prompt: str | None = None
     model: str | None = None
     databases: list[str] = []
+    clusters: list[int] = []                  # ausgewählte Cluster (Klick in Karte/Graph); leer = alle
+    persons: list[str] = []                   # REQ-19: nur Daten dieser Person(en)
+    projects: list[str] = []                  # REQ-12: ausgewähltes Projekt (Klick in der Karte) – nur dieses Projekt
+    overview: bool = False                    # REQ-12: nichts ausgewählt (Landkarte) – Überblick über alle Projekte/Cluster mitgeben
     deo: list[str] = []                       # aus dem UI („Discourse element“); leer = aus der Frage ableiten
     entity_types: list[str] = ["person", "organization", "project", "method"]
     relation: str | None = None               # authored | uses_method | cites | in_cluster | contains
@@ -45,11 +49,11 @@ def plan_question(req: GraphRequest, vocab: dict, filters_meta=None) -> dict:
         deo = [*deo, "BibliographicReference"]
     return {
         "deo": deo,
-        "persons": ents["person"] if "person" in want else [],
+        "persons": list(req.persons) or (ents["person"] if "person" in want else []),
         "methods": ents["method"] if "method" in want else [],
-        "projects": ents["project"] if "project" in want else [],
+        "projects": list(req.projects) or (ents["project"] if "project" in want else []),
         "databases": req.databases or ents["database"],
-        "clusters": [int(c) for c in ents["cluster"] if str(c).isdigit()],
+        "clusters": list(req.clusters) or [int(c) for c in ents["cluster"] if str(c).isdigit()],
         "year_from": req.year_from or (min(years) if years else None),
         "year_to": req.year_to or (max(years) if years else None),
         "hops": req.hops,
@@ -86,7 +90,8 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
     from .config import get_settings
     from .llm import chat_model, resolve_key
     from .memory import select_memory
-    from .prompts import resolve as resolve_prompt, system_prompt
+    from .prompts import resolve as resolve_prompt
+    from .prompts import system_prompt
     from .query_meta import vocab_from_documents
     from .rag import retrieve, standalone_query, to_sources
     from .ranking import cited_numbers
@@ -109,7 +114,7 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
         except Exception as e:
             log.warning("Graph-Abfrage fehlgeschlagen, nur Vektorsuche: %s", e)
     doc_ids = [d["doc_id"] for d in graph_docs] + [n["doc_id"] for n in neighbours]
-    filters = SearchFilters(database=plan["databases"], deo=plan["deo"] if graph_docs or not graph_ok else [],
+    filters = SearchFilters(database=plan["databases"], cluster=plan["clusters"], project=list(req.projects), person=list(req.persons), deo=plan["deo"] if graph_docs or not graph_ok else [],
                             doc_ids=doc_ids, year_from=plan["year_from"], year_to=plan["year_to"])
     creq = ChatRequest(message=search_q, filters=filters, top_k=req.top_k, model=model_name)
     hits = await retrieve(search_q, creq, key)
@@ -119,12 +124,16 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
     top = next((d for d in graph_docs if any(h.payload["doc_id"] == d["doc_id"] for h in hits)), graph_docs[0] if graph_docs else None)
     path = path_for(plan, top)
     sp_source, _, sp_id = resolve_prompt(req.system_prompt, "graph")
-    meta = {"sources": [r.model_dump() for r in sources], "path": path, "plan": {k: plan[k] for k in ("deo", "persons", "methods", "projects", "databases", "hops")},
+    meta = {"sources": [r.model_dump() for r in sources], "path": path, "plan": {k: plan[k] for k in ("deo", "persons", "methods", "projects", "databases", "clusters", "hops")},
             "graph": {"available": graph_ok, "documents": len(graph_docs), "neighbours": len(neighbours)},
             "model": model_name, "memory_turns": len(memory), "retrieval_query": search_q,
             "system_prompt_source": sp_source, "system_prompt_id": sp_id}
     yield "meta", meta
-    if not sources and not graph_docs:
+    overview = ""
+    if req.overview:
+        from .rag import scope_overview
+        overview = scope_overview(plan["databases"])
+    if not sources and not graph_docs and not overview:
         text = "I found nothing in the knowledge graph or the documents that answers this question with the current settings."
         yield "delta", {"t": text}
         yield "done", {**meta, "answer": text, "sources": [], "intent": plan["intent"], "entities": plan["entities"]}
@@ -136,7 +145,9 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
         for d in graph_docs[:6])
     ctx = "\n\n".join(f"[{r.n}] {r.title} ({r.doc_type}{', ' + r.locator if r.locator else ''}; DEO: {', '.join(h.payload.get('deo') or []) or '–'})\n{h.payload['text']}"
                       for r, h in zip(sources, hits))
-    prompt = (f"Graph path: {' '.join(x if isinstance(x, str) else f'{x[0]} [{x[1]}]' for x in path) or '–'}\n"
+    from .rag import people_context
+    who = people_context([r.project_name for r in sources] + list(req.projects), plan["persons"] if req.persons else None)
+    prompt = (f"Overview of the whole knowledge map (all projects and clusters in scope):\n{overview}\n\n" if overview else "") + who + (f"Graph path: {' '.join(x if isinstance(x, str) else f'{x[0]} [{x[1]}]' for x in path) or '–'}\n"
               f"Discourse elements asked for: {', '.join(plan['deo']) or 'any'}\n\n"
               f"Knowledge graph context:\n{graph_ctx or '–'}\n\nSources for this question:\n{ctx or '–'}\n\nQuestion: {req.message}")
     from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart

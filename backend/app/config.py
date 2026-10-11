@@ -36,8 +36,15 @@ class Settings(BaseSettings):
 
     # --- Datenbanken ------------------------------------------------------
     # Feste Liste der Datenbanken, denen Dateien zugeordnet werden (Metadatum "databases").
-    # In der .env: DATABASES=AL,DL,JSW,LDK,ML,UM
-    databases: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["AL", "DL", "JSW", "LDK", "ML", "UM"])
+    # In der .env: DATABASES=AL,CNN_DM,DL,JSW,LDK,ML,UM
+    databases: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["AL", "CNN_DM", "DL", "JSW", "LDK", "ML", "UM"])
+    # Anzeigenamen (Blumen) der Datenbanken. Die Kürzel oben bleiben die internen Schlüssel
+    # (Ordner research/<ID>/, Qdrant-Payload "databases", API-Filter); Namen erscheinen in Oberfläche,
+    # Cluster-Labels und LLM-Kontext, und Fragen dürfen beide Schreibweisen nutzen.
+    # In der .env als JSON: DATABASE_NAMES={"LDK":"Peony",...}
+    database_names: dict[str, str] = Field(default_factory=lambda: {
+        "AL": "Aster", "CNN_DM": "Camellia", "DL": "Dahlia", "JSW": "Jasmine",
+        "LDK": "Peony", "ML": "Magnolia", "UM": "Orchid"})
 
     # --- Clustering -------------------------------------------------------
     memory_max_turns: int = 20      # Gesprächsgedächtnis: so viele frühere Wechsel gehen mit jeder Frage mit
@@ -56,9 +63,10 @@ class Settings(BaseSettings):
     pseudonym_salt: str = ""      # Salt für die Pokémon-Pseudonyme in Cluster-Bezeichnungen
 
     # --- Ingestion --------------------------------------------------------
-    # Glob-Muster relativ zum Projektordner; ";"-getrennt in der .env
+    # Glob-Muster relativ zum Projektordner; ";"-getrennt in der .env.
+    # "*Literatur*/*" überspringt jeden Ordner mit "Literatur"/"Literature" im Namen, auch verschachtelt (z. B. "1-Literatur")
     project_exclude: Annotated[list[str], NoDecode] = Field(
-        default_factory=lambda: ["Literatur/**", "**/~$*", "**/.DS_Store", "**/Thumbs.db"]
+        default_factory=lambda: ["*Literatur*/*", "**/~$*", "**/.DS_Store", "**/Thumbs.db"]
     )
     # Welche Dateien eine LLM-Zusammenfassung bekommen
     enrich_scope: Literal["latest", "all", "none"] = "latest"
@@ -87,6 +95,7 @@ class Settings(BaseSettings):
         if isinstance(values, str):
             values = values.split(",")
         known = {d.lower(): d for d in self.databases}
+        known.update({n.lower(): d for d, n in self.database_names.items() if d in self.databases})  # Blumennamen
         out = []
         for v in values:
             v = v.strip()
@@ -114,3 +123,18 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def db_name(db_id: str) -> str:
+    """Anzeigename (Blume) einer Datenbank; unbekannte Kürzel bleiben unverändert."""
+    return get_settings().database_names.get(db_id, db_id)
+
+
+def db_id(value: str) -> str:
+    """Kürzel zu einem Anzeigenamen oder Kürzel (Groß-/Kleinschreibung egal); Unbekanntes bleibt unverändert."""
+    s = get_settings()
+    low = (value or "").strip().lower()
+    for i in s.databases:
+        if i.lower() == low or s.database_names.get(i, "").lower() == low:
+            return i
+    return value

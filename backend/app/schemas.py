@@ -99,6 +99,7 @@ class DocumentRecord(BaseModel):
     created: datetime | None = None
     modified: datetime | None = None
     authors: list[str] = []
+    editors: list[str] = []                     # REQ-19: names from file metadata (last saved by) – not authors
     doi: str | None = None            # aus dem Text erkannt (Paper)
     language: str | None = None
     pages: int | None = None
@@ -109,7 +110,7 @@ class DocumentRecord(BaseModel):
     summary: StructuredSummary = Field(default_factory=StructuredSummary)
     methods: list[MethodTag] = []
     keywords: list[str] = []
-    databases: list[str] = []         # AL, DL, JSW, LDK, ML, UM (eine oder mehrere)
+    databases: list[str] = []         # AL, CNN_DM, DL, JSW, LDK, ML, UM (eine oder mehrere)
     source_path: str                  # absoluter Pfad zur Originaldatei
     ingested_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -148,6 +149,8 @@ class ProjectRecord(BaseModel):
     summary: StructuredSummary = Field(default_factory=StructuredSummary)
     methods: list[MethodTag] = []
     excluded_patterns: list[str] = []
+    excluded_count: int = 0                     # files skipped by excluded_patterns (e.g. literature folders)
+    excluded_by: dict[str, int] = {}            # pattern -> number of files it excluded
     databases: list[str] = []
     ingested_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -172,6 +175,7 @@ class SearchFilters(BaseModel):
     doc_ids: list[str] = []           # nur diese Dokumente (Graph RAG grenzt so auf den Graphpfad ein)
     doc_type: list[DocType] = []
     project: list[str] = []
+    person: list[str] = []            # REQ-19: nur Daten dieser Person(en) – eigene Paper/Notizen + Projekte, in deren Team sie steht
     filetype: list[str] = []
     role: list[str] = []
     method: list[str] = []
@@ -195,6 +199,8 @@ class ChatRequest(BaseModel):
     history: list[ChatTurn] = []          # bisheriger Verlauf der Unterhaltung = Gedächtnis
     system_prompt: str | None = Field(None, max_length=8000,
                                       description="Eigener System Prompt aus dem Frontend; leer = Standard")
+    overview: bool = Field(False, description="REQ-12: map scope (nothing selected) – add an overview of all projects "
+                                              "and clusters in the selected databases, so top-level questions about all projects can be answered")
 
 
 class SourceRef(BaseModel):

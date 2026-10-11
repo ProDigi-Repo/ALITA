@@ -90,7 +90,7 @@ def main() -> None:
     a = ap.parse_args()
     if a.action == "export":
         export(a.dir)
-        print(f"Fertig. Ordner ./migrate auf den Server kopieren und dort: docker compose run --rm migrate import")
+        print("Fertig. Ordner ./migrate auf den Server kopieren und dort: docker compose run --rm migrate import")
     else:
         import_(a.dir, graph=not a.no_graph)
         print("Fertig.")

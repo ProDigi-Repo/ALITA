@@ -1,0 +1,56 @@
+/* ===== "Window to the outside" (REQ-20) – placeholder: an animated desert construction site ===== */
+.bq-body.desert{position:relative;padding:0;overflow:hidden;background:#fbe3b8;gap:0}
+.desert .dz{position:absolute;inset:0;width:100%;height:100%;display:block}
+.desert .dz-card{position:absolute;left:14px;top:14px;max-width:min(400px,calc(100% - 28px));display:flex;flex-direction:column;gap:3px;
+  padding:9px 12px;border-radius:10px;background:rgb(255 255 255 / .82);backdrop-filter:blur(3px);border:1px solid rgb(0 0 0 / .08);
+  box-shadow:0 4px 14px rgb(120 80 20 / .15);font-size:12.5px;line-height:1.45;color:#4a3a28}
+.desert .dz-card>b{font-size:13.5px;color:#2b2016}
+.desert .dz-card span b{font-weight:600;color:#2b2016}
+.desert .dz-steps{margin:4px 0 2px;padding-left:18px;display:flex;flex-direction:column;gap:1px}
+.desert .dz-card small{font-size:11px;color:#7a6346;font-style:italic}
+
+/* transforms in SVG: rotate around points given in the element's own coordinates */
+.dz *{transform-box:view-box}
+.dz-sun{transform-origin:640px 88px;animation:dzSun 5s ease-in-out infinite alternate}
+@keyframes dzSun{to{transform:scale(1.07)}}
+.dz-cloud{animation:dzCloud 70s linear infinite}
+.dz-cloud2{animation-duration:48s;animation-delay:-20s}
+@keyframes dzCloud{from{transform:translateX(-260px)}to{transform:translateX(860px)}}
+.dz-birds{animation:dzBirds 26s linear infinite}
+@keyframes dzBirds{from{transform:translate(-80px,96px)}50%{transform:translate(380px,70px)}to{transform:translate(880px,90px)}}
+.dz-d1{animation:dzDune 16s ease-in-out infinite alternate}
+.dz-d2{animation:dzDune 11s ease-in-out infinite alternate-reverse}
+@keyframes dzDune{from{transform:translateX(-14px)}to{transform:translateX(14px)}}
+
+/* excavator: boom, stick and bucket dig in a loop; dust puffs when the bucket hits the ground */
+.dz-boom{transform-origin:54px 34px;animation:dzBoom 5.2s ease-in-out infinite}
+.dz-stick{transform-origin:4px -22px;animation:dzStick 5.2s ease-in-out infinite}
+.dz-bucket{transform-origin:-30px 26px;animation:dzBucket 5.2s ease-in-out infinite}
+@keyframes dzBoom{0%,100%{transform:rotate(-10deg)}35%{transform:rotate(8deg)}55%{transform:rotate(8deg)}80%{transform:rotate(-16deg)}}
+@keyframes dzStick{0%,100%{transform:rotate(-12deg)}35%{transform:rotate(14deg)}55%{transform:rotate(22deg)}80%{transform:rotate(-6deg)}}
+@keyframes dzBucket{0%,100%{transform:rotate(-20deg)}35%{transform:rotate(10deg)}55%{transform:rotate(40deg)}80%{transform:rotate(30deg)}}
+.dz-dust{opacity:0;transform-origin:296px 326px;animation:dzDust 5.2s ease-out infinite}
+@keyframes dzDust{0%,30%{opacity:0;transform:scale(.4)}38%{opacity:.9;transform:scale(1)}60%{opacity:0;transform:scale(1.8) translateY(-6px)}100%{opacity:0}}
+.dz-exc{animation:dzRumble .18s linear infinite alternate}
+@keyframes dzRumble{from{translate:0 0}to{translate:0 .6px}}
+.dz-beacon,.dz-blink{animation:dzBlink 1s steps(1) infinite}
+.dz-blink2{animation-delay:.5s}
+@keyframes dzBlink{50%{opacity:.15}}
+
+/* sign wobbling in the wind, tumbleweed rolling through, blowing sand */
+.dz-sign{transform-origin:30px 64px;animation:dzSign 3.4s ease-in-out infinite alternate}
+@keyframes dzSign{from{transform:rotate(-3deg)}to{transform:rotate(3deg)}}
+.dz-tumble{animation:dzTumble 9s linear infinite}
+@keyframes dzTumble{0%{transform:translate(-40px,352px)}15%{transform:translate(90px,340px)}22%{transform:translate(150px,352px)}
+  40%{transform:translate(320px,346px)}48%{transform:translate(390px,356px)}70%{transform:translate(590px,344px)}78%{transform:translate(660px,356px)}100%{transform:translate(860px,350px)}}
+.dz-roll{transform-box:fill-box;transform-origin:center;animation:dzRoll 1.1s linear infinite}
+@keyframes dzRoll{to{transform:rotate(360deg)}}
+.dz-sand{animation:dzSand 5s linear infinite}
+@keyframes dzSand{0%{transform:translateX(-40px);opacity:0}10%{opacity:.9}90%{opacity:.9}100%{transform:translateX(820px);opacity:0}}
+
+@media (prefers-reduced-motion:reduce){
+  .dz *,.dz{animation:none!important}
+  .dz [filter]{filter:none}
+  .dz-tumble{transform:translate(120px,350px)}
+  .dz-dust{opacity:0}
+}

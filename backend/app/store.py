@@ -180,6 +180,41 @@ def get_project(name: str) -> dict | None:
     return pts[0].payload if pts else None
 
 
+def set_project_team(name: str, team: list[str]) -> dict[str, list[str]]:
+    """REQ-19: Team als Autor:innen des Projekts und aller seiner Dateien; bisherige Metadaten-Namen bleiben als editors.
+    Liefert doc_id -> editors (für den Graphen)."""
+    from .people import clean_people
+
+    s, c = get_settings(), client()
+    if c.retrieve(s.col_projects, [make_project_id(name)]):
+        c.set_payload(s.col_projects, {"authors": team}, points=[make_project_id(name)])
+    flt = qm.Filter(must=[qm.FieldCondition(key="project_name", match=qm.MatchValue(value=name))])
+    editors: dict[str, list[str]] = {}
+    groups: dict[tuple, list[str]] = {}
+    for d in scroll_documents(flt):
+        ed = clean_people(d["editors"] if "editors" in d else d.get("authors"))   # alte Einträge: authors waren Metadaten
+        editors[d["doc_id"]] = ed
+        groups.setdefault(tuple(ed), []).append(d["doc_id"])
+    for ed, ids in groups.items():
+        c.set_payload(s.col_documents, {"authors": team, "editors": list(ed)}, points=ids)
+    return editors
+
+
+def clean_document_authors() -> int:
+    """REQ-19: Autor:innen von Papern/Notizen um Metadaten-Müll bereinigen ('M', 'Microsoft Office User', …)."""
+    from .people import clean_people
+
+    s, c = get_settings(), client()
+    n = 0
+    for d in scroll_documents():
+        if d.get("project_name") or "editors" in d:
+            continue
+        a = clean_people(d.get("authors"))
+        c.set_payload(s.col_documents, {"authors": a, "editors": []}, points=[d["doc_id"]])
+        n += 1
+    return n
+
+
 def set_databases(databases: list[str], *, doc_ids: list[str] | None = None, project_name: str | None = None) -> int:
     """Datenbank-Zuordnung nachträglich ändern – in documents, chunks (und ggf. projects)."""
     s, c = get_settings(), client()
@@ -222,16 +257,21 @@ def set_summary_vector(kind: str, point_id: str, vector: list[float], key: str) 
 
 
 CLUSTER_FIELDS = ["cluster_id", "cluster_label", "cluster_score", "cluster_k", "cluster_run", "cluster_basis",
-                  "cluster_x", "cluster_y", "cluster_alt_id", "cluster_alt_score", "cluster_title", "cluster_description"]
+                  "cluster_x", "cluster_y", "cluster_alt_id", "cluster_alt_score", "cluster_title", "cluster_title_source", "cluster_description",
+                  "cluster_insights", "cluster_analyses", "cluster_theories", "cluster_contribution", "cluster_anchor"]
 
 
-def set_cluster_payload(assigned: dict[str, dict], run: str, projects: dict[str, dict] | None = None) -> None:
-    """Schreibt Cluster-Metadaten an Dokumente, deren Chunks und Projekte; alles ohne Cluster wird geleert."""
+def set_cluster_payload(assigned: dict[str, dict], run: str, projects: dict[str, dict] | None = None,
+                        scope: tuple[set[str], set[str]] | None = None) -> None:
+    """Schreibt Cluster-Metadaten an Dokumente, deren Chunks und Projekte; alles ohne Cluster wird geleert.
+    scope = (doc_ids, Projektnamen): nur innerhalb dieser Auswahl leeren (Clustering einer einzelnen Datenbank)."""
     s, c = get_settings(), client()
     for p in list_projects():
+        if scope is not None and p["name"] not in scope[1]:
+            continue
         meta = (projects or {}).get(p["name"])
         if meta:
-            c.set_payload(s.col_projects, {k: meta[k] for k in CLUSTER_FIELDS}, points=[meta["project_id"]])
+            c.set_payload(s.col_projects, {k: meta.get(k) for k in CLUSTER_FIELDS}, points=[meta["project_id"]])
         elif p.get("cluster_id") is not None:
             c.set_payload(s.col_projects, {k: None for k in CLUSTER_FIELDS} | {"cluster_run": run}, points=[p["project_id"]])
     for doc_id, meta in assigned.items():
@@ -239,6 +279,7 @@ def set_cluster_payload(assigned: dict[str, dict], run: str, projects: dict[str,
         chunk_meta = {k: meta[k] for k in ("cluster_id", "cluster_label")}
         flt = qm.Filter(must=[qm.FieldCondition(key="doc_id", match=qm.MatchValue(value=doc_id))])
         c.set_payload(s.col_chunks, chunk_meta, points=qm.FilterSelector(filter=flt))
-    stale = [d["doc_id"] for d in scroll_documents() if d["doc_id"] not in assigned and d.get("cluster_id") is not None]
+    stale = [d["doc_id"] for d in scroll_documents() if d["doc_id"] not in assigned and d.get("cluster_id") is not None
+             and (scope is None or d["doc_id"] in scope[0])]
     if stale:
         c.set_payload(s.col_documents, {k: None for k in CLUSTER_FIELDS} | {"cluster_run": run}, points=stale)

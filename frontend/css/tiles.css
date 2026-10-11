@@ -1,0 +1,126 @@
+/* ===== Tile identity: Document Chat = blue, Graph Chat = orange (unmistakable) ===== */
+:root{--c1:#1d5fd1;--c1-tint:#eef4ff;--c2:#d9480f;--c2-tint:#fff2e8}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--c1:#3b82f6;--c1-tint:#0f1b31;--c2:#f0712f;--c2-tint:#2a1609}}
+:root[data-theme="dark"]{--c1:#3b82f6;--c1-tint:#0f1b31;--c2:#f0712f;--c2-tint:#2a1609}
+.t-rag{--acc:var(--c1);--acc-soft:var(--c1-tint)}
+.t-graph{--acc:var(--c2);--acc-soft:var(--c2-tint)}
+.tile.t-rag,.tile.t-graph{border:2px solid var(--acc)}
+.tile .tile-head{background:var(--acc);color:#fff;border-bottom:0;padding:10px 14px}
+.tile-head .badge{background:#fff!important;color:var(--acc)!important;font-weight:700}
+.tile-head p{color:rgb(255 255 255 / .88)}
+.tile-head .tnum{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#fff;color:var(--acc);font-family:var(--f-mono);font-weight:700;font-size:14px;flex-shrink:0}
+.tile-head .ticon{display:inline-flex;color:#fff}
+.tile-head .hbtn{background:rgb(255 255 255 / .16);border-color:rgb(255 255 255 / .45);color:#fff}
+.tile-head .hbtn:hover{background:#fff;color:var(--acc);border-color:#fff}
+.tile.t-rag .filters,.tile.t-graph .filters{background:var(--acc-soft)}
+/* Both tile headers exactly the same height, nothing wraps (v0.19.0) */
+.tile .tile-head{height:54px;flex-wrap:nowrap;box-sizing:border-box}
+.tile-head .badge{white-space:nowrap;flex-shrink:0}
+.tile-head h2{flex-shrink:0}
+.tile-head p{flex:1 1 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:560px){.tile .tile-head{height:auto;flex-wrap:wrap}}
+.ainote{margin:0;padding:6px 16px 8px;font-size:11.5px;color:var(--muted);display:flex;gap:6px;align-items:baseline}
+.ainote b{color:var(--acc);font-weight:600}
+
+/* REQ-11 (instead of one merged chat): what A and B do – a note above each chat window */
+.why-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;flex:none;margin-bottom:14px}
+@media (max-width:980px){.why-row{grid-template-columns:1fr}}
+.chat-why{display:flex;gap:10px;align-items:flex-start;margin:0;padding:9px 12px;border-radius:10px;border:1px solid var(--line);border-left:4px solid var(--cw);background:var(--panel);font-size:12.5px;line-height:1.5;color:var(--fg)}
+.chat-why.cw-a{--cw:var(--c1)}.chat-why.cw-b{--cw:var(--c2)}
+.chat-why .cw-tag{flex:none;display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--cw);color:#fff;font-family:Georgia,"Times New Roman",serif;font-style:italic;font-weight:700;font-size:13px;margin-top:1px}
+.chat-why p{margin:0}
+.chat-why b{font-weight:600}
+.chat-why q{font-style:italic;quotes:"„" "“"}
+.chat-why .cw-alt{color:var(--muted)}
+#page-graph .bq-chat{flex-direction:column;gap:14px}
+#page-graph .bq-chat>.chat-why{flex:none;padding:7px 10px;font-size:12px}
+
+/* info sign: pulses on hover, a click lets a mini ALITA pop out */
+.chat-why{position:relative}
+button.cw-tag{border:0;padding:0;cursor:pointer;position:relative}
+button.cw-tag::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--cw);opacity:0;pointer-events:none}
+button.cw-tag:hover,button.cw-tag:focus-visible{animation:cwPulse 1.1s ease-in-out infinite}
+button.cw-tag:hover::after,button.cw-tag:focus-visible::after{animation:cwRing 1.1s ease-out infinite}
+@keyframes cwPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
+@keyframes cwRing{0%{opacity:.7;transform:scale(.8)}100%{opacity:0;transform:scale(1.7)}}
+.cw-pop{position:fixed;z-index:80;display:flex;align-items:center;gap:4px;pointer-events:auto;transition:left .85s cubic-bezier(.45,.05,.3,1),top .85s cubic-bezier(.45,.05,.3,1)}
+.cw-pop.flip{flex-direction:row-reverse}
+.cw-pop.flip .cw-say::before{left:auto;right:-6px;border-left:0;border-bottom:0;border-right:1px solid var(--cw);border-top:1px solid var(--cw)}
+.cw-pop.cw-a{--cw:var(--c1)}.cw-pop.cw-b{--cw:var(--c2)}
+.cw-fig{width:92px;height:118px;flex:none;filter:drop-shadow(0 8px 10px rgb(0 0 0 / .25));transition:transform .4s}
+.cw-fig.landed{animation:cwBob 2.6s ease-in-out infinite}
+.cw-fig.flying{transform:rotate(-12deg) scale(.92)}
+.cw-fig svg{display:block;width:92px;height:118px;overflow:visible}
+.cw-fig .cw-wave{transform-box:view-box;transform-origin:73px 92px;animation:cwWave .5s ease-in-out 1.1s 7 alternate}
+.cw-fig .cw-wingL{transform-box:view-box;transform-origin:47px 102px;animation:cwFlapL .22s ease-in-out infinite alternate}
+.cw-fig .cw-wingR{transform-box:view-box;transform-origin:73px 102px;animation:cwFlapR .22s ease-in-out infinite alternate}
+.cw-fig .cw-disc{transform-box:fill-box;transform-origin:center;animation:cwDisc 1.2s ease-in-out infinite alternate}
+.cw-fig .cw-spark{animation:cwTwinkle .9s ease-in-out infinite alternate}
+.cw-say{position:relative;max-width:250px;padding:7px 10px;border-radius:10px;background:var(--panel);border:1px solid var(--cw);box-shadow:0 6px 18px rgb(0 0 0 / .15);font-size:12px;line-height:1.4;color:var(--fg);
+  animation:cwSay .35s ease-out 1s both}
+.cw-say::before{content:"";position:absolute;left:-6px;top:50%;margin-top:-5px;width:10px;height:10px;background:var(--panel);border-left:1px solid var(--cw);border-bottom:1px solid var(--cw);transform:rotate(45deg)}
+.cw-pop.out{animation:cwOut .3s ease-in both}
+@keyframes cwFly{0%{transform:translateY(calc(-1 * var(--fly))) rotate(-14deg);opacity:0}12%{opacity:1}72%{transform:translateY(10px) rotate(4deg)}86%{transform:translateY(-5px) rotate(-1deg)}100%{transform:none}}
+@keyframes cwBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@keyframes cwWave{from{transform:rotate(-14deg)}to{transform:rotate(16deg)}}
+@keyframes cwFlapL{from{transform:scaleX(1)}to{transform:scaleX(.62) rotate(6deg)}}
+@keyframes cwFlapR{from{transform:scaleX(1)}to{transform:scaleX(.62) rotate(-6deg)}}
+@keyframes cwDisc{from{transform:scaleX(.85);opacity:.7}to{transform:scaleX(1.08);opacity:1}}
+@keyframes cwTwinkle{from{opacity:.35}to{opacity:1}}
+@keyframes cwSay{from{opacity:0;transform:translateX(-8px) scale(.9)}to{opacity:1;transform:none}}
+@keyframes cwOut{to{opacity:0;transform:translateY(-30px) scale(.8)}}
+@media (prefers-reduced-motion:reduce){button.cw-tag:hover,button.cw-tag:hover::after,.cw-fig.landed,.alita-spot,.cw-fig .cw-wave,.cw-fig .cw-wingL,.cw-fig .cw-wingR,.cw-fig .cw-disc,.cw-fig .cw-spark,.cw-say,.cw-pop.out{animation:none!important}}
+
+/* chatting with ALITA: a small input in her speech bubble */
+.cw-ask{display:flex;gap:4px;margin-top:6px}
+.cw-ask input{flex:1;min-width:0;border:1px solid var(--line);border-radius:999px;padding:4px 10px;font:inherit;font-size:12px;background:var(--sunk);color:var(--fg);outline:none}
+.cw-ask input:focus{border-color:var(--cw);box-shadow:0 0 0 2px color-mix(in srgb,var(--cw) 25%,transparent)}
+.cw-ask button{flex:none;width:26px;height:26px;border:0;border-radius:50%;background:var(--cw);color:#fff;cursor:pointer;font-size:11px}
+.cw-say{min-width:230px;transition:opacity .3s}
+.cw-msg .cw-step{display:block;font-size:12.5px;margin-bottom:2px;color:var(--cw)}
+.cw-nav{display:flex;align-items:center;gap:6px;margin-top:7px}
+.cw-nav .cw-count{font-family:var(--f-mono);font-size:10.5px;color:var(--muted);margin-right:auto}
+.cw-nav button{border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:999px;padding:2px 10px;font:inherit;font-size:11.5px;cursor:pointer}
+.cw-nav button:hover{border-color:var(--cw)}
+.cw-nav .cw-next,.cw-nav .cw-tour{background:var(--cw);border-color:var(--cw);color:#fff}
+.cw-nav .cw-tour{margin-left:auto}
+/* the function ALITA is showing */
+.alita-spot{outline:3px solid #ff9be6!important;outline-offset:3px;border-radius:10px;animation:alitaSpot 1.4s ease-in-out infinite}
+@keyframes alitaSpot{0%,100%{outline-color:#ff9be6}50%{outline-color:#3df2ff}}
+
+.cw-say{max-width:300px}
+.cw-ab{display:block;margin-top:5px;padding-left:22px;position:relative}
+.cw-ab>i{position:absolute;left:0;top:1px;width:16px;height:16px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-family:var(--f-mono);font-size:10px;font-weight:700;color:#fff}
+.cw-ab>i.cw-a1{background:var(--c1)}.cw-ab>i.cw-b1{background:var(--c2)}
+.cw-tip{display:block;margin-top:6px;color:var(--muted);font-style:italic}
+.cw-nav .cw-diff{margin-left:auto}
+.cw-nav .cw-diff+.cw-tour{margin-left:0}
+.cw-say .cw-nav+.cw-ask{margin-top:7px}
+
+/* while the mini ALITA is out, the big avatar in the database bar is empty */
+#avatar{transition:opacity .35s ease}
+#avatar.alita-away{opacity:0;pointer-events:none}
+
+/* REQ-12: the current chat scope, right above the input */
+.composer{flex-wrap:wrap}
+.chat-scope{flex:1 0 100%;font-size:11.5px;color:var(--muted);line-height:1.5;padding:0 2px}
+.chat-scope b{color:var(--fg);font-weight:600}
+.chat-scope .sc-pj{color:var(--t-project);font-weight:600}
+.chat-scope .sc-cl{display:inline-block;font-family:var(--f-mono);font-size:10.5px;color:#fff;background:hsl(var(--h) 55% 45%);border-radius:999px;padding:0 6px}
+.chat-scope[data-kind="map"]::before{content:"🗺 "}
+
+/* REQ-19: person scope in the chat scope line + people links + project team */
+.chat-scope .sc-people{display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;vertical-align:middle}
+.chat-scope .sc-person{display:inline-flex;align-items:center;gap:2px;font-size:11px;font-weight:600;color:var(--fg);background:color-mix(in srgb,var(--accent,#6b5bd6) 14%,transparent);border-radius:999px;padding:0 2px 0 7px}
+.chat-scope .sc-px{border:0;background:none;color:var(--muted);cursor:pointer;font-size:13px;line-height:1;padding:0 4px;border-radius:999px}
+.chat-scope .sc-px:hover{color:var(--fg);background:rgb(0 0 0 / .08)}
+.chat-scope .sc-addp{border:1px dashed var(--line,#ccc);background:none;color:var(--muted);border-radius:999px;font-size:11px;padding:0 8px;cursor:pointer;line-height:1.6}
+.chat-scope .sc-addp:hover{color:var(--fg);border-color:var(--muted)}
+.chat-scope .sc-pin{font:inherit;font-size:11.5px;padding:1px 8px;border-radius:999px;border:1px solid var(--muted);background:var(--bg,#fff);color:var(--fg);width:200px}
+.plink{border:0;background:color-mix(in srgb,var(--accent,#6b5bd6) 10%,transparent);color:inherit;font:inherit;border-radius:999px;padding:0 8px;cursor:pointer;margin:0 2px 2px 0}
+.plink:hover{background:color-mix(in srgb,var(--accent,#6b5bd6) 22%,transparent)}
+.pteam-edit{border:0;background:none;color:var(--muted);font:inherit;font-size:11.5px;cursor:pointer;padding:0 4px}
+.pteam-edit:hover{color:var(--fg);text-decoration:underline}
+.pteam-form{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.pteam-form input{flex:1 1 220px;font:inherit;padding:4px 8px;border-radius:8px;border:1px solid var(--line,#ccc);background:var(--bg,#fff);color:var(--fg)}
+.pteam-form .srcnote{flex-basis:100%}

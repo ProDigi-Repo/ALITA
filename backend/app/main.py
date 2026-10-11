@@ -18,8 +18,8 @@ from fastapi.staticfiles import StaticFiles
 from . import rag, store
 from .config import get_settings
 from .glossary import load_glossary
-from .ingest import IngestOptions, ingest_file, ingest_project
 from .graphrag import GraphRequest
+from .ingest import IngestOptions, ingest_file, ingest_project
 from .llm import MissingApiKey, resolve_key
 
 log = logging.getLogger("alita.api")
@@ -41,13 +41,45 @@ JOBS: dict[str, dict] = {}
 def _startup() -> None:
     get_settings().data_dir.mkdir(parents=True, exist_ok=True)
     store.ensure_collections()
+    import threading
+    threading.Thread(target=_migrate_people, daemon=True).start()
+
+
+def _migrate_people() -> None:
+    """REQ-19 (einmalig): Metadaten-Namen von Projektdateien -> editors, Autor:innen = Projektteam; Müll-Namen entfernen."""
+    from pathlib import Path
+
+    from .people import team_for
+    flag = get_settings().data_dir / ".req19_people_v1"
+    if flag.exists():
+        return
+    try:
+        for p in store.list_projects():
+            team = team_for(p["name"], Path(p["source_path"]) if p.get("source_path") else None)
+            editors = store.set_project_team(p["name"], team)
+            _graph_team(p["name"], team, editors)
+        n = store.clean_document_authors()
+        if get_settings().graph_enabled:
+            from . import graph
+            log.info("REQ-19 Personen im Graphen: %s", graph.clean_persons())
+        flag.write_text("done", encoding="utf-8")
+        log.info("REQ-19: Projektteams übernommen, %d Paper/Notizen bereinigt", n)
+    except Exception as e:  # Qdrant/Neo4j noch nicht bereit: beim nächsten Start erneut
+        log.warning("REQ-19 Migration übersprungen: %s", e)
+
+
+def _graph_team(name: str, team: list[str], editors: dict) -> None:
+    if not get_settings().graph_enabled:
+        return
+    from . import graph
+    graph.set_team(name, team, editors)
 
 
 @app.get("/api/health")
 def health() -> dict:
     s = get_settings()
     return {"status": "ok", "version": __version__, "chat_model": s.chat_model, "embedding_model": s.embedding_model,
-            "server_key": False, "key_source": "interface", "databases": s.databases}
+            "server_key": False, "key_source": "interface", "databases": s.databases, "database_names": s.database_names}
 
 
 # ------------------------------------------------------------------ Chat
@@ -157,14 +189,14 @@ def _filters(database, doc_type, project, filetype, role, method, year_from, yea
 
 
 LIST_FIELDS = ["doc_id", "databases", "cluster_id", "cluster_label", "cluster_score", "cluster_basis",
-               "cluster_x", "cluster_y", "cluster_alt_id", "cluster_alt_score", "cluster_title", "cluster_description", "doc_type", "title", "filename", "filetype", "date", "date_source", "year", "size_bytes",
+               "cluster_x", "cluster_y", "cluster_alt_id", "cluster_alt_score", "cluster_title", "cluster_description", "cluster_contribution", "cluster_anchor", "doc_type", "title", "filename", "filetype", "date", "date_source", "year", "size_bytes",
                "project_name", "role", "venue", "stage", "is_latest", "archived", "indexed", "index_note",
-               "method_ids", "language", "pages", "doi", "authors"]
+               "method_ids", "language", "pages", "doi", "authors", "editors"]
 
 
 @app.get("/api/documents")
 def list_documents(
-    database: Annotated[list[str] | None, Query(description="AL, DL, JSW, LDK, ML, UM")] = None,
+    database: Annotated[list[str] | None, Query(description="AL, CNN_DM, DL, JSW, LDK, ML, UM")] = None,
     cluster: Annotated[list[int] | None, Query(description="cluster ids")] = None,
     doc_type: Annotated[list[DocType] | None, Query()] = None,
     project: Annotated[list[str] | None, Query()] = None,
@@ -230,14 +262,18 @@ def clusters():
         if c is not None:
             if r and not c.get("description") and r.get("cluster_description"):
                 c["title"], c["description"] = r.get("cluster_title"), r.get("cluster_description")
+            elif r and not c.get("title") and r.get("cluster_title"):
+                c["title"] = r.get("cluster_title")
             return c
         return out.setdefault(cid, {"cluster_id": cid, "label": label, "title": (r or {}).get("cluster_title"),
                                     "description": (r or {}).get("cluster_description"), "size": 0, "inherited_files": 0,
-                                    "doc_types": Counter(), "projects": [], "databases": Counter()})
+                                    "doc_types": Counter(), "projects": [], "databases": Counter(), "contributions": Counter()})
     for r in rows:
         c = slot(r["cluster_id"], r.get("cluster_label"), r)
         if r.get("cluster_basis") == "project" or r.get("cluster_score") is None:
             c["inherited_files"] += 1
+            if r.get("cluster_contribution"):
+                c["contributions"][r["cluster_contribution"]] += 1
             continue
         c["size"] += 1
         c["doc_types"][r.get("doc_type")] += 1
@@ -248,6 +284,20 @@ def clusters():
         c["doc_types"]["research_project"] += 1
         c["projects"].append(p["name"])
         c["databases"].update(p.get("databases") or [])
+    from .cluster_profile import profile
+    try:
+        labels = {m.id: m.label for m in load_glossary(str(get_settings().glossary_path)).methods}
+    except Exception:
+        labels = {}
+    for cid, c in out.items():
+        members = [r for r in rows if r["cluster_id"] == cid and r.get("cluster_basis") == "summary"] + [p for p in projects if p["cluster_id"] == cid]
+        llm = next(({"insights": m.get("cluster_insights"), "analyses": m.get("cluster_analyses"), "theories": m.get("cluster_theories")}
+                    for m in members if m.get("cluster_insights") or m.get("cluster_analyses")), None)
+        try:
+            c["profile"] = profile(members, llm, labels)
+        except Exception:   # Profil ist Zusatz: nie die Cluster-Liste blockieren
+            log.exception("cluster profile C%s failed", cid)
+            c["profile"] = None
     run = max((r.get("cluster_run") or "" for r in [*rows, *projects]), default=None)
     return {"run": run, "k": len(out), "basis": "summary", "clusters": sorted(out.values(), key=lambda c: c["cluster_id"]),
             "links": _links([*[r for r in rows if r.get("cluster_basis") == "summary"], *projects])}
@@ -255,10 +305,15 @@ def clusters():
 
 
 @app.post("/api/clusters/recompute")
-async def recompute_clusters(k: int = 0, x_key: KeyHeader = None):
-    """Clustert alle eingebetteten Dokumente neu (k=0: Anzahl automatisch per Silhouette)."""
+async def recompute_clusters(k: int = 0, x_key: KeyHeader = None,
+                             database: Annotated[list[str] | None, Query(description="nur diese Datenbank(en) clustern, z. B. JSW")] = None,
+                             project_files: bool = False):
+    """Clustert alle eingebetteten Dokumente neu (k=0: Anzahl automatisch per Silhouette).
+    database=JSW: nur Dokumente dieser Datenbank; Cluster der anderen Datenbanken bleiben unverändert."""
     from .clustering import recompute
-    return await recompute(k or get_settings().cluster_k or None, x_key)
+    return await recompute(k or get_settings().cluster_k or None, x_key,
+                           databases=get_settings().normalize_databases(database) if database else None,
+                           project_files=project_files)
 
 
 @app.get("/api/databases")
@@ -293,9 +348,61 @@ def assign_project(name: str, body: DatabaseAssignment):
     return {"updated": n}
 
 
+class TeamAssignment(BaseModel):
+    team: list[str] = []
+
+
+@app.put("/api/projects/{name}/team")
+def assign_team(name: str, body: TeamAssignment):
+    """REQ-19: kuratiertes Projektteam – Autor:innen des Projekts und aller seiner Dateien (Metadaten-Namen bleiben 'editors')."""
+    from .people import save_team
+    if not store.get_project(name):
+        raise HTTPException(404, "Project not found")
+    team = save_team(name, body.team)
+    editors = store.set_project_team(name, team)
+    graph_ok = True
+    try:
+        _graph_team(name, team, editors)
+    except Exception as e:
+        log.warning("Team im Graphen nicht gesetzt: %s", e)
+        graph_ok = False
+    return {"project": name, "team": team, "documents": len(editors), "graph": graph_ok}
+
+
+@app.get("/api/people")
+def people(database: Annotated[list[str] | None, Query()] = None):
+    """REQ-19: Personen für den Personen-Filter – Projektteams und Autor:innen von Papern/Notizen (ohne Datei-Bearbeiter:innen)."""
+    from .people import people_index
+    docs = store.scroll_documents()
+    return people_index(docs, store.list_projects(), _dbs(database))
+
+
+_EXCL_CACHE: dict[str, tuple[float, int, dict]] = {}
+
+
+def _with_excluded(p: dict) -> dict:
+    """REQ-08: number of files the exclusion rules skip, counted in the project folder (cached 5 min);
+    falls back to the count stored at ingestion when the folder is not reachable."""
+    import time
+    from pathlib import Path
+
+    from .ingest import count_excluded
+    src, pats = p.get("source_path"), p.get("excluded_patterns") or get_settings().project_exclude
+    try:
+        if src and Path(src).is_dir():
+            hit = _EXCL_CACHE.get(src)
+            if not hit or time.time() - hit[0] > 300:
+                n, by = count_excluded(Path(src), pats)
+                hit = _EXCL_CACHE[src] = (time.time(), n, by)
+            p = {**p, "excluded_count": hit[1], "excluded_by": hit[2]}
+    except Exception as e:  # the count is informative only
+        log.warning("Excluded files of %s not counted: %s", src, e)
+    return p
+
+
 @app.get("/api/projects")
 def projects():
-    return store.list_projects()
+    return [_with_excluded(p) for p in store.list_projects()]
 
 
 @app.get("/api/projects/{name}")
@@ -303,7 +410,7 @@ def project_detail(name: str):
     p = store.get_project(name)
     if not p:
         raise HTTPException(404, "Project not found")
-    return p
+    return _with_excluded(p)
 
 
 @app.get("/api/export")

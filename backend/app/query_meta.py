@@ -58,6 +58,9 @@ def detect_entities(q: str, vocab: dict[str, list[str]] | None = None, filters=N
     seen = set()
 
     def add(t, v):
+        if t == "database":   # Blumenname oder Kürzel -> internes Kürzel
+            from .config import db_id
+            v = db_id(v)
         key = (t, v.lower())
         if key not in seen:
             seen.add(key)
@@ -105,4 +108,5 @@ def vocab_from_documents(rows: list[dict], databases: list[str]) -> dict[str, li
 
     g = load_glossary(str(get_settings().glossary_path))
     methods = [m.label for m in g.methods] + [s for m in g.methods for s in m.synonyms if len(s) > 4]
-    return {"database": databases, "project": sorted(p for p in projects if p), "person": sorted(persons), "method": methods}
+    names = [get_settings().database_names.get(d, "") for d in databases]
+    return {"database": [*databases, *(n for n in names if n)], "project": sorted(p for p in projects if p), "person": sorted(persons), "method": methods}
