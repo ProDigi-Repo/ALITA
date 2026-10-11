@@ -124,3 +124,15 @@ button.cw-tag:hover::after,button.cw-tag:focus-visible::after{animation:cwRing 1
 .pteam-form{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .pteam-form input{flex:1 1 220px;font:inherit;padding:4px 8px;border-radius:8px;border:1px solid var(--line,#ccc);background:var(--bg,#fff);color:var(--fg)}
 .pteam-form .srcnote{flex-basis:100%}
+/* ALITA's upload report */
+.cw-notice .cw-say{width:320px}
+.cw-msg .cw-big{font-size:15px;color:#c25bff}
+.cw-msg .cw-bad{color:#d9480f;font-weight:600}
+.cw-msg small{color:var(--muted);font-size:11px}
+/* cost of a chat turn */
+.cost{display:inline-flex;align-items:baseline;gap:5px;font-size:11px;color:var(--muted);background:color-mix(in srgb,var(--fg) 5%,transparent);border-radius:999px;padding:1px 8px;white-space:nowrap;cursor:help;font-variant-numeric:tabular-nums}
+.cost small{font-size:10px;opacity:.85}
+.actions .cost-a{margin-left:auto;align-self:center}
+.cost-row{display:flex;justify-content:flex-end;margin-top:3px}
+.gs-q .cost{margin-top:3px;align-self:flex-start;background:none;padding:0}
+.gside .gs-q .cost{display:flex;width:max-content}

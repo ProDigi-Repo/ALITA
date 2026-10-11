@@ -142,9 +142,26 @@
     place(left,top,flip);greet();morphIn();
   }
   document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('.chat-why .cw-tag');if(b){e.preventDefault();open(b);return}
-    if(!A||A.tour)return;if(e.composedPath().includes(A.el)||!document.contains(e.target))return;   // clicks inside her bubble (even on buttons replaced meanwhile) keep her
+    if(!A||A.tour||A.sticky)return;if(e.composedPath().includes(A.el)||!document.contains(e.target))return;   // clicks inside her bubble (even on buttons replaced meanwhile) keep her
     leave()});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&A)leave();if(A&&A.tour&&(e.key==='ArrowRight'||e.key==='ArrowLeft')&&!(e.target&&e.target.tagName==='INPUT')){const i=A.tour.i+(e.key==='ArrowRight'?1:-1);if(i>=0&&i<A.tour.steps.length)showStep(i)}});
   addEventListener('scroll',e=>{if(!A||A.tour||A.keep)return;if(e.target&&e.target.closest&&e.target.closest('.cw-pop'))return;leave()},true);
+  /* ALITA with a message of her own (e.g. after an upload): she morphs out of the avatar, lands below the database bar
+     and stays until "OK" (or Esc) */
+  window.alitaSay=(html,o={})=>{
+    if(A){const c=A;A=null;clearTimeout(c.t);if(c.spot)c.spot.classList.remove('alita-spot');c.el.remove()}
+    const el=document.createElement('div');el.className='cw-pop cw-b cw-notice';el.setAttribute('role','alertdialog');el.setAttribute('aria-label','ALITA');
+    const fig=document.createElement('div');fig.className='cw-fig';fig.appendChild(figure());
+    const say=document.createElement('div');say.className='cw-say';
+    el.append(fig,say);document.body.appendChild(el);
+    A={el,fig,say,card:null,kind:'b',tour:null,spot:null,keep:true,sticky:true};
+    const r=avatarRect()||{left:24,right:124,top:24,bottom:124,width:100,height:100};
+    let left=Math.max(6,r.left+r.width*.2),top=Math.min(innerHeight-FH-6,r.bottom+6),flip=false;
+    if(left+FW+BW>innerWidth-6){flip=true;left=Math.max(6,innerWidth-FW-BW-10)}
+    say.innerHTML=`<div class="cw-msg">${html}</div><div class="cw-nav"><button type="button" class="cw-next" data-ok>${o.ok||'Thanks, ALITA!'}</button></div>`;
+    say.querySelector('[data-ok]').addEventListener('click',e=>{e.stopPropagation();leave()});
+    place(left,top,flip);morphIn();fit();
+    setTimeout(()=>{try{A&&A.el===el&&say.querySelector('[data-ok]').focus({preventScroll:true})}catch(e){}},1300);
+  };
   window.alitaTour=()=>{const b=[...document.querySelectorAll('.chat-why .cw-tag')].find(vis);if(b){open(b);setTimeout(startTour,1300)}};   // for a "help" entry point
 })();

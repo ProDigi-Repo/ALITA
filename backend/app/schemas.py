@@ -142,6 +142,7 @@ class ProjectRecord(BaseModel):
     roles: dict[str, int]
     date_from: datetime | None = None
     date_to: datetime | None = None
+    date: datetime | None = None                # Gesamtdatum, beim Hochladen festgelegt („Add new data“)
     venues: list[str] = []
     title: str | None = None
     authors: list[str] = []
@@ -236,6 +237,7 @@ class ChatResponse(BaseModel):
     memory_turns: int = 0                   # wie viele frühere Wechsel als Gedächtnis mitgingen
     retrieval_query: str | None = None      # Suchanfrage für die Vektorsuche (bei Anschlussfragen mit Kontext)
     scope: str | None = None                # REQ-12: "map", wenn ohne Auswahl über die ganze Landkarte gefragt wurde
+    usage: dict | None = None               # Tokens und Kosten (EUR) von Frage und Antwort
     progress: dict | None = None            # REQ-16/18: Erkenntnisstufen des Projekts (Tabelle unter der Antwort)
 
 

@@ -684,6 +684,8 @@ async def describe_clusters(units: list[dict], res: dict, names: set[str], api_k
         members = [u for u, l in zip(units, res["labels"]) if l == c]
         try:
             r = await agent.run(cluster_prompt(c, label, members))
+            from .usage import add_run
+            add_run(r)
             ps = lambda t: pseudonymize_text(t, names, s.pseudonym_salt)  # noqa: E731
             out[c] = {"title": ps(r.output.title), "description": ps(r.output.description), "description_source": "llm",
                       "insights": [ps(x) for x in r.output.insights[:3]], "analyses": r.output.analyses[:5], "theories": r.output.theories[:5]}

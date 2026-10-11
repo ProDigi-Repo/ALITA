@@ -117,6 +117,8 @@ async def llm_enrich(
     )
     header = f"Dokumenttyp: {doc_kind}\nDatei: {filename}\n" + (f"Projekt: {project_name}\n" if project_name else "")
     res = await agent.run(header + "\n---\n" + _context(text))
+    from .usage import add_run
+    add_run(res, model_name)
     o: LlmEnrichment = res.output
     known = glossary.by_id()
     tags = [

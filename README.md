@@ -231,6 +231,7 @@ und `APP_VERSION` im Frontend angleichen. Der Test `test_changelog_follows_keepa
 
 | Version | Datum | Inhalt | früher |
 |---|---|---|---|
+| 1.16.0 | 2026-10-11 | „Add new data“: eigenes Fenster (Datenbank · Datenart · Gesamtdatum · Dateien) mit Bestätigung „ein Projekt = eine ZIP“, mehrere Projekte pro Upload; neue Datenbank „Others“; Kosten: ALITA meldet nach dem Upload Tokens und Euro, jede Chatnachricht zeigt die Kosten von Frage und Antwort | |
 | 1.15.0 | 2026-10-11 | REQ-10, REQ-15 – REQ-18: Versionshistorie in Erkenntnisstufen – Zeitleiste in der Projektkarte, inhaltliche vs. formale Änderungen, Stufentabelle mit Links zu den Quelldateien, Fortschrittsfragen in beiden Chats; offene Punkte für den Anforderer im CHANGELOG | |
 | 1.14.0 | 2026-10-11 | REQ-19: Projektteams statt Datei-Metadaten als Autor:innen, Personen-Filter für beide Chats, Bereinigung von Metadaten-Namen; REQ-12: Chat-Umfang folgt der Auswahl (Projekt, Cluster, ganze Landkarte); ALITA-Helferin mit Rundgang und „RAG vs. Graph“; Wissenslandkarte in drei Ebenen, „Reset view“, Datenbank-Blumen im 3D; REQ-11: Erklärungen über den Chats | |
 | 1.13.0 | 2026-10-11 | REQ-09: Cluster- und Projektansicht oben rechts mit Dokumentliste und Projektkarte; Projektebene über den Clustern in der Wissenslandkarte; REQ-08: ausgeschlossene Dateien (z. B. Literaturordner) im Datenbank-Infofenster mit Grund; REQ-21: Parameter und System Prompt unter „Advanced settings“ | – |
@@ -288,7 +289,7 @@ Backend (`app/query_meta.py`); im Live-Betrieb ergänzt das LLM beides in dersel
 
 ## Datenbanken (AL, DL, JSW, LDK, ML, UM)
 
-Jede Datei trägt das Metadatum `databases` (eine oder mehrere). Die Liste ist in `.env` konfigurierbar: `DATABASES=AL,DL,JSW,LDK,ML,UM`.
+Jede Datei trägt das Metadatum `databases` (eine oder mehrere). Die Liste ist in `.env` konfigurierbar: `DATABASES=AL,DL,JSW,LDK,ML,UM,OTH`. `OTH` („Others“) nimmt alles auf, was in keine andere Datenbank gehört.
 
 Zuordnung (Priorität von oben nach unten):
 

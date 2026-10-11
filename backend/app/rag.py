@@ -78,6 +78,8 @@ async def standalone_query(query: str, memory: list, model_name: str, key: str, 
                 "using the conversation for missing context (topics, documents, methods it refers to). "
                 "Return only the query, in the language of the question, at most 40 words."))
             r = await agent.run(f"Conversation:\n{transcript(memory)}\n\nLatest question: {query}")
+            from .usage import add_run
+            add_run(r, model_name)
             q = (r.output or "").strip().strip('"')
             if q:
                 return q[:500]
@@ -236,14 +238,17 @@ def _response(p: Prepared, text: str, used: set[int], intent=None, entities=None
 async def answer(req: ChatRequest, api_key: str | None = None) -> ChatResponse:
     from pydantic_ai import Agent
 
+    from . import usage
+    meter = usage.start()                     # was Frage und Antwort gekostet haben
     req, p = await prepare(req, api_key)
     if not p.prompt:
-        return _response(p, NO_SOURCES, set())
+        return _response(p, NO_SOURCES, set()).model_copy(update={"usage": await usage.summary_async(meter)})
     agent = Agent(chat_model(p.model_name, p.key), output_type=Answer, instructions=system_prompt(req.system_prompt))
     res = await agent.run(p.prompt, message_history=p.history or None)
+    usage.add_run(res, p.model_name)
     out: Answer = res.output
     used = set(out.used_sources) or set(cited_numbers(out.answer, len(p.sources))) or {r.n for r in p.sources}
-    return _response(p, out.answer, used, out.intent, out.entities)
+    return _response(p, out.answer, used, out.intent, out.entities).model_copy(update={"usage": await usage.summary_async(meter)})
 
 
 async def answer_stream(req: ChatRequest, api_key: str | None = None):
@@ -251,12 +256,14 @@ async def answer_stream(req: ChatRequest, api_key: str | None = None):
     meta (Quellen, Filter, Gedächtnis) → delta … delta → done (endgültige Antwort mit genutzten Quellen)."""
     from pydantic_ai import Agent
 
+    from . import usage
+    meter = usage.start()                     # was Frage und Antwort gekostet haben
     req, p = await prepare(req, api_key)
     yield "meta", {"sources": [r.model_dump() for r in p.sources], "applied_filters": p.filters.model_dump(),
                    "model": p.model_name, **p.extra}
     if not p.prompt:
         yield "delta", {"t": NO_SOURCES}
-        yield "done", _response(p, NO_SOURCES, set()).model_dump()
+        yield "done", {**_response(p, NO_SOURCES, set()).model_dump(), "usage": await usage.summary_async(meter)}
         return
     agent = Agent(chat_model(p.model_name, p.key), output_type=str, instructions=system_prompt(req.system_prompt))
     text = ""
@@ -265,5 +272,6 @@ async def answer_stream(req: ChatRequest, api_key: str | None = None):
             if delta:
                 text += delta
                 yield "delta", {"t": delta}
+        usage.add_run(result, p.model_name)
     used = set(cited_numbers(text, len(p.sources))) or {r.n for r in p.sources}
-    yield "done", _response(p, text, used).model_dump()
+    yield "done", {**_response(p, text, used).model_dump(), "usage": await usage.summary_async(meter)}

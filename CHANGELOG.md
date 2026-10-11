@@ -8,6 +8,17 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-10-11
+
+### Added
+- New database **Others** (ID `OTH`) for documents that belong to none of the other databases. Its symbol is a snapping flytrap with toothed jaws on a curved stem; colour rose-red. Like the others it can be selected in the database bar, chosen in "Add new data" and named in questions ("@db:Others").
+- "＋ Add new data" button at the right end of the database bar. It opens a window of its own with four steps: **1** the existing database the documents go to (flower cards with document counts; preset when one database is selected in the bar), **2** the kind of data (research project as ZIP · research papers · research notes), **3** an overall date (optional) and **4** the files (drag and drop), plus an optional link of papers/notes to an existing project. The upload button names the target ("Add to Magnolia").
+- Confirmation window before every upload from "Add new data". For research projects it asks **"Is every project delivered as its own ZIP file?"**: it lists the files (✓ ZIP → project name, ✗ not a ZIP), refuses non-ZIP files and enables the upload only after "Yes – these ZIPs contain one project each" is ticked. For papers and notes it repeats the target database, date and project link, and warns when a ZIP was chosen (probably a project).
+- Several projects in one upload: one ZIP per project, each ZIP becomes its own project (`POST /api/ingest` with several ZIP files; non-ZIP files are rejected for projects).
+- ALITA reports the cost of an upload: when all upload jobs are done she flies out of the avatar and tells how many tokens were used – reading & summarizing (input/output, number of requests) and embeddings – and what that is in euro (and dollars). Prices come live from OpenRouter for the configured chat and embedding model; without a connection the prices in the settings are used (`PRICE_CHAT_INPUT_PER_M`, `PRICE_CHAT_OUTPUT_PER_M`, `PRICE_EMBEDDING_PER_M` in USD per million tokens, `USD_TO_EUR` exchange rate, default 0.86). The job status (`GET /api/jobs/{id}`) now contains `usage` with tokens, USD and EUR.
+- Cost of every chat message: under each question "💶 question €0.0131 · 12,820 tokens" (input incl. the retrieved sources and context, query rewrite and embedding), next to each answer "💶 answer €0.0036 · 420 tokens · turn €0.02"; hover shows the breakdown. Works in both chats and in "Your questions" on the B page, and stays with the conversation in the history. The chat responses (`/api/chat`, `/api/chat/stream`, `/api/graph/stream`) now contain `usage` with tokens and euro for question and answer.
+- Overall date on upload (`date` field of `POST /api/ingest`, YYYY-MM-DD): papers and notes get this date; a project gets it as its project date, and so do its files that have no reliable date of their own – files with a document date keep it, so the version history (REQ-10) stays correct.
+
 ## [1.15.0] - 2026-10-11
 
 > **Special release:** the first release delivered as a separate version that can be rolled back on its own (git tag `v1.15.0`; back with `git checkout v1.14.0`). It implements five requirements at once (REQ-10, REQ-15 – REQ-18) and lists **open points the requirement owner has to decide** at the end.
@@ -512,6 +523,7 @@ First stable release. From here on, incompatible changes to the REST API, the CL
 - Chat history per tile, metadata backup (`GET /api/export`), Docker Compose setup.
 
 [Unreleased]: #unreleased
+[1.16.0]: #1160---2026-10-11
 [1.15.0]: #1150---2026-10-11
 [1.14.0]: #1140---2026-10-11
 [1.13.0]: #1130---2026-10-11

@@ -33,6 +33,15 @@ function typing(chat){AV.busy(true);const d=document.createElement('div');d.remo
 function errMsg(chat,text){const d=document.createElement('div');d.className='msg bot err';d.innerHTML=`<div class="bubble">${esc(text)}</div>`;chat.appendChild(d);chat.scrollTop=chat.scrollHeight}
 function mdLite(s){return esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').split(/\n{2,}/).map(p=>`<p>${p.replace(/\n/g,'<br>')}</p>`).join('')}
 
+/* Cost of a chat turn: the question (input incl. retrieved context, query rewrite and embedding) and the answer (output) */
+function costEur(x){return x==null?'–':x>0&&x<0.01?'€'+x.toFixed(4):'€'+x.toFixed(2)}
+function costHtml(u,part){
+  if(!u||u.tokens==null)return '';
+  const n=v=>Math.round(v||0).toLocaleString('en'),est=u.price_source&&u.price_source!=='openrouter'?' · estimated prices':'';
+  const tip=`Question: ${n(u.question_tokens)} tokens (${n(u.chat_input)} input incl. sources and context${u.embedding?`, ${n(u.embedding)} embedding`:''}) = ${costEur(u.question_eur)}\nAnswer: ${n(u.answer_tokens)} tokens = ${costEur(u.answer_eur)}\nTogether: ${costEur(u.eur)} (≈ $${(+u.usd||0).toFixed(4)})${est}`;
+  if(part==='question')return `<span class="cost cost-q" title="${esc(tip)}">💶 question ${costEur(u.question_eur)} <small>${n(u.question_tokens)} tokens</small></span>`;
+  return `<span class="cost cost-a" title="${esc(tip)}">💶 answer ${costEur(u.answer_eur)} <small>${n(u.answer_tokens)} tokens · turn ${costEur(u.eur)}</small></span>`;
+}
 function botMsg(chat,a){
   const id='m'+(++uid);
   const text=mdLite(a.answer).replace(/\[(\d+)\]/g,(m,n)=>`<sup class="cite" data-t="${id}-${n}">[${n}]</sup>`);
@@ -46,6 +55,11 @@ function botMsg(chat,a){
    ${a.sources.length?`<details class="sources"><summary><span class="chev" aria-hidden="true">▸</span><b>${a.sources.length} source${a.sources.length>1?'s':''} used</b><span class="srctoggle"></span><span class="sfilter">Filter: ${esc(filterSummary(a.applied_filters||{}))}</span><span class="speek">${a.sources.map(x=>`[${x.n}] ${esc(x.title)}`).join(' · ')}</span></summary><div class="sbar"><button type="button" class="mini" data-sall="1">Expand all</button><button type="button" class="mini" data-sall="0">Collapse all</button></div>${srcHtml}</details>`:''}
    <div class="actions"><button class="mini" data-copy>Copy</button><span class="meta-line" style="align-self:center">${esc(a.model||CHAT_MODEL_ID)}${LIVE?'':a.llm==='claude-sample'?' · demo without backend (GPT-6 Luna needs the backend)':a.llm==='extractive'?' · extractive demo answer':' · sample answer'}${a.truncated?' · cut short':''}${a.memory_turns!=null?` · <span class="memchip" title="${esc(a.retrieval_query&&a.retrieval_query!==a.question?'Search query with conversation context: '+a.retrieval_query:'Earlier turns sent with this question')}">memory: ${a.memory_turns?a.memory_turns+' earlier turn'+(a.memory_turns>1?'s':''):'none'}</span>`:''}</span></div>`;
   chat.appendChild(d);chat.scrollTop=chat.scrollHeight;
+  if(a.usage){   // cost of the question (on the user's message) and of the answer (here)
+    const ac=d.querySelector('.actions');if(ac)ac.insertAdjacentHTML('beforeend',costHtml(a.usage,'answer'));
+    let q=d.previousElementSibling;while(q&&!q.classList.contains('user'))q=q.previousElementSibling;
+    if(q&&!q.querySelector('.cost'))(q.querySelector('.bubble')||q).insertAdjacentHTML('afterend',`<div class="cost-row">${costHtml(a.usage,'question')}</div>`);
+  }
   d.querySelectorAll('.cite').forEach(c=>c.addEventListener('click',()=>{
     const el=document.getElementById(c.dataset.t);if(!el)return;d.querySelector('details.sources').open=true;el.open=true;
     el.scrollIntoView({block:'nearest',behavior:'smooth'});el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),1200);
@@ -175,7 +189,8 @@ function renderGraphSide(){
   const box=document.getElementById('graphSide');if(!box||typeof HIST==='undefined')return;
   const sess=(HIST.graph||[]).find(x=>x.id===CUR.graph),qs=sess?sess.turns.filter(t=>t.role==='user'):[];
   let html=`<div class="gs-head"><b>Your questions</b><span class="srcnote">${qs.length||''}</span><button class="mini" type="button" data-gs-hist title="Open an earlier conversation">History</button><button class="mini" type="button" data-gs-new>+ New</button></div>`;
-  html+=qs.length?`<div class="gs-qs">${qs.map((t,k)=>`<button type="button" class="gs-q" data-gs-q="${k}" title="Show the answer to this question"><span>${esc(t.text)}</span></button>`).join('')}</div>`
+  const turns=sess?sess.turns:[],costOf=t=>{const i=turns.indexOf(t),b=turns.slice(i+1).find(x=>x.role!=='user');return b&&b.a&&b.a.usage};
+  html+=qs.length?`<div class="gs-qs">${qs.map((t,k)=>{const u=costOf(t);return `<button type="button" class="gs-q" data-gs-q="${k}" title="Show the answer to this question"><span>${esc(t.text)}</span>${u?costHtml(u,'question'):''}</button>`}).join('')}</div>`
     :'<div class="gs-empty">Type your question below. Your questions collect here, the answers appear in the answer area.</div>';
   box.innerHTML=html;box.scrollTop=box.scrollHeight;
   box.querySelector('[data-gs-new]').addEventListener('click',()=>newChat('graph'));

@@ -72,6 +72,7 @@ class IngestOptions:
     enrich_scope: str | None = None  # überschreibt settings.enrich_scope
     recluster: bool = True           # nach dem Einlesen automatisch neu clustern (settings.auto_cluster)
     databases: list[str] | None = None  # Zuordnung zu AL, CNN_DM, DL, JSW, LDK, ML, UM
+    date: datetime | None = None        # Gesamtdatum aus „Add new data“ (Projekt: für Dateien ohne verlässliches Datum; Paper/Notes: Datum)
 
 
 @dataclass
@@ -458,10 +459,25 @@ def _apply_databases(project: ProjectRecord | None, items: list[Item], dbs: list
         project.databases = list(dbs)
 
 
+def apply_overall_date(project: ProjectRecord, items: list[Item], date: datetime) -> None:
+    """Gesamtdatum eines hochgeladenen Projekts: gilt fürs Projekt und für Dateien ohne verlässliches eigenes Datum.
+    Dateien mit Datum aus den Dokumenteigenschaften behalten es – sonst ginge die Versionshistorie (REQ-10) verloren."""
+    project.date = date
+    for it in items:
+        r = it.record
+        if r.date_source in (None, "file_mtime"):
+            r.date, r.date_source, r.year = date, "project_date", date.year
+    dates = [it.record.date for it in items if it.record.date]
+    if dates:
+        project.date_from, project.date_to = min(dates), max(dates)
+
+
 async def ingest_project(folder: Path, opts: IngestOptions) -> ProjectRecord:
     from . import store
 
     project, items = scan_project(folder)
+    if opts.date:
+        apply_overall_date(project, items, opts.date)
     # Priorität: explizit angegeben > Ordnerstruktur > bisherige Zuordnung (bleibt bei Neu-Einlesen erhalten)
     dbs = get_settings().normalize_databases(opts.databases) or detect_databases(folder)
     if not dbs:
@@ -541,6 +557,8 @@ async def ingest_file(path: Path, doc_type: DocType, opts: IngestOptions, projec
         ctx = ProjectContext(project_id=make_project_id(project_name), project_name=project_name,
                              rel_path=path.name, folder="", role=ProjectRole.reference if doc_type == DocType.research_paper else ProjectRole.notes)
     it = build_record(path, doc_type, scope=doc_type.value, rel_path=f"{path.parent.name}/{path.name}", project=ctx)
+    if opts.date:                                   # vom Nutzer beim Hochladen festgelegt
+        it.record.date, it.record.date_source, it.record.year = opts.date, "user", opts.date.year
     _apply_databases(None, [it], get_settings().normalize_databases(opts.databases) or detect_databases(path))
     apply_curated_summary(it.record, path)
     mark_content_duplicate(it.record)
