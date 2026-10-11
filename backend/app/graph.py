@@ -174,7 +174,7 @@ def build_document_statements(p: dict, chunks: list[dict]) -> list[tuple[str, di
                {"id": doc_id}))
     st.append(("MATCH (d:Document {doc_id: $id})-[r:IN_DATABASE|PART_OF|USES_METHOD|CITES|REPRESENTS]->() DELETE r",
                {"id": doc_id}))
-    st.append(("MATCH (:Person)-[r:AUTHORED]->(d:Document {doc_id: $id}) DELETE r", {"id": doc_id}))
+    st.append(("MATCH (:Person)-[r:AUTHORED|EDITED]->(d:Document {doc_id: $id}) DELETE r", {"id": doc_id}))
     props = {k: p.get(k) for k in ("title", "doc_type", "filename", "filetype", "year", "language", "doi",
                                    "project_name", "role", "is_latest", "date")}
     props["fabio_type"] = FABIO_TYPE.get(p.get("doc_type"), "fabio:Expression")
@@ -183,9 +183,14 @@ def build_document_statements(p: dict, chunks: list[dict]) -> list[tuple[str, di
                {"id": doc_id, "dbs": p.get("databases") or []}))
     st.append(("MATCH (d:Document {doc_id: $id}) UNWIND $people AS n MERGE (a:Person {name: n}) MERGE (a)-[:AUTHORED]->(d)",
                {"id": doc_id, "people": [a for a in (p.get("authors") or []) if a and a.strip()]}))
+    # REQ-19: Metadaten-Namen einer Projektdatei = wer sie gespeichert hat, nicht Autor:in
+    st.append(("MATCH (d:Document {doc_id: $id}) UNWIND $editors AS n MERGE (a:Person {name: n}) MERGE (a)-[:EDITED]->(d)",
+               {"id": doc_id, "editors": [a for a in (p.get("editors") or []) if a and a.strip()]}))
     if p.get("doc_type") == "research_project" and p.get("project_name"):
         st.append(("MATCH (d:Document {doc_id: $id}) MERGE (pr:Project {name: $name}) MERGE (d)-[:PART_OF]->(pr)",
                    {"id": doc_id, "name": p["project_name"]}))
+        st.append(("MATCH (pr:Project {name: $name}) UNWIND $team AS n MERGE (a:Person {name: n}) MERGE (a)-[:MEMBER_OF]->(pr)",
+                   {"name": p["project_name"], "team": [a for a in (p.get("authors") or []) if a and a.strip()]}))
     methods = [{"id": m.get("id"), "label": m.get("label")} for m in (p.get("methods") or []) if isinstance(m, dict)]
     methods += [{"id": m, "label": m} for m in (p.get("method_ids") or []) if m not in {x["id"] for x in methods}]
     st.append(("MATCH (d:Document {doc_id: $id}) UNWIND $ms AS m MERGE (x:Method {id: m.id}) "
@@ -267,16 +272,22 @@ def rebuild_from_store() -> dict:
     return {"documents": n_docs, "chunks": n_chunks, "clusters": len(info)}
 
 
-def build_cluster_statements(doc_meta: dict[str, dict], proj_meta: dict[str, dict], info: dict[int, dict]) -> list[tuple[str, dict]]:
+def build_cluster_statements(doc_meta: dict[str, dict], proj_meta: dict[str, dict], info: dict[int, dict],
+                             scope_docs: set[str] | None = None) -> list[tuple[str, dict]]:
     rows = [{"doc": d, "id": m["cluster_id"]} for d, m in doc_meta.items() if m.get("cluster_basis") == "summary"]
     rows += [{"project": n, "id": m["cluster_id"]} for n, m in proj_meta.items()]
     clusters = {}
     for m in [*doc_meta.values(), *proj_meta.values()]:
         c = m["cluster_id"]
         clusters.setdefault(c, {"id": c, "label": m.get("cluster_label"), **(info.get(c) or {})})
+    if scope_docs is None:
+        reset = [("MATCH (:Document)-[r:IN_CLUSTER]->() DELETE r", {}),
+                 ("MATCH (c:Cluster) DETACH DELETE c", {})]
+    else:   # nur die Zuordnungen der geclusterten Datenbank ersetzen, verwaiste Cluster entfernen
+        reset = [("MATCH (d:Document)-[r:IN_CLUSTER]->() WHERE d.doc_id IN $docs DELETE r", {"docs": sorted(scope_docs)}),
+                 ("MATCH (c:Cluster) WHERE NOT ()-[:IN_CLUSTER]->(c) DETACH DELETE c", {})]
     return [
-        ("MATCH (:Document)-[r:IN_CLUSTER]->() DELETE r", {}),
-        ("MATCH (c:Cluster) DETACH DELETE c", {}),
+        *reset,
         ("UNWIND $cs AS c MERGE (x:Cluster {id: c.id}) SET x.label = c.label, x.title = c.title, x.description = c.description",
          {"cs": list(clusters.values())}),
         ("UNWIND $rows AS r MATCH (x:Cluster {id: r.id}) "
@@ -285,8 +296,8 @@ def build_cluster_statements(doc_meta: dict[str, dict], proj_meta: dict[str, dic
     ]
 
 
-def sync_clusters(doc_meta: dict, proj_meta: dict, info: dict | None = None) -> None:
-    run_all(build_cluster_statements(doc_meta, proj_meta, info or {}))
+def sync_clusters(doc_meta: dict, proj_meta: dict, info: dict | None = None, scope_docs: set[str] | None = None) -> None:
+    run_all(build_cluster_statements(doc_meta, proj_meta, info or {}, scope_docs))
 
 
 # ----------------------------------------------------------------- Abfragen (Graph RAG)
@@ -325,20 +336,58 @@ LIMIT $limit"""
     return cypher, params
 
 
-def build_neighbour_query(doc_ids: list[str], hops: int, limit: int = 6) -> tuple[str, dict] | None:
+def build_neighbour_query(doc_ids: list[str], hops: int, limit: int = 6, dbs: list[str] | None = None) -> tuple[str, dict] | None:
     """Ab 2 Hops: Dokumente, die mit den Treffern über Zitate (CITES/REPRESENTS) verbunden sind; ab 3 Hops auch über den Cluster."""
     if hops < 2 or not doc_ids:
         return None
     rel = "[:CITES|REPRESENTS]-(:Work)-[:CITES|REPRESENTS]" if hops == 2 else "[:CITES|REPRESENTS|IN_CLUSTER]-()-[:CITES|REPRESENTS|IN_CLUSTER]"
     return (f"""MATCH (d:Document)-{rel}-(n:Document)
 WHERE d.doc_id IN $ids AND NOT n.doc_id IN $ids AND coalesce(n.is_latest, true)
-RETURN DISTINCT n.doc_id AS doc_id, n.title AS title, d.title AS via LIMIT $limit""", {"ids": doc_ids, "limit": limit})
+  AND (size($dbs) = 0 OR EXISTS {{ (n)-[:IN_DATABASE]->(b:Database) WHERE b.name IN $dbs }})
+RETURN DISTINCT n.doc_id AS doc_id, n.title AS title, d.title AS via LIMIT $limit""", {"ids": doc_ids, "limit": limit, "dbs": dbs or []})
+
+
+def set_team(project: str, team: list[str], editors: dict[str, list[str]]) -> None:
+    """REQ-19: Projektteam neu setzen – MEMBER_OF zum Projekt, AUTHORED zu allen Projektdateien; Metadaten-Namen als EDITED."""
+    st: list[tuple[str, dict]] = [
+        ("MATCH (:Person)-[r:MEMBER_OF]->(:Project {name: $p}) DELETE r", {"p": project}),
+        ("MATCH (:Person)-[r:AUTHORED|EDITED]->(d:Document {project_name: $p}) DELETE r", {"p": project}),
+        ("MERGE (pr:Project {name: $p}) WITH pr UNWIND $team AS n MERGE (a:Person {name: n}) MERGE (a)-[:MEMBER_OF]->(pr)",
+         {"p": project, "team": team}),
+        ("MATCH (d:Document {project_name: $p}) UNWIND $team AS n MERGE (a:Person {name: n}) MERGE (a)-[:AUTHORED]->(d)",
+         {"p": project, "team": team}),
+        ("UNWIND $rows AS row MATCH (d:Document {doc_id: row.id}) UNWIND row.people AS n MERGE (a:Person {name: n}) MERGE (a)-[:EDITED]->(d)",
+         {"rows": [{"id": k, "people": v} for k, v in editors.items() if v]}),
+        ("MATCH (a:Person) WHERE NOT (a)--() DELETE a", {}),
+    ]
+    run_all(st)
+
+
+def clean_persons() -> dict:
+    """REQ-19: Personenknoten aus Datei-Metadaten bereinigen ('M', 'Microsoft Office User' weg, 'leyer' -> 'Leyer')."""
+    from .people import clean_person
+
+    removed, merged = 0, 0
+    for r in run("MATCH (a:Person) RETURN a.name AS name"):
+        n, c = r["name"], clean_person(r["name"])
+        if c == n:
+            continue
+        if c is None:
+            run("MATCH (a:Person {name: $n}) DETACH DELETE a", n=n)
+            removed += 1
+        else:
+            run("MERGE (b:Person {name: $c})", c=c)
+            for rel in ("AUTHORED", "EDITED", "MEMBER_OF"):
+                run(f"MATCH (a:Person {{name: $n}})-[:{rel}]->(x) MATCH (b:Person {{name: $c}}) MERGE (b)-[:{rel}]->(x)", n=n, c=c)
+            run("MATCH (a:Person {name: $n}) DETACH DELETE a", n=n)
+            merged += 1
+    return {"removed": removed, "merged": merged}
 
 
 def find(plan: dict, limit: int = 12) -> dict:
     cypher, params = build_path_query(plan, limit)
     rows = run(cypher, **params)
-    q = build_neighbour_query([r["doc_id"] for r in rows], int(plan.get("hops") or 1))
+    q = build_neighbour_query([r["doc_id"] for r in rows], int(plan.get("hops") or 1), dbs=plan.get("databases") or [])
     neighbours = run(q[0], **q[1]) if q else []
     return {"documents": rows, "neighbours": neighbours}
 

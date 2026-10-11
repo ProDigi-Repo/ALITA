@@ -19,7 +19,7 @@ ALITA Prototype is a research assistant for a curated collection of scientific d
 | Component | Function | AI? |
 |---|---|---|
 | Interaction Interface, Document Chat (tile 1) | Retrieval-augmented generation (RAG) over the document chunks, answers with numbered sources and filters | Yes: embedding model + LLM |
-| Interaction Interface, Graph Chat (tile 2) | Graph RAG over the Neo4j knowledge graph (DoCO/DEO), typed questions; answers can be read aloud by the browser | Yes: LLM + embedding model; no speech recognition (voice input removed in 0.18.0) |
+| Interaction Interface, Graph Chat (tile 2) | Graph RAG over the Neo4j knowledge graph (DoCO/DEO), typed questions, text answers | Yes: LLM + embedding model; no speech recognition or speech output (voice input removed in 0.18.0, read-aloud removed in 1.2.0) |
 | Ingestion | Text extraction, metadata rules (type, date, version, journal), structured summaries | LLM for summaries where none is curated |
 | Clustering | k-means over summary embeddings, labels from distinctive terms, Pokémon pseudonyms for person names | Classical ML (no LLM) |
 | Chat meta | Intention and entities per question | Rule-based + LLM |
@@ -42,5 +42,4 @@ ALITA Prototype is a research assistant for a curated collection of scientific d
 - The LLM can misstate or over-generalize what a source says. Every statement must be checked against the cited source.
 - Retrieval quality depends on text extraction. Scanned PDFs without a text layer, and data files, contribute little or no text.
 - Cluster labels are word statistics, not curated topics. A cluster can mix themes.
-- "Read aloud" uses the browser's speech synthesis; its pronunciation is not checked by ALITA.
 - The prototype has no user accounts or role-based access. Anyone who can reach the server can read all indexed documents.

@@ -1,0 +1,67 @@
+/* ===== Cluster profile card on hover (v1.4.0) ===== */
+.cprof{position:fixed;z-index:60;width:min(400px,calc(100vw - 16px));max-height:min(80vh,640px);overflow:auto;pointer-events:none;background:var(--panel,#fff);color:var(--fg,#141826);border:1px solid var(--line,#dfe3ec);border-radius:10px;box-shadow:0 10px 30px rgb(0 0 0 / .22);padding:10px 12px;font-size:12.5px;line-height:1.45}
+.cprof[hidden]{display:none}
+.cp-h{display:flex;gap:8px;align-items:center;font-weight:700;font-size:13.5px;border-left:4px solid hsl(var(--h) 60% 45%);padding-left:8px;margin-bottom:6px}
+.cp-h b{font-family:var(--f-mono);font-size:11px;color:#fff;background:hsl(var(--h) 60% 45%);border-radius:999px;padding:0 7px}
+.cp-d{margin:0 0 6px;color:var(--muted,#5b6478)}
+.cprof h6{margin:8px 0 3px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted,#5b6478)}
+.cprof ul{margin:0;padding-left:16px}.cprof li{margin-bottom:3px}.cprof li i{color:var(--muted,#5b6478)}
+.cp-chips{display:flex;flex-wrap:wrap;gap:4px}.cp-chips span{border:1px solid var(--line,#dfe3ec);border-radius:999px;padding:1px 8px;background:var(--sunk,#f6f7fb)}.cp-chips i{font-style:normal;color:var(--muted,#5b6478);font-size:11px}
+.cp-none{color:var(--muted,#5b6478);font-style:italic}
+.cp-f{margin-top:8px;padding-top:6px;border-top:1px solid var(--line,#dfe3ec);font-size:11px;color:var(--muted,#5b6478)}
+
+/* Docked cluster description below the views */
+.cpdock{flex:none;max-height:48vh;overflow:auto;background:var(--panel,#fff);color:var(--fg,#141826);border:1px solid var(--line,#dfe3ec);border-radius:10px;margin:0 0 14px}
+.cpdock[hidden]{display:none}
+.cpdock.pinned,#cvDock,#cgDock{border-color:var(--acc,#1f5fd1);box-shadow:0 0 0 1px var(--acc,#1f5fd1)}
+.cpd-grid{display:grid;grid-template-columns:1fr}
+.cpd-grid.multi{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+.cpd-grid.multi>.cprof-docked{columns:auto;border-left:1px solid var(--line,#dfe3ec)}
+.cpd-grid.multi>.cprof-docked:first-child{border-left:0}
+.cpd-bar{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:10px;padding:6px 12px;background:var(--sunk,#f6f7fb);border-bottom:1px solid var(--line,#dfe3ec);font-size:11.5px}
+.cpd-bar>span:first-child{font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:10.5px;color:var(--muted,#5b6478)}
+.cpd-state{color:var(--muted,#5b6478);font-style:italic;margin-right:auto}
+.cpd-x{border:0;background:none;cursor:pointer;color:var(--muted,#5b6478);font-size:13px;padding:2px 6px;border-radius:4px}.cpd-x:hover{background:var(--line,#dfe3ec);color:var(--fg,#141826)}
+.cprof.cprof-docked{position:static;width:auto;max-height:none;overflow:visible;pointer-events:auto;box-shadow:none;border:0;border-radius:0;padding:10px 14px 12px;columns:2 380px;column-gap:28px}
+.cprof-docked .cp-h,.cprof-docked .cp-d{column-span:all}
+.cprof-docked h6{break-after:avoid}.cprof-docked ul,.cprof-docked .cp-chips{break-inside:avoid-column}
+/* in the 3D·time view: docked at the bottom of the screen */
+.s3dock{position:absolute;left:12px;right:12px;bottom:12px;z-index:5;max-height:38vh;overflow:auto;margin:0;box-shadow:0 10px 30px rgb(0 0 0 / .45)}
+
+.cpd-x.cpd-clear{font-size:11.5px;color:var(--acc,#1f5fd1);border:1px solid var(--line,#dfe3ec);background:var(--panel,#fff);padding:2px 8px;border-radius:999px}
+
+/* Connected clusters in the description */
+.cp-conn{display:flex;flex-direction:column;gap:4px}
+.cp-conn button{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center;text-align:left;border:1px solid var(--line,#dfe3ec);border-left:4px solid hsl(var(--h) 55% 45%);
+  border-radius:7px;background:var(--panel,#fff);padding:4px 8px;font:inherit;font-size:12px;color:var(--fg,#141826);cursor:pointer;break-inside:avoid}
+.cp-conn button:hover{background:var(--sunk,#f6f7fb)}
+.cp-conn button[aria-pressed="true"]{background:hsl(var(--h) 60% 50% / .1)}
+.cp-conn b{font-family:var(--f-mono);font-size:10.5px;color:#fff;background:hsl(var(--h) 55% 45%);border-radius:999px;padding:0 6px}
+.cp-conn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cp-conn small{color:var(--muted,#5b6478);font-size:11px;font-family:var(--f-mono)}
+
+/* REQ-09: documents of a cluster/project (collapsible list) and the project card */
+.cp-docs{margin-top:6px}
+.cp-docs>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px}
+.cp-docs>summary::-webkit-details-marker{display:none}
+.cp-docs>summary::before{content:'▸';font-size:10px;color:var(--muted,#5b6478);transition:transform .15s}
+.cp-docs[open]>summary::before{transform:rotate(90deg)}
+.cp-docs>summary h6{margin:8px 0 3px}
+.cp-docs ul{list-style:none;margin:0;padding:0;max-height:280px;overflow:auto;border:1px solid var(--line,#dfe3ec);border-radius:7px}
+.cp-docs li+li{border-top:1px solid var(--line,#dfe3ec)}
+.cp-docs li button{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:7px;width:100%;text-align:left;border:0;background:none;padding:5px 8px;font:inherit;font-size:12px;color:var(--fg,#141826);cursor:pointer}
+.cp-docs li button:hover{background:var(--sunk,#f6f7fb)}
+.cp-docs li button[data-doc] span{text-decoration:underline;text-decoration-color:transparent}
+.cp-docs li button[data-doc]:hover span{text-decoration-color:currentColor}
+.cp-docs li i{font-style:normal;grid-row:1/3;color:var(--t-project)}
+.cp-docs li i.m-research_paper{color:var(--t-paper)}.cp-docs li i.m-research_notes{color:var(--t-notes)}
+.cp-docs li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cp-docs li small{color:var(--muted,#5b6478);font-size:11px;grid-column:2}
+.bpcard{padding:10px 14px 12px;font-size:12.5px;line-height:1.45}
+.bpcard .pc-h{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;margin-bottom:6px}
+.bpcard .pc-h i{font-style:normal;color:var(--t-project);font-size:15px;line-height:1.2}
+.bpcard h6{margin:10px 0 4px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted,#5b6478)}
+.bpcard .kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;margin:6px 0 0}
+.bpcard .kv dt{color:var(--muted,#5b6478)}.bpcard .kv dd{margin:0}
+.bpcard .pdbi svg{width:14px;height:14px;vertical-align:-2px;margin-right:2px}
+#cgProjCard{border-color:var(--t-project);box-shadow:0 0 0 1px var(--t-project)}

@@ -1,0 +1,7 @@
+# Lint: docker compose --profile test run --rm tests  (pytest)  ·  ruff check backend
+line-length = 140
+target-version = "py312"
+
+[lint]
+select = ["F", "E9", "B", "I"]
+ignore = ["B905"]   # zip(strict=…) would change behavior on uneven inputs

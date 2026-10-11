@@ -11,6 +11,6 @@
 | R5 | Use beyond the intended purpose (e.g. assessing students or applicants) | Students, applicants | Medium | Excluded uses documented | Would trigger EU AI Act high-risk duties; re-assess before such use |
 | R6 | Unauthorized access to the document collection | Authors, organization | Medium | Self-hosted; API key not stored on the server unless set in `.env` | No user accounts or roles in the prototype |
 | R7 | Bias in summaries or answers (language, venue, older versions) | Users | Low | All versions indexed, "latest only" filter, max. 2 chunks per document in an answer | Monitor with answer samples |
-| R8 | Over-reliance on Graph RAG answers read aloud | Users | Low | AI notice in the tile; sources [n] shown and expandable under every answer | Voice input removed in 0.18.0; reassess before adding it again |
+| R8 | Over-reliance on Graph RAG answers | Users | Low | AI notice in the tile; sources [n] shown and expandable under every answer | Voice input removed in 0.18.0, read-aloud in 1.2.0; reassess before adding speech again |
 
 **Review:** at every MINOR release and before any change of intended use.

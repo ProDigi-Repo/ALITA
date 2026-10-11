@@ -25,13 +25,14 @@ from pathlib import Path
 from .chunking import chunk_segments
 from .config import get_settings
 from .enrich import parse_keywords, parse_structured_abstract
+from .people import clean_people, team_for
 from .extract import MIME, Extracted, extract, filetype_of
 from .glossary import keyword_classify, load_glossary, merge_tags
 from .project_meta import (
     YEAR_IN_NAME,
+    best_date,
     clean_export_title,
     date_from_text,
-    best_date,
     detect_language,
     detect_role,
     detect_venue,
@@ -70,7 +71,7 @@ class IngestOptions:
     api_key: str | None = None
     enrich_scope: str | None = None  # überschreibt settings.enrich_scope
     recluster: bool = True           # nach dem Einlesen automatisch neu clustern (settings.auto_cluster)
-    databases: list[str] | None = None  # Zuordnung zu AL, DL, JSW, LDK, ML, UM
+    databases: list[str] | None = None  # Zuordnung zu AL, CNN_DM, DL, JSW, LDK, ML, UM
 
 
 @dataclass
@@ -88,13 +89,29 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def _excluded(rel: str, patterns: list[str]) -> bool:
+def _excluded_by(rel: str, patterns: list[str]) -> str | None:
+    """The first exclusion pattern that matches the relative path, else None."""
     for p in patterns:
         if fnmatch.fnmatch(rel, p) or fnmatch.fnmatch(rel.lower(), p.lower()):
-            return True
+            return p
         if p.endswith("/**") and (rel + "/").lower().startswith(p[:-2].lower()):
-            return True
-    return False
+            return p
+    return None
+
+
+def _excluded(rel: str, patterns: list[str]) -> bool:
+    return _excluded_by(rel, patterns) is not None
+
+
+def count_excluded(folder: Path, patterns: list[str]) -> tuple[int, dict[str, int]]:
+    """How many files of a project folder the exclusion patterns skip, per pattern (REQ-08: shown in the interface)."""
+    by: dict[str, int] = {}
+    for path in folder.rglob("*"):
+        if path.is_file():
+            p = _excluded_by(path.relative_to(folder).as_posix(), patterns)
+            if p:
+                by[p] = by.get(p, 0) + 1
+    return sum(by.values()), by
 
 
 DOI_RE = re.compile(r"\b10\.\d{4,9}/[^\s\"<>]+", re.I)  # \u2011 (geschützter Bindestrich) wird unten normalisiert
@@ -149,8 +166,10 @@ def build_record(path: Path, doc_type: DocType, *, scope: str, rel_path: str,
         year=date.year if date else None,
         created=ex.created,
         modified=ex.modified,
-        authors=ex.authors or ([a] if (a := clean_export_title(path.stem)[1]) else [])
-        or ([byline.group(1)] if doc_type != DocType.research_project and byline else []),
+        # REQ-19: in Projektdateien nennen die Metadaten nur, wer die Datei gespeichert hat -> editors; Autor:innen = Projektteam
+        authors=[] if project is not None else (clean_people(ex.authors) or ([a] if (a := clean_export_title(path.stem)[1]) else [])
+                                               or ([byline.group(1)] if byline else [])),
+        editors=clean_people(ex.authors) if project is not None else [],
         doi=doi.group(0).replace("\u2011", "-").replace("\u2010", "-").rstrip(".,;)") if doi else None,
         language=detect_language(text),
         pages=ex.pages,
@@ -177,9 +196,14 @@ def scan_project(folder: Path, exclude: list[str] | None = None) -> tuple[Projec
     exclude = s.project_exclude if exclude is None else exclude
     items: list[Item] = []
     skipped = 0
+    excluded_by: dict[str, int] = {}
     for path in sorted(p for p in folder.rglob("*") if p.is_file()):
         rel = path.relative_to(folder).as_posix()
-        if _excluded(rel, exclude) or path.name == "_summaries.yaml":
+        if path.name == "_summaries.yaml":   # curated summaries: metadata, not a project file
+            continue
+        pat = _excluded_by(rel, exclude)
+        if pat:
+            excluded_by[pat] = excluded_by.get(pat, 0) + 1
             skipped += 1
             continue
         parts = folder_parts_of(rel)
@@ -206,6 +230,10 @@ def scan_project(folder: Path, exclude: list[str] | None = None) -> tuple[Projec
     _mark_latest(items)
     _mark_duplicates(items)
     project = _aggregate_project(folder, items, exclude)
+    for it in items:                       # REQ-19: Autor:innen einer Projektdatei = kuratiertes Projektteam
+        if not it.record.authors:
+            it.record.authors = list(project.authors)
+    project.excluded_count, project.excluded_by = skipped, excluded_by
     log.info("Projekt %s: %d Dateien, %d ausgeschlossen", name, len(items), skipped)
     return project, items
 
@@ -296,6 +324,7 @@ def _aggregate_project(folder: Path, items: list[Item], exclude: list[str]) -> P
         summary=summary,
         methods=methods[:8],
         excluded_patterns=exclude,
+        authors=team_for(folder.name, folder),
     )
 
 
@@ -600,10 +629,13 @@ def _dump(project: ProjectRecord | None, items: list[Item], out: Path) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Load documents into the RAG index")
-    ap.add_argument("kind", choices=["project", "paper", "notes", "all", "cluster", "graph"],
-                    help="all = ingest every subfolder of PATH; cluster = recompute clusters only; graph = (re)build the Neo4j graph")
+    ap.add_argument("kind", choices=["project", "paper", "notes", "all", "cluster", "graph", "delete"],
+                    help="all = ingest every subfolder of PATH; cluster = recompute clusters only (--db X: only database X, other clusters stay); graph = (re)build the Neo4j graph; "
+                         "delete --db X = remove all data of database X from the index")
     ap.add_argument("path", type=Path, nargs="?")
     ap.add_argument("--k", type=int, default=0, help="cluster: fixed number of clusters (0 = automatic)")
+    ap.add_argument("--files", action="store_true",
+                    help="cluster: cluster each current project file with its own summary instead of whole projects")
     ap.add_argument("--force", action="store_true", help="all: re-ingest projects that were already ingested")
     ap.add_argument("--project", help="link paper/notes to a research project")
     ap.add_argument("--db", help="database(s), comma-separated, e.g. ML or AL,JSW")
@@ -623,9 +655,26 @@ def main() -> None:
         from . import graph
         print(json.dumps({"setup": graph.setup(), "rebuild": graph.rebuild_from_store()}, ensure_ascii=False, indent=1, default=str))
         return
+    if a.kind == "delete":
+        if not a.db or "," in a.db:
+            ap.error("delete needs exactly one database: --db JSW")
+        from .clustering import recompute
+        from .purge import delete_database
+        name = get_settings().normalize_databases(a.db)[0]
+        res = delete_database(name, dry_run=bool(a.dry_run))
+        print(json.dumps(res, ensure_ascii=False, indent=1, default=str))
+        if not a.dry_run:
+            if not opts.api_key:
+                print("Hinweis: ohne API-Key werden die Cluster neu berechnet, aber ohne neue Beschreibungen. "
+                      "Mit Key: -e OPENROUTER_API_KEY=sk-or-v1-...")
+            print(json.dumps({"clusters": asyncio.run(recompute(a.k or get_settings().cluster_k or None, opts.api_key))},
+                             ensure_ascii=False, indent=1, default=str))
+            print(f"Fertig. Den Ordner research/{name} selbst löschen, sonst liest 'seed' ihn beim nächsten Start wieder ein.")
+        return
     if a.kind == "cluster":
         from .clustering import recompute
-        res = asyncio.run(recompute(a.k or get_settings().cluster_k or None))
+        res = asyncio.run(recompute(a.k or get_settings().cluster_k or None, opts.api_key, databases=opts.databases,
+                                    project_files=a.files))
         print(json.dumps(res, ensure_ascii=False, indent=1))
         return
     if a.path is None:

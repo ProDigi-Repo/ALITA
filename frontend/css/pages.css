@@ -1,0 +1,30 @@
+/* ===== Release Notes and ISO 42001 / EU AI Act pages ===== */
+.nav button{white-space:nowrap}
+.nav{max-width:100%;overflow-x:auto;scrollbar-width:thin}
+.docwrap{display:grid;grid-template-columns:240px minmax(0,1fr);gap:14px;min-height:0;flex:1}
+.doc-toc{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;align-self:start;position:sticky;top:10px;display:flex;flex-direction:column;gap:2px}
+.doc-toc h4{margin:4px 6px 6px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.doc-toc a{display:block;padding:5px 8px;border-radius:6px;color:var(--fg);text-decoration:none;font-size:13px}
+.doc-toc a:hover{background:var(--sunk)}
+.doc-toc a.on{background:var(--rag-soft);color:var(--rag);font-weight:600}
+.doc-toc .grp{margin:10px 6px 4px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--fg);font-weight:700;display:flex;gap:6px;align-items:center}
+.doc-toc .grp::before{content:"";width:8px;height:8px;border-radius:2px;background:var(--c1)}
+.doc-toc a.sub{padding-left:18px}
+.doc-art pre{background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:10px 12px;overflow-x:auto;font-size:12px;line-height:1.5}
+.doc-art pre code{background:none;padding:0}
+.doc-toc a small{color:var(--muted);font-weight:400;margin-left:6px}
+.doc-art{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 26px 26px;min-width:0;overflow:auto}
+.doc-art h1{font-family:var(--f-display);font-size:22px;margin:0 0 10px}
+.doc-art h2{font-size:16px;margin:22px 0 8px;padding-top:4px}
+.doc-art h3{font-size:14px;margin:16px 0 6px}
+.doc-art p,.doc-art li{font-size:14px;line-height:1.6}
+.doc-art table{border-collapse:collapse;width:100%;font-size:13px;margin:8px 0 14px;display:block;overflow-x:auto}
+.doc-art th,.doc-art td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+.doc-art th{background:var(--sunk);font-weight:600}
+.doc-art blockquote{margin:6px 0 14px;padding:8px 12px;border-left:3px solid #c98a12;background:var(--graph-soft);font-size:13px}
+.doc-art blockquote p{margin:0;font-size:13px}
+.doc-art code{font-family:var(--f-mono);font-size:12px;background:var(--sunk);padding:0 4px;border-radius:3px}
+.doc-art .rel{margin-bottom:18px}
+.doc-art .lead{color:var(--muted);font-size:13px;margin:0 0 16px}
+.doc-art .docnav{display:flex;justify-content:space-between;gap:10px;margin-top:22px;border-top:1px solid var(--line);padding-top:12px}
+@media (max-width:980px){.docwrap{grid-template-columns:1fr}.doc-toc{position:static}}

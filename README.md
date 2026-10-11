@@ -22,7 +22,12 @@ research-rag/
 │  ├─ ingest.py        Pipeline + CLI
 │  └─ main.py          FastAPI-Endpunkte, liefert auch das Frontend aus
 ├─ glossary/methods.yaml   vorläufiges Methoden-Glossar (wird später ersetzt)
-├─ frontend/index.html     ALITA Prototype (Chat + Dokumentenliste)
+├─ frontend/               ALITA Prototype, ohne Build-Schritt ausgeliefert
+│  ├─ index.html           Markup, bindet css/ und js/ ein
+│  ├─ css/                 base, tiles, clusters, cluster-profile, space3d, pages
+│  └─ js/                  data (generiert), core, databases, release-compliance, clusters, cluster-profile,
+│                          chat-tools, docs-nav, documents, chat, space3d, start – Reihenfolge wie in index.html
+├─ tools/build_frontend.py js/data.js neu erzeugen; Einzeldatei-Seite für die Veröffentlichung bauen
 ├─ docker/                 backend.Dockerfile, nginx.conf
 ├─ research/               Standard-Ort für eigene Forschungsordner (RESEARCH_DIR)
 └─ docker-compose.yml      Qdrant + Backend + Frontend + Ingest/Test-Jobs
@@ -41,7 +46,7 @@ docker compose up -d --build
 | backend | http://localhost:8000/docs | FastAPI, Swagger-UI |
 | qdrant | http://localhost:6333/dashboard | Vektordatenbank |
 
-Mitgeliefert sind 11 research papers in `research/JSW/papers/` (Datenbank JSW), 28 research notes in `research/LDK/notes/` und 3 research papers in `research/LDK/papers/` (Datenbank LDK) und das research project `research/ML/11-MentalModelProcesses` (ohne Ordner `Literatur`, Datenbank ML über die Ordnerstruktur). Beim Start liest der Dienst `seed` alle Projektordner aus `RESEARCH_DIR` automatisch ein; bereits eingelesene werden übersprungen. Ohne Key landen nur die Metadaten im Index (Dokumentenliste funktioniert). Summaries und Embeddings mit Key für genau diesen Lauf (`-e OPENROUTER_API_KEY=sk-or-v1-…` an `docker compose run` anhängen):
+Mitgeliefert sind 28 research notes in `research/LDK/notes/` und 3 research papers in `research/LDK/papers/` (Datenbank LDK) und das research project `research/ML/11-MentalModelProcesses` (ohne Ordner `Literatur`, Datenbank ML über die Ordnerstruktur). Beim Start liest der Dienst `seed` alle Projektordner aus `RESEARCH_DIR` automatisch ein; bereits eingelesene werden übersprungen. Ohne Key landen nur die Metadaten im Index (Dokumentenliste funktioniert). Summaries und Embeddings mit Key für genau diesen Lauf (`-e OPENROUTER_API_KEY=sk-or-v1-…` an `docker compose run` anhängen):
 
 ```bash
 docker compose run --rm -e OPENROUTER_API_KEY=sk-or-v1-… ingest all /research --force   # Zusammenfassungen, Methoden und Embeddings erzeugen
@@ -101,6 +106,15 @@ Dazu gibt es einen Projekt-Datensatz mit Titel (aus der neuesten Titelseite), Ze
 
 ## Clustering
 
+**Cluster-Profil beim Hovern** (Karte, Graph, 3D): Beschreibung, zentrale Erkenntnisse, verwendete Analysen und
+Theorien. Quelle sind die Structured Summaries und Methoden-Tags; mit API-Key ergänzt das Sprachmodell beim Clustern
+eigene Aussagen (`docker compose run --rm -e OPENROUTER_API_KEY ingest cluster`).
+
+**Cluster-Raum in 3D** („3D · time“ an Cluster-Karte und Cluster-Graph): Position = Cluster-Karte, Tiefe = Jahr.
+Mit W/A/S/D, Q/E, Mausrad oder Steuerkreuz durchlaufen, mit Ziehen umsehen; „Fly through time“ läuft die Jahre ab.
+Ringe mit Linie zeigen den Cluster-Schwerpunkt je Jahr, Balken die Laufzeit von Projekten.
+
+
 Qdrant speichert die Vektoren, clustert aber nicht selbst. Nach jeder Ingestion (abschaltbar mit `AUTO_CLUSTER=false`)
 clustert das Backend die **Structured Summaries** – eine Einheit je Werk, nicht je Datei:
 
@@ -121,8 +135,16 @@ Geclustert wird ausschließlich semantisch: k-means (Cosinus, 10 Starts) auf den
 oder fest vorgegeben. Dokumente, ihre Chunks und Projekte bekommen `cluster_id`, `cluster_label` (prägnanteste Begriffe),
 `cluster_score` (Ähnlichkeit zum Zentrum), `cluster_k`, `cluster_run`, `cluster_basis` (`summary` | `project`).
 
-**Cluster-Beschreibungen:** Mit API-Key erzeugt jeder Lauf per LLM Kurztitel und Beschreibung je Cluster
-(`cluster_title`, `cluster_description`; Namen pseudonymisiert). Im Datenbank-Bereich öffnet „i“ an jeder Datenbank deren Inhalt und
+**Cluster-Namen (REQ-04):** Jeder Cluster bekommt bei jedem Lauf einen beschreibenden Namen (`cluster_title`), nie eine
+generische Bezeichnung wie „Cluster 3“. Mit API-Key schreibt ihn das LLM (2–6 Wörter, z. B. „Lean and Job Satisfaction“);
+ohne Key, bei Fehlern oder bei generischen LLM-Titeln („Miscellaneous“, „Research“) wird er aus dem prägnantesten Wortpaar bzw.
+der prägnantesten Dreiwortgruppe der Titel und Purposes des Clusters gebildet, ergänzt um den stärksten weiteren Begriff
+(z. B. „Energy App Adoption“, „Job Satisfaction and Lean“); Abkürzungen behalten ihre Schreibweise (AI, fsQCA), Personennamen
+kommen nicht vor. `cluster_title_source` sagt `llm` oder `terms`. Gleiche Namen in einem Lauf werden unterschieden
+(„… (Meter)“). Die Oberfläche zeigt überall diesen Namen; die Begriffe (`cluster_label`) erscheinen nur noch als Detail.
+
+**Cluster-Beschreibungen:** Mit API-Key erzeugt jeder Lauf per LLM zusätzlich eine Beschreibung je Cluster
+(`cluster_description`; Namen pseudonymisiert). Im Datenbank-Bereich öffnet „i“ an jeder Datenbank deren Inhalt und
 die Beschreibungen ihrer Cluster; „ⓘ Cluster descriptions“ zeigt alle Cluster mit Datenbank-Anteilen.
 
 **Visualisierung:** Im Tab „A/B Interaction Interface“ liegt zwischen „Databases“ und den Kacheln je eine Ansicht pro Kachel:
@@ -133,6 +155,9 @@ deren zweitnächster Cluster `cluster_alt_id` der andere Knoten ist; `GET /api/c
 **Datenschutz:** Personennamen dürfen in Cluster-Bezeichnungen nicht auftauchen. Sie werden erkannt (Autor:innen-Metadaten, E-Mail-Adressen `vorname.nachname@…`, Zitiermuster wie „Müller et al“, „Schmidt (2019)“ oder Aufzählungen wie „Simon, Kahneman and Tversky“) und durch stabile Pokémon-Pseudonyme ersetzt. `PSEUDONYM_SALT` in der `.env` ändert die Zuordnung.
 
 - Neu berechnen: `docker compose run --rm ingest cluster [--k 8]` oder `POST /api/clusters/recompute?k=0` (Header `X-OpenRouter-Key` für fehlende Summary-Vektoren)
+- Testdaten CNN/DailyMail (Datenbank CNN_DM): `python tools/fetch_cnn_dailymail.py [--n 1000]` legt eine Stichprobe als research notes in `research/CNN_DM/notes/` ab, danach wie jede Datenbank einlesen und mit `--db CNN_DM` clustern.
+- Projektdateien nach Inhalt clustern: `ingest cluster --db ML --files` (API: `project_files=true`). Statt jedes Projekt als eine Einheit zu behandeln, wird jede aktuelle Projektdatei mit eigener Structured Summary (neueste Version, nicht archiviert) einzeln geclustert; Dateien ohne Summary (Daten, Syntax, Auswertungen, Abbildungen, ältere Versionen) übernehmen den Cluster des Inhaltsdokuments im selben Projekt mit dem nächstgelegenen Ordner, mit ihrem Beitragswert (`cluster_contribution`: data, analysis, results, instrument, submission, literature, version, text, other) und dem Bezugsdokument (`cluster_anchor`).
+- Nur eine Datenbank clustern: `docker compose run --rm ingest cluster --db JSW` oder `POST /api/clusters/recompute?database=JSW`. Die Cluster der anderen Datenbanken bleiben unverändert, die neuen IDs schließen an die höchste bestehende an, die Labels beginnen mit „JSW · “. Ein späterer Lauf ohne `--db` (auch das automatische Clustering nach einer Ingestion) clustert wieder alles gemeinsam; zum Einlesen ohne Neu-Clustering `-e AUTO_CLUSTER=false` anhängen.
 - Übersicht: `GET /api/clusters`; Filter: `GET /api/documents?cluster=3`, im Chat `@cluster:3`
 
 ## ISO/IEC 42001 und EU AI Act
@@ -206,6 +231,25 @@ und `APP_VERSION` im Frontend angleichen. Der Test `test_changelog_follows_keepa
 
 | Version | Datum | Inhalt | früher |
 |---|---|---|---|
+| 1.14.0 | 2026-10-11 | REQ-19: Projektteams statt Datei-Metadaten als Autor:innen, Personen-Filter für beide Chats, Bereinigung von Metadaten-Namen; REQ-12: Chat-Umfang folgt der Auswahl (Projekt, Cluster, ganze Landkarte); ALITA-Helferin mit Rundgang und „RAG vs. Graph“; Wissenslandkarte in drei Ebenen, „Reset view“, Datenbank-Blumen im 3D; REQ-11: Erklärungen über den Chats | |
+| 1.13.0 | 2026-10-11 | REQ-09: Cluster- und Projektansicht oben rechts mit Dokumentliste und Projektkarte; Projektebene über den Clustern in der Wissenslandkarte; REQ-08: ausgeschlossene Dateien (z. B. Literaturordner) im Datenbank-Infofenster mit Grund; REQ-21: Parameter und System Prompt unter „Advanced settings“ | – |
+| 1.12.0 | 2026-10-11 | REQ-02: Wissenslandkarte auf der B-Seite immer sichtbar (Seite auf Fensterhöhe, Dokumente öffnen im Bereich Projekte & Cluster); Klick auf Cluster wie auf A/B mit Beschreibung oben rechts; verbundene Cluster in jeder Cluster-Beschreibung; alte Cluster-Detailansicht entfernt; Fehler „Cluster [object Object]“ behoben | – |
+| 1.11.0 | 2026-10-11 | REQ-01: B Interaction Interface in vier Bereichen (Wissenslandkarte · Projekte & Cluster · Fenster nach außen · Graph Chat); REQ-20 „Externes Challengen“ als animierte Wüsten-Baustelle mit Konzeptbeschreibung; „Clear selection“ wählt Datenbanken und Cluster ab; Korrekturen: leerer Cluster-Graph, Cluster-Auswahl beim Datenbankwechsel | – |
+| 1.10.0 | 2026-10-11 | REQ-04: aussagekräftige Cluster-Namen – jeder Cluster bekommt automatisch einen beschreibenden Namen (LLM, sonst aus den prägnantesten Wortpaaren), eindeutig je Lauf; die Oberfläche zeigt überall den Namen statt der Begriffsliste | – |
+| 1.9.0 | 2026-10-11 | Blumen der Datenbanken in den Cluster-Punkten (Form = Typ); „3D · time“ mit Zeitfenster (von–bis), nur gewählte Datenbank, Hover für alle Punkte; Cluster-Beschreibungen in eigenem Feld unter den Ansichten je ausgewähltem Cluster; Graph Chat auf B: Fragen und Eingabe rechts, Antworten links; 3D-Ansicht A/B repariert | – |
+| 1.8.0 | 2026-10-10 | Datenbanken heißen nach Blumen (Peony = LDK u. a.), überall inkl. Cluster; Unterwasser-Szene mit aufsteigenden Blasen und Tiefseetieren in Kopfzeile und Datenbank-Leiste; Clustern einzelner Datenbanken und Projektdateien; Datenbank CNN_DM; Start immer auf B; Recompute-Button entfernt | – |
+| 1.7.0 | 2026-10-05 | A und B zeigen die Cluster je Zeitraum (vor 2025 · 2025 · 2026); Cluster-Mehrfachauswahl begrenzt beide Chats | – |
+| 1.6.0 | 2026-10-05 | Cluster-Karte A: Ziehen erhält Ähnlichkeitsbeziehungen (Federn), Beziehungslinien | – |
+| 1.5.2 | 2026-10-05 | Zeitraster unter der 3D-Cluster-Karte entfernt; Steuerung oben links in allen 3D-Ansichten | – |
+| 1.5.1 | 2026-10-05 | Refactoring: Frontend in css/ und js/ aufgeteilt, Build-Werkzeug im Repo, tote Reste entfernt | – |
+| 1.5.0 | 2026-10-05 | Cluster-Karte und Cluster-Graph interaktiv in 3D (drehen, Cluster ziehen) | – |
+| 1.4.0 | 2026-10-05 | Cluster-Profil beim Hovern: Erkenntnisse, Analysen, Theorien | – |
+| 1.3.0 | 2026-10-05 | Cluster-Raum in 3D mit Zeitachse (Jahre), begehbar | – |
+| 1.2.1 | 2026-10-05 | Datenbankauswahl begrenzt A und B vollständig (auch Graph-Nachbarn), sichtbar in beiden Kacheln | – |
+| 1.2.0 | 2026-10-05 | „Read aloud“ entfernt, keine Sprachausgabe mehr | – |
+| 1.1.2 | 2026-10-05 | Literatur-Ordner auch verschachtelt übersprungen | – |
+| 1.1.1 | 2026-10-05 | Eingabe und Fußzeile von Document Chat und Graph Chat bündig | – |
+| 1.1.0 | 2026-10-05 | `ingest delete --db <DB>`; alle JSW-Daten entfernt | – |
 | 1.0.0 | 2026-10-03 | Erste stabile Version: API, CLI und Metadaten gelten als stabil (GPT-6 Luna fest, Key nur aus dem Interface, Graph Chat, Server-Betrieb) | – |
 | 0.19.0 | 2026-10-03 | Server-Betrieb auf Oracle Cloud mit Cloudflare Tunnel + Google-Login, Index-Umzug (`migrate`); B heißt „Graph Chat“; Avatar-Haare in Datenbankfarben | – |
 | 0.18.0 | 2026-10-03 | GPT-6 Luna als einziges Sprachmodell, Spracheingabe entfernt, API-Key nur aus dem Interface | – |
@@ -249,7 +293,7 @@ Zuordnung (Priorität von oben nach unten):
 
 1. explizit: `python -m app.ingest project <ordner> --db ML` bzw. `--db AL,JSW`, im Upload-Dialog oder per API
 2. Ordnerstruktur: `research/<DB>/<Projekt>`, z. B. `research/ML/11-MentalModelProcesses`; `ingest all` erkennt das automatisch
-   - Paper und Notizen: `research/<DB>/papers/*.pdf` bzw. `research/<DB>/notes/*` werden als research paper bzw. research notes eingelesen (z. B. `research/JSW/papers/`)
+   - Paper und Notizen: `research/<DB>/papers/*.pdf` bzw. `research/<DB>/notes/*` werden als research paper bzw. research notes eingelesen (z. B. `research/LDK/papers/`)
 3. beim erneuten Einlesen bleibt eine vorhandene Zuordnung erhalten
 
 Nachträglich ändern: im Frontend (Projektkarte oder Dokument-Details → „Zuordnung speichern“) oder per
@@ -261,7 +305,7 @@ Im Frontend wählt die Datenbank-Leiste eine oder mehrere Datenbanken aus; die A
 
 Liegt neben Papern oder Notizen eine `_summaries.yaml` (Dateiname → purpose, design_methodology_approach, findings,
 research_limitations_implications, originality_value), übernimmt die Ingestion diese Felder als Structured Summary
-(`source: manual`) und ruft dafür kein LLM auf. Mitgeliefert für alle 11 Paper in `research/JSW/papers/`, die 3 Paper in `research/LDK/papers/` und alle 28 Notizen
+(`source: manual`) und ruft dafür kein LLM auf. Mitgeliefert für die 3 Paper in `research/LDK/papers/` und alle 28 Notizen
 in `research/LDK/notes/`. Auf Projektebene wird die Zusammenfassung aus dem Structured Abstract des Projekts gelesen
 (`research/ML/11-MentalModelProcesses`, neueste `Abstract.docx`).
 
@@ -273,7 +317,7 @@ lassen sich wieder öffnen und löschen. Der Dokumenten-Chat schickt die letzten
 
 ## Entscheidungen
 
-- **Fremdliteratur**: `PROJECT_EXCLUDE` (Standard `Literatur/**`) wird beim Einlesen übersprungen. Einzelne zitierte PDFs außerhalb dieses Ordners bekommen die Rolle `reference`.
+- **Fremdliteratur**: `PROJECT_EXCLUDE` (Standard `*Literatur*/*`): jeder Ordner mit „Literatur“ oder „Literature“ im Namen wird beim Einlesen übersprungen, auch verschachtelt wie `Paper/1-Literatur/`. Einzelne zitierte PDFs außerhalb dieses Ordners bekommen die Rolle `reference`.
 - **Versionen**: Alle Versionen werden indexiert. `is_latest` markiert pro Gruppe (Basisname + Dateityp) die höchste Version. Der Chat begrenzt Treffer auf 2 Chunks pro Dokument, damit nicht sechs Fassungen desselben Artikels alle Quellen belegen. Mit „nur neueste Versionen“ bzw. `@version:latest` lässt sich das weiter eingrenzen.
 - **Exakte Duplikate** (gleicher Hash, z. B. dieselbe `Figures_v5.pptx` in jedem Journal-Ordner) stehen in der Liste, ihr Inhalt wird aber nur einmal eingebettet.
 - **LLM-Kosten**: `ENRICH_SCOPE=latest` erzeugt Summaries nur für die neueste Version textreicher Rollen. Paper und Notes bekommen immer eine eigene Summary. Mit `all` bekommt jede Version eine.
@@ -299,16 +343,38 @@ lassen sich wieder öffnen und löschen. Der Dokumenten-Chat schickt die letzten
 
 Prompt-Filter im Chat: `@db:ML,UM`, `@typ:paper|project|notes`, `@projekt:NAME`, `@dateityp:pdf`, `@jahr:2021` oder `@jahr:2018-2021`, `@rolle:manuscript`, `@methode:survey`, `@journal:"European Management Review"`, `@version:latest`.
 
+## Eine Datenbank komplett entfernen
+
+```bash
+docker compose run --rm ingest delete --db JSW --dry-run -                          # nur anzeigen
+docker compose run --rm -e OPENROUTER_API_KEY=sk-or-v1-… ingest delete --db JSW     # löschen + Cluster neu (mit Beschreibungen)
+```
+
+Löscht Dokumente und Textstellen, die nur zu dieser Datenbank gehören, aus Qdrant und Neo4j; gemeinsame Dokumente
+verlieren nur die Zuordnung. Den Ordner `research/<DB>` danach selbst löschen, sonst liest `seed` ihn beim nächsten Start wieder ein.
+
 ## Backup
 
 - **Metadaten:** `GET /api/export` liefert alle Dokumente (inkl. Zusammenfassungen, Datenbanken, Methoden) und Projekte als JSON.
 - **Vektorindex:** Qdrant-Snapshots über `POST http://localhost:6333/collections/rr_documents/snapshots` (ebenso `rr_chunks`, `rr_projects`) oder das Volume `qdrant_data` sichern.
 - **Originaldateien und kuratierte Summaries:** liegen in `RESEARCH_DIR` (inkl. `_summaries.yaml`) bzw. im Volume `app_data` für Uploads.
 
+## Frontend
+
+Kein Build nötig: nginx und das Backend liefern `frontend/` direkt aus. Die Skripte in `js/` teilen sich den globalen
+Gültigkeitsbereich und werden in der Reihenfolge von `index.html` geladen; `start.js` kommt zuletzt und startet die App.
+Neue Funktionen, die schon beim Laden aufgerufen werden, gehören in eine Datei *vor* ihrer ersten Verwendung.
+
+```bash
+python tools/build_frontend.py data                          # js/data.js aus CHANGELOG.md, docs/ und prompts.py
+python tools/build_frontend.py artifact demo.json out.html   # Einzeldatei mit Demodaten (veröffentlichte Seite)
+```
+
 ## Tests
 
 ```bash
 cd backend && pytest
+ruff check backend          # Lint (Regeln in backend/ruff.toml)
 ```
 
 Die Tests laufen ohne Netz und prüfen Rollen, Versionen, Journal-Erkennung, Prompt-Filter, Abstract-Parser, Chunking und einen Projekt-Scan.

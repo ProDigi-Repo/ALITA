@@ -20,7 +20,9 @@ Qdrant selbst clustert nicht: wir lesen die Vektoren, clustern mit k-means (Cosi
 Geclustert wird ausschließlich auf Embeddings (semantisch). Wortstatistik dient nur dazu, Cluster-Namen aus
 prägnanten Begriffen zu bilden; die inhaltliche Beschreibung schreibt das LLM.
   cluster_x/_y   float 2D-Position für die Cluster-Karte (PCA der Summary-Vektoren, -1..1)
-  cluster_title / cluster_description  str  Kurztitel und Beschreibung (LLM, Namen pseudonymisiert; ohne Key leer)
+  cluster_title  str  beschreibender Kurzname, immer gesetzt (REQ-04): vom LLM, sonst aus den prägnantesten Wortpaaren
+                      der Titel/Purposes gebildet (cluster_title_source "llm" | "terms"); innerhalb eines Laufs eindeutig
+  cluster_description  str  1–2 Sätze Beschreibung (LLM, Namen pseudonymisiert; ohne Key leer)
   cluster_alt_id int   zweitnächster Cluster (Brücke; Kanten im Cluster-Graphen), cluster_alt_score dessen Ähnlichkeit
 
 Nur numpy, keine weitere Abhängigkeit. Die Funktionen sind auch ohne Qdrant nutzbar (Tests, Demo).
@@ -232,6 +234,117 @@ def project_2d(X: np.ndarray) -> list[tuple[float, float]]:
     return [(round(float(x), 3), round(float(y), 3)) for x, y in P]
 
 
+# --------------------------------------------------------------- Cluster-Namen (REQ-04)
+ACRONYMS = {"ai": "AI", "llm": "LLM", "llms": "LLMs", "pls": "PLS", "sem": "SEM", "pls-sem": "PLS-SEM", "hr": "HR", "it": "IT",
+            "esg": "ESG", "csr": "CSR", "ui": "UI", "ux": "UX", "ki": "KI", "ict": "ICT", "erp": "ERP", "cnn": "CNN", "nlp": "NLP",
+            "rag": "RAG", "sme": "SME", "smes": "SMEs", "iot": "IoT", "gpu": "GPU", "covid": "COVID", "covid-19": "COVID-19"}
+GENERIC_TITLE = re.compile(r"^(cluster|topic|group|theme)\s*\d*$|^(misc(ellaneous)?|various|other|general|mixed)\b.*|^(research|studies|papers|documents|notes|topics)$", re.I)
+
+
+def _tc(phrase: str) -> str:
+    """Title Case für Cluster-Namen, Akronyme groß ("ai adoption" -> "AI Adoption")."""
+    return " ".join(ACRONYMS.get(w, w[:1].upper() + w[1:]) for w in phrase.split())
+
+
+def _join(words: list[str]) -> str:
+    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " and " + words[-1]
+
+
+# Für Namen nur Funktionswörter und Floskeln ausschließen (die allgemeine STOP-Liste nimmt auch Fachwörter wie "app" heraus)
+NAME_STOP = set("""a an the and or of in on for to with by from at as is are was were be been being this that these those their its
+our we us how why what which who whom whether into over under between among about than then also not no via using use used
+based toward towards through within without across per can may do does more most new two three one
+der die das und oder im in von zu mit für auf ein eine einer eines den dem des wie welche
+study studies paper papers article research purpose approach findings results examine examines examined investigate investigates
+explore explores exploring aim aims author authors present presents propose proposes show shows using""".split())
+
+
+def _phrases(text: str) -> set[str]:
+    """Wortpaare aus Titel und Purpose eines Werks (ohne Stoppwörter) – Kandidaten für Cluster-Namen."""
+    rows = [l.split(": ", 1)[1] for l in text.splitlines() if l.startswith(("Title: ", "Purpose: ")) and ": " in l] or [text]
+    out = set()
+    for r in rows:
+        toks = re.findall(r"[a-zäöüß0-9][a-zäöüß0-9\-]{1,}", r.lower())
+        ok = [t not in NAME_STOP and not t.isdigit() for t in toks]
+        for i in range(len(toks) - 1):
+            if ok[i] and ok[i + 1]:
+                out.add(f"{toks[i]} {toks[i + 1]}")
+                if i + 2 < len(toks) and ok[i + 2]:
+                    out.add(f"{toks[i]} {toks[i + 1]} {toks[i + 2]}")
+    return out
+
+
+def _caser(texts: list[str]):
+    """Schreibweise eines Worts wie im Text, wenn sie besonders ist (fsQCA, PLS-SEM, COVID-19), sonst Title Case."""
+    forms = Counter(m for t in texts for m in re.findall(r"[A-Za-zÄÖÜäöüß0-9][\wÄÖÜäöüß\-]*", t))
+    def case(w: str) -> str:
+        if w in ACRONYMS:
+            return ACRONYMS[w]
+        cand = [f for f, _ in forms.most_common() if f.lower() == w]
+        special = [f for f in cand if f != f.lower() and f != f[:1].upper() + f[1:].lower()]
+        return special[0] if special and sum(forms[f] for f in special) * 2 >= sum(forms[f] for f in cand) else w[:1].upper() + w[1:]
+    return lambda phrase: " ".join(case(w) for w in phrase.split())
+
+
+def heuristic_titles(texts: list[str], labels: list[int], terms: dict[int, list[str]], names: set[str] | None = None) -> dict[int, str]:
+    """Beschreibender Kurzname je Cluster ohne LLM: das prägnanteste Wortpaar (in mehreren Werken des Clusters,
+    insgesamt seltener) plus der stärkste weitere Begriff, z. B. "Job Satisfaction and Lean"; sonst die Top-Begriffe.
+    Personennamen kommen nicht vor."""
+    names = names or set()
+    sets = [_phrases(t) for t in texts]
+    N = len(sets)
+    df_all = Counter(p for s_ in sets for p in s_)
+    out = {}
+    for c in sorted(set(labels)):
+        idx = [i for i, l in enumerate(labels) if l == c]
+        size = len(idx)
+        df_c = Counter(p for i in idx for p in sets[i])
+        tc = _caser([texts[i] for i in idx])
+        best, best_s, best_v = None, 0.0, 0
+        for ph, v in df_c.items():
+            if any(w in names for w in ph.split()) or ph.count(" ") > 1:
+                continue
+            p_c, p_all = v / size, df_all[ph] / N
+            if (v >= 2 or size == 1) and p_c >= (0.2 if size >= 5 else 0.34) and p_c >= p_all:
+                sc = p_c * math.log(1 + p_c / p_all) + 0.01 * v
+                if sc > best_s:
+                    best, best_s, best_v = ph, sc, v
+        if best:   # eine Dreiwortgruppe, die das Wortpaar enthält und genauso oft vorkommt, ist der genauere Name
+            tri = [(v, ph) for ph, v in df_c.items() if ph.count(" ") == 2 and best in ph and v >= best_v
+                   and not any(w in names for w in ph.split())]
+            if tri:
+                best = max(tri)[1]
+        tw = [w for w in terms.get(c, []) if w not in names and not w.startswith("pokemon")]
+        if best:
+            extra = [w for w in tw if w not in best.split() and not any(b[:4] == w[:4] for b in best.split())]   # keine Dopplung (team/teams)
+            out[c] = tc(best) + (f" and {tc(extra[0])}" if extra else "")
+        elif tw:
+            out[c] = _join([tc(w) for w in tw[:2]])
+        else:   # keine prägnanten Begriffe: häufigstes Wortpaar bzw. Wort des Clusters
+            common = [p for p, _ in df_c.most_common() if p.count(" ") == 1 and not any(w in names for w in p.split())]
+            words = Counter(w for i in idx for w in _tokens(texts[i]) if w not in names)
+            out[c] = tc(common[0]) if common else (tc(words.most_common(1)[0][0]) if words else "Unlabeled Documents")
+    return out
+
+
+def unique_titles(titles: dict[int, str], terms: dict[int, list[str]]) -> dict[int, str]:
+    """Gleiche Namen innerhalb eines Laufs unterscheiden: erst durch einen eigenen Begriff, sonst durch eine Nummer."""
+    out, seen = {}, Counter(t.lower() for t in titles.values())
+    used: set[str] = set()
+    for c in sorted(titles):
+        t = titles[c]
+        if seen[t.lower()] > 1:
+            extra = next((w for w in terms.get(c, []) if w.lower() not in t.lower() and f"{t} ({_tc(w)})".lower() not in used), None)
+            t2 = f"{t} ({_tc(extra)})" if extra else t
+            n = 2
+            while t2.lower() in used:
+                t2, n = f"{t} {n}", n + 1
+            t = t2
+        used.add(t.lower())
+        out[c] = t
+    return out
+
+
 def cluster_vectors(X: np.ndarray, texts: list[str], k: int | None = None,
                     names: set[str] | None = None, salt: str = "") -> dict:
     """Clustert normalisierte Vektoren; Rückgabe: labels, scores, label-Texte, k."""
@@ -248,6 +361,7 @@ def cluster_vectors(X: np.ndarray, texts: list[str], k: int | None = None,
     terms = top_terms(texts, labels)
     names = names if names is not None else name_tokens(texts)
     terms = {c: pseudonymize_terms(t, names, salt) for c, t in terms.items()}
+    titles = unique_titles(heuristic_titles(texts, labels.tolist(), terms, names), terms)
     scores = np.sum(X * C[labels], axis=1)
     sims = X @ C.T
     if len(order) > 1:
@@ -265,7 +379,8 @@ def cluster_vectors(X: np.ndarray, texts: list[str], k: int | None = None,
         "coords": project_2d(X),
         "alt_ids": alt_ids,
         "alt_scores": alt_scores,
-        "names": {remap[c]: " · ".join(terms.get(c, [])) or f"Cluster {remap[c]}" for c in order},
+        "names": {remap[c]: " · ".join(terms.get(c, [])) or titles[c].lower() for c in order},
+        "titles": {remap[c]: titles[c] for c in order},
     }
 
 
@@ -295,16 +410,23 @@ def summary_key(text: str) -> str:
     return hashlib.sha1(text.encode("utf-8")).hexdigest()[:16]
 
 
-def select_units(docs: list[dict], projects: list[dict]) -> list[dict]:
-    """Clustering-Einheiten: Paper und Notes mit Summary (ohne Duplikate) sowie Projekte mit Projekt-Summary."""
+def select_units(docs: list[dict], projects: list[dict], project_files: bool = False) -> list[dict]:
+    """Clustering-Einheiten: Paper und Notes mit Summary (ohne Duplikate) sowie Projekte mit Projekt-Summary.
+    project_files=True: statt der Projekte als Ganzes jede aktuelle Projektdatei mit eigener Summary
+    (neueste Version, nicht archiviert) – Clustering nach dem Inhalt der Dokumente im Projekt."""
     units = []
     for d in docs:
-        if d.get("doc_type") not in UNIT_TYPES or d.get("duplicate_of"):
+        if d.get("duplicate_of"):
+            continue
+        if d.get("doc_type") == "research_project":
+            if not project_files or d.get("is_latest") is False or d.get("archived"):
+                continue
+        elif d.get("doc_type") not in UNIT_TYPES:
             continue
         t = summary_text(d.get("title"), d.get("summary"))
         if t:
             units.append({"kind": "doc", "id": d["doc_id"], "text": t, "authors": d.get("authors") or []})
-    for p in projects:
+    for p in ([] if project_files else projects):
         t = summary_text(p.get("title") or p.get("name"), p.get("summary"))
         if t:
             units.append({"kind": "project", "id": p["project_id"], "name": p["name"], "text": t,
@@ -344,7 +466,63 @@ async def _fill_vectors(units: list[dict], api_key: str | None) -> list[str]:
     return skipped
 
 
-def assign(units: list[dict], res: dict, docs: list[dict], run: str) -> tuple[dict, dict]:
+# Beitrag einer Projektdatei ohne eigene Summary zum Inhalt (Clustering mit project_files=True)
+CONTRIBUTION = {
+    "data": "data", "analysis_script": "analysis", "analysis_output": "analysis", "model_file": "analysis",
+    "tables": "results", "figures": "results", "image": "results", "presentation": "presentation",
+    "questionnaire": "instrument", "cover_letter": "submission", "title_page": "submission",
+    "submission_pdf": "submission", "reviewer_response": "submission", "highlights": "submission",
+    "reference": "literature", "manuscript": "text", "abstract": "text", "appendix": "text", "notes": "text",
+}
+
+
+def contribution_of(d: dict) -> str:
+    """Beitragswert einer Hilfsdatei: data, analysis, results, instrument, submission, literature, version, text, other."""
+    kind = CONTRIBUTION.get(d.get("role") or "", "other")
+    if kind == "text" and d.get("is_latest") is False:
+        return "version"
+    return kind
+
+
+def _folder(rel_path: str | None) -> list[str]:
+    return [p for p in (rel_path or "").replace("\\", "/").split("/")[:-1] if p]
+
+
+def associate_project_files(docs: list[dict], doc_meta: dict[str, dict]) -> None:
+    """Projektdateien ohne eigenen Cluster übernehmen den Cluster des inhaltlich tragenden Dokuments im selben Projekt:
+    das mit dem längsten gemeinsamen Ordnerpfad, bei Gleichstand das im häufigsten Cluster des Projekts.
+    Dazu kommt der Beitragswert (cluster_contribution) und das Bezugsdokument (cluster_anchor)."""
+    by_id = {d["doc_id"]: d for d in docs}
+    anchors: dict[str, list[dict]] = {}
+    for doc_id, m in doc_meta.items():
+        d = by_id.get(doc_id)
+        if d and d.get("doc_type") == "research_project" and m.get("cluster_basis") == "summary":
+            anchors.setdefault(d.get("project_name"), []).append(d)
+    for d in docs:
+        if d["doc_id"] in doc_meta or d.get("doc_type") != "research_project":
+            continue
+        cands = anchors.get(d.get("project_name"))
+        if not cands:
+            continue
+        freq = Counter(doc_meta[a["doc_id"]]["cluster_id"] for a in cands)
+        folder = _folder(d.get("rel_path"))
+
+        def closeness(a: dict) -> tuple:
+            af, n = _folder(a.get("rel_path")), 0
+            while n < min(len(af), len(folder)) and af[n] == folder[n]:
+                n += 1
+            m = doc_meta[a["doc_id"]]
+            return n, freq[m["cluster_id"]], m.get("cluster_score") or 0
+
+        best = max(cands, key=closeness)
+        am = doc_meta[best["doc_id"]]
+        doc_meta[d["doc_id"]] = {k: am[k] for k in ("cluster_id", "cluster_label", "cluster_k", "cluster_run")} | {
+            "cluster_score": None, "cluster_basis": "contribution", "cluster_x": None, "cluster_y": None,
+            "cluster_alt_id": None, "cluster_alt_score": None,
+            "cluster_contribution": contribution_of(d), "cluster_anchor": best["doc_id"]}
+
+
+def assign(units: list[dict], res: dict, docs: list[dict], run: str, project_files: bool = False) -> tuple[dict, dict]:
     """Cluster-Metadaten für Dokumente und Projekte; Projektdateien und Duplikate erben."""
     base = {"cluster_k": res["k"], "cluster_run": run}
     doc_meta, proj_meta = {}, {}
@@ -367,16 +545,47 @@ def assign(units: list[dict], res: dict, docs: list[dict], run: str) -> tuple[di
         orig = d.get("duplicate_of")
         if d["doc_id"] not in doc_meta and orig in doc_meta:
             doc_meta[d["doc_id"]] = {**doc_meta[orig], "cluster_score": None, "cluster_x": None, "cluster_y": None}
+    if project_files:
+        for m in doc_meta.values():
+            m.setdefault("cluster_contribution", "content" if m.get("cluster_basis") == "summary" else None)
+            m.setdefault("cluster_anchor", None)
+        associate_project_files(docs, doc_meta)
     return doc_meta, proj_meta
 
 
-async def recompute(k: int | None = None, api_key: str | None = None) -> dict:
-    """Clustert Paper, Notes und Projekte anhand ihrer Summary-Vektoren und schreibt die Metadaten zurück."""
-    from . import store
-    from .config import get_settings
+def _in_dbs(row: dict, dbs: set[str]) -> bool:
+    return bool(dbs & set(row.get("databases") or []))
 
-    docs = store.scroll_documents()
-    units = select_units(docs, store.list_projects())
+
+def shift_clusters(res: dict, offset: int, prefix: str = "") -> dict:
+    """Verschiebt Cluster-IDs um offset (keine Kollision mit Clustern anderer Datenbanken) und setzt ein Label-Präfix."""
+    if not offset and not prefix:
+        return res
+    return {**res,
+            "labels": [c + offset for c in res["labels"]],
+            "alt_ids": [None if a is None else a + offset for a in res["alt_ids"]],
+            "names": {c + offset: f"{prefix}{n}" for c, n in res["names"].items()},
+            "titles": {c + offset: t for c, t in (res.get("titles") or {}).items()}}
+
+
+async def recompute(k: int | None = None, api_key: str | None = None, databases: list[str] | None = None,
+                    project_files: bool = False) -> dict:
+    """Clustert Paper, Notes und Projekte anhand ihrer Summary-Vektoren und schreibt die Metadaten zurück.
+    databases: nur Dokumente/Projekte dieser Datenbanken clustern; die Cluster aller anderen bleiben unverändert,
+    die neuen Cluster-IDs schließen an die höchste bestehende ID an."""
+    from . import store
+    from .config import db_name, get_settings
+
+    docs, projects = store.scroll_documents(), store.list_projects()
+    dbs = set(databases or [])
+    offset, prefix = 0, ""
+    if dbs:
+        others = [r for r in [*docs, *projects] if not _in_dbs(r, dbs) and r.get("cluster_id") is not None]
+        offset = max((int(r["cluster_id"]) for r in others), default=0)
+        prefix = "/".join(sorted(db_name(d) for d in dbs)) + " · "
+        docs = [d for d in docs if _in_dbs(d, dbs)]
+        projects = [p for p in projects if _in_dbs(p, dbs)]
+    units = select_units(docs, projects, project_files=project_files)
     skipped = await _fill_vectors(units, api_key)
     units = [u for u in units if u.get("vec") is not None]
     if len(units) < 2:
@@ -385,33 +594,57 @@ async def recompute(k: int | None = None, api_key: str | None = None) -> dict:
     X = np.array([u["vec"] for u in units], dtype=np.float32)
     names = name_tokens([u["text"] for u in units], [a for u in units for a in u["authors"]])
     res = cluster_vectors(X, [u["text"] for u in units], k, names=names, salt=get_settings().pseudonym_salt)
+    res = shift_clusters(res, offset, prefix)
     run = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    descs = await describe_clusters(units, res, names, api_key)
-    doc_meta, proj_meta = assign(units, res, docs, run)
+    descs = name_clusters(await describe_clusters(units, res, names, api_key), res)
+    doc_meta, proj_meta = assign(units, res, docs, run, project_files=project_files)
     for m in [*doc_meta.values(), *proj_meta.values()]:
         d = descs.get(m["cluster_id"]) or {}
         m["cluster_title"], m["cluster_description"] = d.get("title"), d.get("description")
-    store.set_cluster_payload(doc_meta, run, projects=proj_meta)
+        m["cluster_title_source"] = d.get("title_source")
+        m["cluster_insights"], m["cluster_analyses"], m["cluster_theories"] = d.get("insights"), d.get("analyses"), d.get("theories")
+    scope = ({d["doc_id"] for d in docs}, {p["name"] for p in projects}) if dbs else None
+    store.set_cluster_payload(doc_meta, run, projects=proj_meta, scope=scope)
     if get_settings().graph_enabled:
         try:
             from . import graph
-            graph.sync_clusters(doc_meta, proj_meta, descs)
+            graph.sync_clusters(doc_meta, proj_meta, descs, scope_docs=scope[0] if scope else None)
         except Exception as e:  # Graph ist optional
             log.warning("Cluster-Sync in Neo4j fehlgeschlagen: %s", e)
     log.info("Clustering: %d Einheiten, %d Dokumente in %d Clustern", len(units), len(doc_meta), res["k"])
-    return {"k": res["k"], "basis": "summary", "units": len(units), "documents": len(doc_meta),
+    return {"k": res["k"], "basis": "summary", "databases": sorted(dbs) or "all", "unit": "project_files" if project_files else "projects", "units": len(units), "documents": len(doc_meta),
             "projects": len(proj_meta), "skipped": skipped, "run": run,
             "clusters": [{"cluster_id": c, "label": n, "size": res["labels"].count(c), **(descs.get(c) or {})}
                          for c, n in res["names"].items()]}
 
 
+def name_clusters(descs: dict[int, dict], res: dict) -> dict[int, dict]:
+    """REQ-04: jeder Cluster bekommt einen beschreibenden Namen. LLM-Titel haben Vorrang; fehlt einer oder ist er
+    generisch ("Cluster 3", "Miscellaneous", "Research"), gilt der aus den Begriffen gebildete Name. Danach eindeutig."""
+    heur = res.get("titles") or {}
+    out = {c: dict(d) for c, d in descs.items()}
+    for c in res["names"]:
+        d = out.setdefault(c, {})
+        t = (d.get("title") or "").strip().strip(".")
+        if t and not GENERIC_TITLE.match(t):
+            d["title"], d["title_source"] = t, d.get("title_source") or "llm"
+        else:
+            d["title"], d["title_source"] = heur.get(c) or _tc(res["names"][c].split(" · ")[-1]), "terms"
+    terms = {c: [w for w in n.split(" · ") if w] for c, n in res["names"].items()}
+    for c, t in unique_titles({c: d["title"] for c, d in out.items() if c in res["names"]}, terms).items():
+        out[c]["title"] = t
+    return out
+
+
 def cluster_prompt(cid: int, label: str, members: list[dict]) -> str:
-    lines = [f"Cluster C{cid} – distinctive terms: {label}", "Members (title – purpose):"]
+    lines = [f"Cluster C{cid} – distinctive terms: {label}", "Members (title – purpose | approach | findings):"]
+    def field(rows: list[str], prefix: str) -> str:
+        return next((r[len(prefix):] for r in rows if r.startswith(prefix)), "")
+
     for u in members[:15]:
         t = u["text"].splitlines()
-        title = next((l[7:] for l in t if l.startswith("Title: ")), "")
-        purpose = next((l[9:] for l in t if l.startswith("Purpose: ")), "")
-        lines.append(f"- {title} – {purpose[:300]}")
+        lines.append(f"- {field(t, 'Title: ')} – {field(t, 'Purpose: ')[:220]} | "
+                     f"{field(t, 'Design/methodology/approach: ')[:220]} | {field(t, 'Findings: ')[:220]}")
     return "\n".join(lines)
 
 
@@ -435,8 +668,13 @@ async def describe_clusters(units: list[dict], res: dict, names: set[str], api_k
     from .config import get_settings
 
     class ClusterDescription(BaseModel):
-        title: str = Field(description="Topic of the cluster in 2-5 words, US English, no person names")
+        title: str = Field(description="Descriptive name of the cluster in 2-6 words, US English, Title Case: name what these documents "
+                                       "are specifically about (e.g. 'Lean and Job Satisfaction', 'Energy App Adoption'). "
+                                       "No generic words alone ('Research', 'Studies', 'Topics', 'Cluster'), no person names")
         description: str = Field(description="1-2 sentences in US English: what the documents in this cluster share. No person names.")
+        insights: list[str] = Field(default_factory=list, description="2-3 key insights or findings the documents reached, one short sentence each, US English, no person names")
+        analyses: list[str] = Field(default_factory=list, description="Up to 5 research methods or analyses used to reach them, e.g. 'PLS-SEM', 'Interviews', 'Vignette experiment'")
+        theories: list[str] = Field(default_factory=list, description="Up to 5 theories, models or frameworks the documents build on, e.g. 'Signaling theory'. Empty if none is named.")
 
     s = get_settings()
     agent = Agent(chat_model(s.chat_model, key), output_type=ClusterDescription,
@@ -446,8 +684,9 @@ async def describe_clusters(units: list[dict], res: dict, names: set[str], api_k
         members = [u for u, l in zip(units, res["labels"]) if l == c]
         try:
             r = await agent.run(cluster_prompt(c, label, members))
-            out[c] = {"title": pseudonymize_text(r.output.title, names, s.pseudonym_salt),
-                      "description": pseudonymize_text(r.output.description, names, s.pseudonym_salt), "description_source": "llm"}
+            ps = lambda t: pseudonymize_text(t, names, s.pseudonym_salt)  # noqa: E731
+            out[c] = {"title": ps(r.output.title), "description": ps(r.output.description), "description_source": "llm",
+                      "insights": [ps(x) for x in r.output.insights[:3]], "analyses": r.output.analyses[:5], "theories": r.output.theories[:5]}
         except Exception as e:  # Beschreibung ist optional
             log.warning("Cluster-Beschreibung C%s fehlgeschlagen: %s", c, e)
     return out

@@ -8,6 +8,226 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-10-11
+
+### Added
+- REQ-19 – correct assignment of people and projects: authors of a research project are now its **curated team**, entered once in the project card ("Team · ✎ add team", saved in `project_teams.yaml` in the data folder or read from `_project.yaml` in the project folder). Names from file metadata (PDF/Office "author" = whoever last saved the file, e.g. Johannes Wichmann on the Sustainability files) are kept only as "Last saved by" and are never shown or used as authors. The team becomes the author list of every project file and `MEMBER_OF`/`AUTHORED` links in the knowledge graph; both chats get a "Who is who" list and name people only from it.
+- REQ-19 – person scope: "👤 restrict to a person" in the scope line of both chats (or click a person in a project card or document) – answers then use only that person's data: own papers and notes plus every project with the person in its team. Combines with the database, project and cluster selection. New endpoints `GET /api/people` and `PUT /api/projects/{name}/team`.
+- REQ-12 – context-dependent chat scope: both chats follow the current selection. **Project selected** (click on a project in the knowledge map; project card open): the answers refer only to that project – the Document Chat filters by `project`, the Graph Chat sends `projects` and restricts the graph query and the vector search to it. **Clusters selected**: as before, the chats are restricted to them. **Nothing selected (the map)**: the chats receive a compact overview of all projects (title, purpose, size, databases) and clusters of the selected databases (`overview: true` on `POST /api/chat` and the Graph Chat), so top-level questions about all projects can be answered even when no single passage matches. The current scope is shown right above each chat input ("Scope: whole knowledge map …", "Scope: ◆ project Lean-Agile …", "Scope: C19 C24 …") and in the parameter summary.
+- Knowledge map in three layers (B Interaction Interface, 3D): top "Projects & papers" (projects and papers as works of their own), middle "Semantic clusters" (per period, as before), bottom "Documents" – below each cluster its documents as small marks (notes, project files), joined to the cluster by a thin stem; every layer is a labelled band. Hovering a document shows title, type, year, cluster and project; a click opens it top right.
+- Database flowers in the 3D knowledge map, so that with several databases selected it is clear what comes from where: every cluster node carries a small flower badge for each database that contributes documents to it, papers and projects carry the flower of their database, and in "Database" mode the document marks take the database colour. With more than one database the legend below the map lists flower → database.
+- "⟲ Reset view" next to 2D/3D in cluster map A, cluster graph B and the knowledge map of the B page: back to the start view – zoom, rotation and moved clusters (before only by double-click).
+- ALITA, the helper fairy (info sign above each chat): the sign pulses on hover; a click lets a small ALITA morph out of the big avatar in the database bar – the avatar is empty while she is out – and fly down to the sign as a cute full figure in "mini-me" proportions (her head a live copy of the avatar with the flowers of the selected databases, a small hoodie with a golden star, fluttering fairy wings, a glowing hover disc). She offers to show how everything works and to explain the two ways to search:
+  - **RAG vs. Graph?** – A (RAG, Document Chat) finds the best-matching text passages and answers from them: *what* a document says; B (Graph, Graph Chat) follows connections between people, projects, methods, clusters and document parts: *how* things are connected.
+  - **✨ Show me around** – a guided tour: she flies from function to function on the current page (databases, knowledge map, reset view, projects & clusters, window to the outside, cluster views, A or B, advanced settings, chat input, history), highlights each with a glowing frame and explains it (Back / Next / End, arrow keys).
+  - **Ask me something …** – the question goes to her chat (Document Chat at A, Graph Chat at B); she confirms and the page moves to the answer.
+  When she leaves (second click, a click elsewhere, Esc, scrolling, or the end of the tour) she flies back into the avatar, which reappears with a little pop. Her bubble always stays fully on screen; no motion when the system asks for reduced motion.
+- REQ-11 (addressed by explanation instead of merging the chats): a note above each chat window (A/B Interaction Interface: above both chats; B Interaction Interface: above the Graph Chat) explains what it does and when to use the other one – A "searches the text of your documents" (passages, RAG; ask *what* a document says, e.g. "Which methods does the project use?"), B "searches the knowledge graph" (connections between people, projects, methods, clusters and document parts, Graph RAG; ask *how* things are connected, e.g. "Who worked with whom on project X?"). The note is always visible – the short tagline in the chat header is hidden below 1500 px window width.
+
+### Fixed
+- Metadata junk is no longer treated as people: "M", "Microsoft Office User", "SmartPLS", "Apache POI", "r06", "Me" and similar are dropped, "Heike (PTKA)" becomes "Heike", "leyer"/"Leyer" are merged. Existing data is cleaned once when the updated backend starts (Qdrant and knowledge graph).
+
+## [1.13.0] - 2026-10-11
+
+### Added
+- REQ-08 – complete loading, visible exclusions: the database info panel ("i" at a database) shows how many files of the database's projects are not loaded on purpose, with the reason, e.g. "146 – literature folders (146) · 853 loaded + 146 excluded = 999 files in the folders" for Magnolia. Files that are not loaded are therefore no longer mistaken for missing documents.
+- Project level in the knowledge map (B Interaction Interface, 2D and 3D): one node per research project above the clusters (in 3D above the periods), linked to every cluster that holds documents of the project – the line width is the number of documents. The tooltip names the project, its documents on the map (of all its files) and its clusters; a click selects all clusters of the project for the chats and shows their descriptions, a second click deselects them. On the B page the "Controls" hint of the 3D map moved to the bottom left to make room.
+- REQ-09 – direct cluster and project view: every cluster description lists the cluster's documents ("Documents (n)", collapsible; type, title, role, year, project – a click opens the document top right on the B page). A click on a project in the knowledge map opens a project card at the top of "Projects & clusters": title, purpose, folder and database, files (with full text, on the map), period, keywords, contents by role, its clusters with the number of its documents in each (click selects) and its documents; the descriptions of its clusters follow below. ✕ closes the card and deselects the clusters.
+- Ingestion records per project how many files the exclusion rules (`PROJECT_EXCLUDE`) skipped and by which pattern (`excluded_count`, `excluded_by` in the project payload); `GET /api/projects` and `GET /api/projects/{name}` count them live in the project folder (cached for 5 minutes), so no re-ingestion is needed.
+
+### Changed
+- REQ-21 (marginal): "Parameters" and "System Prompt" of the Document Chat and the Graph Chat sit behind one collapsed row "Advanced settings" (open/closed is remembered per chat). The row keeps the flowers of the selected databases and the system-prompt state in view, so the database selection stays visible and the flowers still fly into it.
+
+## [1.12.0] - 2026-10-11
+
+### Added
+- REQ-02 – knowledge map always visible: on the B Interaction Interface the knowledge map (top left, all projects and clusters of the current database selection) stays on screen at all times. The page fills exactly the window height and the four areas scroll inside themselves, so the page itself no longer scrolls (minimum height 700 px); on screens narrower than 1100 px the map stays pinned at the top while the other areas scroll beneath it.
+- REQ-02: documents and projects opened from the map or the cluster list open inside the "Projects & clusters" area (with "← Clusters" back to the list) instead of a side drawer that greyed out the whole page; the map stays usable next to them and marks the document's cluster. "Ask in chat" there fills the Graph Chat instead of switching to the A/B page.
+- Cluster descriptions list the connected clusters: each cluster that documents of this cluster are second-closest to, with its name, the number of bridging documents and the average similarity, strongest first. A click on one selects that cluster as well, and its description appears next to the first one. Shown in the description panel of both interaction interfaces and in "3D · time".
+
+### Changed
+- B Interaction Interface: a click on a cluster in the knowledge map (2D and 3D) or in the cluster list works as on the A/B Interaction Interface – it selects the cluster for both chats (click again to deselect, several clusters possible) and its description appears at the top of "Projects & clusters", above the cluster list. Before, a click in the 2D map only highlighted the cluster, and the descriptions sat below the long list, out of view.
+- "Filter Document Chat" in the cluster details of the B page became "Select for the chats": it restricts both chats to the cluster and stays on the page instead of jumping to the A/B Interaction Interface.
+
+### Removed
+- B Interaction Interface: the separate cluster detail view in "Projects & clusters" ("← All clusters", connected clusters). The cluster list now always stays; selected clusters are highlighted in it, and their descriptions appear above the list.
+
+### Fixed
+- Two functions named `clusterCardHtml` (cluster list and cluster profile) overwrote each other, so the cluster detail view of the B page and the cluster cards in the database info panel showed "Cluster [object Object]" and empty sections. The database info panel uses its own function again.
+
+## [1.11.0] - 2026-10-11
+
+### Added
+- REQ-01 – workspace in four areas: the B Interaction Interface is divided into four areas – top left the overall knowledge map (all clusters; header "Knowledge map"), top right the project and cluster view ("Projects & clusters": cluster list and details, below them the descriptions of the selected clusters), bottom right the Graph Chat and bottom left the "Window to the outside" (REQ-20). Until REQ-20 is built, that area shows an animated desert construction site (`frontend/css/desert.css`): drifting dunes and clouds, heat shimmer over the mesas, an excavator digging with dust puffs, a rolling tumbleweed, blowing sand, blinking barrier lights, cones and a wobbling road-works sign, and a card describing what the area is for – REQ-20 "External challenge": selected content (a cluster, a chat answer or a document) can be checked and questioned against external databases, with the results shown in this area; the concept is part of the proposal / call, the implementation follows later. The scene is still when the system asks for reduced motion. Below 1100 px window width the areas are stacked (map, projects & clusters, chat, window to the outside). In a narrow chat area (under 760 px) the answers are on top and your questions and the input below them.
+
+### Changed
+- "Clear selection" in the database bar deselects everything at once – databases and clusters – and is shown whenever anything is selected. The cluster description panel has a labelled "✕ Clear cluster selection" button.
+
+### Fixed
+- Changing the database selection kept clusters selected that have no documents in the newly selected databases (e.g. a Camellia cluster after switching to Dahlia); such clusters now leave the selection, also in the chats' cluster filter and on the B page.
+- Cluster graph on the B Interaction Interface stayed empty ("No cluster analysis yet") since 1.10.0: drawing stopped at the second label line of the nodes (distinctive terms under the cluster name), which referred to a variable removed with REQ-04.
+
+## [1.10.0] - 2026-10-11
+
+### Added
+- REQ-04 – descriptive cluster names: every cluster gets a generated, descriptive name (`cluster_title`) in every clustering run, never a generic one such as "Cluster 3". With an API key the LLM writes it (2–6 words, Title Case, generic words alone are not accepted); without a key, when the LLM call fails or returns a generic title ("Miscellaneous", "Research" …), the name is built from the cluster's most distinctive word pair or three-word phrase in titles and purposes, plus its strongest further term (e.g. "Energy App Adoption", "Job Satisfaction and Lean"). Acronyms keep their spelling (AI, PLS-SEM, fsQCA), person names never appear, and equal names within a run are told apart ("… (Meter)"). New payload field `cluster_title_source` (`llm` | `terms`).
+
+### Changed
+- The interface shows the cluster name everywhere a cluster is named – legend chips of cluster map A, node labels of cluster graph B, the cluster lists of the B page and of "3D · time", cluster cards and the cluster description panel. The list of distinctive terms (`cluster_label`) is only shown as a detail (tooltip, "Distinctive terms"). Clusters of earlier runs without a title get a readable name made from their terms (e.g. "Lean, Job and Satisfaction") until the next clustering run.
+- `GET /api/clusters` also returns the title of clusters that have no description.
+
+### Fixed
+- Test `test_recompute_single_database_keeps_other_clusters` still expected the database ID ("JSW · ") as label prefix; since 1.8.0 single-database runs write the flower name ("Jasmine · ").
+
+## [1.9.0] - 2026-10-11
+
+### Added
+- Flowers in the cluster views: every document point shows the flower of its database in white inside its type mark (■ paper, ● note, ◆ project), in the 2D and 3D cluster map A and in the "3D · time" view. Points that are too small to read show the shape only. In "3D · time" each project now also gets a ◆ diamond at the year it starts. The legends say "flower = database".
+- "3D · time" view: a time window with two handles ("from" and "up to") instead of a single slider. The label shows the window (e.g. "2017–2020", or "(all)"); moving the "from" handle walks the camera to that year, and "Fly through time" starts at the "from" year. Points outside the window are drawn very faint.
+- "3D · time" view: hovering any point names it – title, type, year (projects: their years), cluster and database with its flower; faded points say why they are faded ("outside the selected time range"). Project diamonds can be hovered too.
+- Cluster descriptions in a panel below the views instead of a floating card over the graphs: on the A/B Interaction Interface below cluster views A and B, on the B Interaction Interface below the cluster graph. The panel follows the cluster selection – no cluster selected, no panel; each selected cluster gets its own description, side by side. ✕ clears the selection. In "3D · time" the panel is docked at the bottom of the screen, follows hover, and a click on a cluster keeps it open (click again, ✕ or Esc releases it).
+- B Interaction Interface, Graph Chat: the right column holds your side of the conversation – "Your questions" (every question of the open conversation as a bubble; a click scrolls to its answer) and below it the whole input area (text box, Send, examples), with History and "+ New" next to the questions. The chat area on the left shows only the answers; when it is empty it says "Answers of the Graph Chat appear here".
+
+### Changed
+- Cluster legend chips show the database flower instead of the written database name at the start of the cluster label ("Magnolia · lean · job …" becomes 🌸 "lean · job …"; the name appears on hover).
+- Headers of cluster views A and B have the same layout and height: line 1 badge, title and counts; line 2 the view controls (A: "Clusters / Compare databases", 2D/3D, 3D · time, Hide; B: 2D/3D, 3D · time, Hide). The "semantic · embeddings" tag was removed.
+- "3D · time" view: with a database selection only that database's documents and projects are shown; years, counts and the cluster list adapt to it. Without a selection everything is shown as before.
+- Point marks in the 2D cluster map are slightly larger (12 px) so the flower fits inside.
+
+### Fixed
+- The 3D mode of cluster views A and B did not draw at all (a height setting of the cluster graph was used in the cluster map and vice versa); A and B are 350 px high again, and the cluster graph on the B page uses its own height again.
+- Long cluster descriptions could not be scrolled because the card followed the mouse and let no pointer events through; the descriptions now sit in a normal scrollable panel.
+
+## [1.8.0] - 2026-10-10
+
+### Added
+- Clustering of project files by content: `ingest cluster --files` and `project_files=true` on `POST /api/clusters/recompute` cluster each current project file with its own summary (latest version, not archived) instead of whole projects. Helper files without a summary (data, analysis scripts and outputs, figures, earlier versions …) join the cluster of the content document in the closest folder of the same project, with their contribution type (`cluster_contribution`) and that document (`cluster_anchor`); the document detail shows e.g. "Data contribution to <manuscript>".
+- Clustering of a single database: `ingest cluster --db JSW` and `POST /api/clusters/recompute?database=JSW` cluster only that database's papers, notes and projects. Clusters of all other databases stay untouched (Qdrant and Neo4j); new cluster IDs continue after the highest existing one and labels start with "JSW · ".
+- Database CNN_DM (backend default list, `.env.example`, frontend list and colors) and `tools/fetch_cnn_dailymail.py`, which writes a random sample of the CNN/DailyMail news dataset (Hugging Face `abisee/cnn_dailymail` 3.0.0, Apache-2.0; default 1,000 articles of the test split) as research notes to `research/CNN_DM/notes/`. The dataset highlights become curated summaries (`_summaries.yaml`), so clustering uses the real article summaries and needs no LLM call per article.
+- 11 research papers of Jutta Stumpf-Wollersheim in `research/JSW/papers/` with curated structured summaries (`_summaries.yaml`).
+- Database display names: the databases are now called after flowers – Aster (AL), Camellia (CNN_DM), Dahlia (DL), Jasmine (JSW), Peony (LDK), Magnolia (ML) and Orchid (UM). The names appear everywhere in the interface: database bar, tags, pickers, filters, chat scope and chips, cluster legends and tooltips, database info, cluster cards and profiles, the 3D view, and the context the chats send to the LLM. Cluster labels and descriptions that still carry an ID ("JSW · …") are shown with the flower name; new single-database cluster runs write the flower name into the label. The IDs stay the internal keys (folders `research/<ID>/`, Qdrant payload `databases`, API filters, colors), so no re-indexing is needed. Setting `DATABASE_NAMES` (JSON, e.g. `{"LDK":"Peony"}`) changes the names; `GET /api/health` returns them as `database_names`, and questions may use either the name or the ID.
+- Each database button shows its flower instead of the database symbol: aster with many rays, camellia with round layered petals, dahlia with pointed petals in a double ring, jasmine with five star petals, peony as a full ruffled bloom, magnolia as a tall goblet, orchid with sepals and lip – each in the database colour.
+- The parameter lines of the Document Chat and the Graph Chat start with the flower icons of the selected databases (in the database colour, name on hover), or "all databases"; they stay visible when the parameters are expanded, so the selection is hard to overlook.
+- Selecting a database in the bar (or "select for chat" in the database info) lets its flower fly down, spinning and drifting like a falling blossom, into the parameter line of each visible chat, where it blooms open with a short glow; with several databases each new one flies in next to the others. Deselecting a database or "Clear selection" lets its flowers wilt and fly back up to their buttons (no animation when the system asks for reduced motion).
+- Hair jewellery for ALITA: the flower of each selected database grows out of her hair on a little vine with two leaves and opens; Peony becomes a large pink, layered bloom at the side of her head that sways gently. Deselected flowers wilt away.
+- Magnolia's block look: while Magnolia is selected, ALITA becomes a blocky pixel version of herself – square head, pixel eyes that blink, her visor, seashell earrings and headset LED, hair blocks in the colours of the selected databases (`frontend/js/voxel.js`). The blocks drop in row by row while the normal drawing fades out, and tumble away again when Magnolia is deselected.
+- Dahlia's puppy: selecting Dahlia lets a little dog hop onto ALITA's head (`frontend/js/puppy.js`). It sits there, wags its tail, pants, tilts its head, blinks and follows her head movements; a click on it makes it jump for joy, and deselecting Dahlia lets it hop off again.
+- Clicking ALITA's avatar lets glittering magic dust rain down from her: sparkles and little stars in the colours of her hair (the selected databases), silver and gold, that puff up, twinkle and drift down across the page (`frontend/js/magicdust.js`; a soft glow instead when the system asks for reduced motion).
+- Deep-sea life in the underwater scene (`frontend/js/sealife.js`): every 9–26 seconds one creature passes slowly behind the header or the database bar – Ryūgū no tsukai (oarfish) with red crest and oar fins, an anglerfish with a pulsing glowing lure, a school of lanternfish and a few hatchetfish with blue photophores, and jellyfish in four colours that pulse and drift. Purely decorative SVG in a clipped layer without pointer events; at most two at a time, none while the tab is hidden or when the system asks for reduced motion. `seaLife('jelly')` in the console spawns one at once.
+
+### Changed
+- Header and database bar share one animated underwater scene: deep-sea blue that is lighter near the surface at the top of the header and darker towards the bottom of the database bar, soft drifting light rays, and bubbles and specks that rise from the database bar through the gap into the header. All layers are fixed to the window (`background-attachment: fixed`), so the two bars read as windows onto the same water. Tabs, API-key field, pills and the selected tab use matching translucent blue tones; the animation stops when the system asks for reduced motion (`prefers-reduced-motion`).
+- The app always opens on the B Interaction Interface (cluster graph and Graph Chat) instead of the last page used; a page named in the URL (`#chat`, `#docs`, `#release-notes` …) still takes precedence.
+- "B Interaction Interface" is now the first tab, before "A/B Interaction Interface".
+- The B Interaction Interface has the same "2D"/"3D" switch and "3D · time" button as the A/B Interaction Interface. The switch applies to both pages; in 3D the cluster graph shows the periods side by side and can be rotated and dragged, with its own camera.
+- Cluster map A (2D and 3D): with a database selection only the point clouds of the selected databases are drawn – their documents, cluster areas, labels and legend entries; clusters without documents from these databases are left out instead of being shown faded. Without a selection the map shows everything as before.
+- On the B Interaction Interface, Parameters and System Prompt of the Graph Chat sit in a narrow column on the right of the chat instead of above it (from 900 px window width; below that they stay above the chat). In the A/B view nothing changes.
+
+### Removed
+- The "Recompute" button next to the cluster count in the cluster map. Clusters are recomputed after every ingestion, or by hand with `ingest cluster` or `POST /api/clusters/recompute`.
+
+## [1.7.0] - 2026-10-05
+
+### Added
+- Cluster development over time in the cluster map (A) and the cluster graph (B). Both views show three periods side by side, left to right: everything before last year, last year, and this year (with the current data: before 2025 · 2025 · 2026). Projects appear in every period they ran.
+- A: per period, the documents with their cluster halos, labels "C2·6" (cluster and documents in that period) and the relations within the period. Dotted lines follow each cluster's centre from period to period. Pulling a cluster still moves similar clusters along, in all periods.
+- B: one spring graph per period, where node size is the number of documents in that period. Bridges within the period are shown as before, and dotted lines join the same cluster across periods.
+- Multi-select of clusters as search space: clicking clusters in the map, the graph (2D or 3D), the legend or the 3D space adds or removes them. The selection limits both the Document Chat and the Graph Chat (`cluster` filter in Qdrant; `clusters` in `POST /api/graph/stream`, also passed to the Neo4j path query). Both parameter lines show `cluster=2|4`, questions carry the cluster chips, and "clear selection" under the map removes it.
+
+### Changed
+- Clicking a cluster in the Graph Chat views no longer overwrites the question box; it selects the cluster instead.
+
+## [1.6.0] - 2026-10-05
+
+### Added
+- Cluster map (A) in 3D keeps the relations between clusters when you pull one: every pair of related clusters is joined by a spring whose strength follows their similarity and the number of documents bridging them (the same bridges as in the cluster graph B). Very similar clusters follow a pulled cluster closely, loosely related ones a little, unrelated ones stay put.
+- Related clusters are joined by lines in the 3D map (thicker = more bridging documents). A pulled cluster stays where you drop it (teal outline); click it to release, double-click the map to reset all.
+
+## [1.5.2] - 2026-10-05
+
+### Removed
+- The floor grid and year axis under the 3D cluster map (A). The documents keep their depth by year.
+
+### Changed
+- The controls (W/A/S/D, wheel, drag, Esc …) are explained in a box at the top left of every 3D view: the 3D cluster space, the cluster map (A) and the cluster graph (B). The long hint lines under the views are gone.
+
+## [1.5.1] - 2026-10-05
+
+### Changed
+- Refactoring without visible changes: `frontend/index.html` (about 2,700 lines) is split into `css/` (6 files) and `js/` (12 files) in the same order. The app still needs no build step.
+- The offline fallbacks (release notes, compliance and technical docs, default system prompts) live in the generated `js/data.js` instead of being patched into the HTML.
+- `tools/build_frontend.py` regenerates `js/data.js` and builds the single-file page for publishing.
+- Helpers that run while the page loads (`filterSummary`, `ragFilters`, the memory helpers) moved before their first use, and `start.js` loads last.
+- Backend: imports sorted, a loop-variable closure in the cluster prompt replaced by a function, `backend/ruff.toml` added; `ruff check backend` passes.
+
+### Removed
+- Dead code from earlier versions: the unused release-notes side panel, an unused demo helper, leftover voice CSS and voice options in the chat code.
+
+### Fixed
+- The .txt export of the Graph Chat is named `alita_graph-chat_…` instead of `alita_voice-assistant_…`.
+- `GET /api/clusters` no longer fails with HTTP 500 when a summary field, year or method tag is empty or not plain text; a cluster profile that still cannot be built is logged and left empty instead of breaking the cluster list.
+
+## [1.5.0] - 2026-10-05
+
+### Added
+- The cluster map (A) and the cluster graph (B) are 3D and interactive by default.
+- Rotate both views by dragging the background, zoom with the wheel, and reset with a double-click.
+- Cluster map (A): depth is the publication year. Drag a cluster to pull it apart from the others; its documents move with it. Click a cluster to filter the Document Chat.
+- Cluster graph (B): clusters sit in a spring layout. Drag a cluster to pull it; linked clusters follow along their bridges, and it stays pinned where you drop it. Click a cluster to ask the Graph Chat.
+- In both views, click a point to open the document; hovering a cluster shows its profile card.
+- A "2D" button in both headers switches back to the flat views (remembered in the browser).
+
+### Changed
+- The cluster view headers wrap onto two lines when space is short.
+
+## [1.4.0] - 2026-10-05
+
+### Added
+- Cluster profile on hover: hovering a cluster shows a card with the cluster's description, key insights (findings of its most typical documents), the analyses used to reach them (for example PLS-SEM, interviews, vignette study) and the theories and frameworks the documents build on. It works on the cluster map (ellipse, label, legend), the cluster graph nodes, the cluster page and in the 3D space (legend and cluster labels).
+- `GET /api/clusters` returns a `profile` per cluster (`insights`, `analyses`, `theories`, `years`, `source`), built from the structured summaries and method tags (`backend/app/cluster_profile.py`).
+- When clustering runs with an API key, the language model also writes 2-3 insights, up to 5 analyses and up to 5 theories per cluster (`cluster_insights`, `cluster_analyses`, `cluster_theories`); they appear first in the card. The cluster prompt now includes approach and findings, not only the purpose.
+
+## [1.3.0] - 2026-10-05
+
+### Added
+- Cluster space in 3D: the button "3D · time" on the cluster map (A) and the cluster graph (B) opens a full-screen space to walk through. Position = the cluster map, depth = publication year, one plane per year.
+- Walk with W/A/S/D, Q/E, the mouse wheel or the on-screen pad, look around by dragging; Shift is faster, Esc closes.
+- Time slider "up to year" and "Fly through time", which moves through the years and shows only what existed up to then.
+- Cluster centres per year are drawn as rings joined through time, so a cluster's drift and growth become visible. Research projects appear as bars over the years they ran.
+- Color by clusters or databases, show or hide single clusters, hover for title, year, cluster and database, click a document to open it. The database selection applies here too.
+
+## [1.2.1] - 2026-10-05
+
+### Fixed
+- The database selection restricts the search space of both chats completely. In the Graph Chat, documents reached over 2 or more hops (citations, clusters) now also have to belong to a selected database.
+- The selection is visible in both tiles: the Graph Chat parameter summary starts with `db=…` like the Document Chat, both summaries update as soon as a database is clicked, Graph Chat questions show the database chip, and the database bar says "for A and B".
+
+## [1.2.0] - 2026-10-05
+
+### Removed
+- "Read aloud" under Graph Chat answers and every mention of speech synthesis. ALITA has no speech input or output; the AI note of the Graph Chat now matches the Document Chat.
+
+## [1.1.2] - 2026-10-05
+
+### Fixed
+- Literature folders deeper inside a project are skipped too: the default `PROJECT_EXCLUDE` is now `*Literatur*/*`, which matches every folder with "Literatur" or "Literature" in its name at any depth (for example `Paper/1-Literatur/` or `next HRMJ/Literature/`). Before, only a top-level `Literatur/` folder was skipped.
+
+## [1.1.1] - 2026-10-05
+
+### Fixed
+- The bottoms of the Document Chat and the Graph Chat line up: both use the same input box and Send button, both have a hint line, and the AI notes have the same height. The Graph Chat input is now a text box like in the Document Chat (Enter sends, Shift+Enter adds a line).
+
+## [1.1.0] - 2026-10-05
+
+### Added
+- `ingest delete --db <DB>` removes all data of one database from the index: documents and text passages that belong only to it are deleted, documents shared with other databases only lose the assignment, uploaded originals under `DATA_DIR` are deleted, the Neo4j graph is cleaned and the clusters are recomputed. `--dry-run -` shows what would be removed.
+
+### Changed
+- `ingest cluster` now uses the key given with `--api-key` or `-e OPENROUTER_API_KEY`, so cluster descriptions are written again.
+
+### Removed
+- All JSW data: the 11 JSW research papers and their curated summaries are no longer shipped in `research/`, and the demo data of the published page no longer contains JSW documents. The cluster descriptions of the demo were rewritten without JSW. The database name JSW remains available.
+
 ## [1.0.0] - 2026-10-03
 
 First stable release. From here on, incompatible changes to the REST API, the CLI or the metadata fields raise the major version.
@@ -272,6 +492,25 @@ First stable release. From here on, incompatible changes to the REST API, the CL
 - Chat history per tile, metadata backup (`GET /api/export`), Docker Compose setup.
 
 [Unreleased]: #unreleased
+[1.14.0]: #1140---2026-10-11
+[1.13.0]: #1130---2026-10-11
+[1.12.0]: #1120---2026-10-11
+[1.11.0]: #1110---2026-10-11
+[1.10.0]: #1100---2026-10-11
+[1.9.0]: #190---2026-10-11
+[1.8.0]: #180---2026-10-10
+[1.7.0]: #170---2026-10-05
+[1.6.0]: #160---2026-10-05
+[1.5.2]: #152---2026-10-05
+[1.5.1]: #151---2026-10-05
+[1.5.0]: #150---2026-10-05
+[1.4.0]: #140---2026-10-05
+[1.3.0]: #130---2026-10-05
+[1.2.1]: #121---2026-10-05
+[1.2.0]: #120---2026-10-05
+[1.1.2]: #112---2026-10-05
+[1.1.1]: #111---2026-10-05
+[1.1.0]: #110---2026-10-05
 [1.0.0]: #100---2026-10-03
 [0.19.0]: #0190---2026-10-03
 [0.18.0]: #0180---2026-10-03

@@ -1,0 +1,44 @@
+/* ===== Cluster space 3D (v1.3.0) ===== */
+.s3{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;color:#e8ecf6;
+  --db-AL:#4fc4b4; --db-CNN_DM:#a9b4bf; --db-DL:#8ea6ef; --db-JSW:#ee9677; --db-LDK:#e3bb55; --db-ML:#d892dc; --db-UM:#8fcf7a;
+  background:radial-gradient(120% 120% at 20% 0%,#1a0f2e 0%,#0b0f1c 45%,#05070d 100%)}
+.s3[hidden]{display:none}
+.s3-top{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:10px 14px;border-bottom:1px solid #262c45;background:rgb(6 8 15 / .6)}
+.s3-title{display:flex;flex-direction:column;line-height:1.2}.s3-title b{font-size:15px}.s3-title span{font-size:11.5px;color:#8d97b3}
+.s3-meta{font-size:12px;color:#8d97b3;flex:1;min-width:160px}
+.s3-year{display:flex;align-items:center;gap:8px;font-size:12px;color:#aab3cc}.s3-year input{width:180px;accent-color:#3df2ff}
+.s3-year output{font-family:var(--f-mono);color:#3df2ff;min-width:110px}
+.s3b,.s3-mode button,.s3-pad button{background:#111628;color:#e8ecf6;border:1px solid #262c45;border-radius:8px;padding:5px 10px;font:inherit;font-size:12.5px;cursor:pointer}
+.s3b:hover,.s3-mode button:hover,.s3-pad button:hover{border-color:#3df2ff}
+.s3b[aria-pressed="true"],.s3-mode button[aria-pressed="true"]{background:#3df2ff;color:#06080f;border-color:#3df2ff}
+.s3-mode{display:inline-flex}.s3-mode button{border-radius:0}.s3-mode button:first-child{border-radius:8px 0 0 8px}.s3-mode button:last-child{border-radius:0 8px 8px 0}
+#s3Canvas{flex:1;min-height:0;width:100%;display:block;cursor:grab;touch-action:none;outline:none}
+.s3-legend{position:absolute;left:12px;top:182px;display:flex;flex-direction:column;gap:4px;max-width:min(320px,45vw);max-height:calc(100% - 200px);overflow:auto}
+.s3-legend button{display:grid;grid-template-columns:auto 1fr auto;gap:6px;align-items:center;text-align:left;background:rgb(13 17 32 / .8);border:1px solid #262c45;border-left:4px solid hsl(var(--h) 70% 60%);border-radius:8px;padding:4px 8px;color:#e8ecf6;font-size:12px;cursor:pointer}
+.s3-legend button[aria-pressed="false"]{opacity:.4}
+.s3-legend b{font-family:var(--f-mono);font-size:10.5px;background:hsl(var(--h) 60% 45%);border-radius:999px;padding:0 6px;color:#fff}
+.s3-legend i{font-style:normal;color:#8d97b3;font-family:var(--f-mono);font-size:11px}
+.s3-help{position:absolute;left:12px;top:66px;width:min(320px,45vw);font-size:11.5px;color:#aab3cc;line-height:1.7;background:rgb(13 17 32 / .82);border:1px solid #262c45;border-radius:8px;padding:6px 10px}
+.s3-help .s3-key{display:block;margin-top:4px;color:#8d97b3}
+.s3-help kbd{font-family:var(--f-mono);font-size:10.5px;border:1px solid #262c45;border-radius:4px;padding:0 4px;color:#e8ecf6}
+.s3-pad{position:absolute;right:14px;bottom:12px;display:grid;grid-template-columns:repeat(3,38px);gap:4px}
+.s3-pad button{padding:6px 0}
+.s3-pad [data-k="w"]{grid-column:2}.s3-pad [data-k="a"]{grid-column:1;grid-row:2}.s3-pad [data-k="s"]{grid-column:2;grid-row:2}.s3-pad [data-k="d"]{grid-column:3;grid-row:2}
+.s3-pad [data-k="e"]{grid-column:1;grid-row:1}.s3-pad [data-k="q"]{grid-column:3;grid-row:1}
+.s3-tip{position:absolute;pointer-events:none;background:#e8ecf6;color:#06080f;font-size:12px;padding:6px 9px;border-radius:6px;max-width:290px;line-height:1.4;box-shadow:0 4px 16px rgb(0 0 0 / .4)}
+@media (max-width:700px){.s3-help{display:none}.s3-legend{top:66px}}
+
+.s3-tip .s3-db{display:inline-flex;align-items:center;gap:3px;font-weight:600}
+.s3-tip .s3-db svg{width:14px;height:14px}
+.s3-tip i,.s3-tip small{color:#4a5368}
+
+/* Time window with two handles (from – up to) */
+.s3-range{position:relative;display:inline-block;width:220px;height:22px}
+.s3-range .s3-track,.s3-range .s3-fill{position:absolute;top:9px;height:4px;border-radius:2px;pointer-events:none}
+.s3-range .s3-track{left:0;right:0;background:rgba(141,151,179,.35)}
+.s3-range .s3-fill{left:0;right:0;background:#3df2ff}
+.s3-range input[type=range]{position:absolute;left:0;top:0;width:100%;height:22px;margin:0;background:none;-webkit-appearance:none;appearance:none;pointer-events:none}
+.s3-range input[type=range]::-webkit-slider-runnable-track{background:none;height:22px}
+.s3-range input[type=range]::-moz-range-track{background:none}
+.s3-range input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;pointer-events:auto;width:16px;height:16px;margin-top:3px;border-radius:50%;background:#e8ecf6;border:2px solid #3df2ff;cursor:pointer}
+.s3-range input[type=range]::-moz-range-thumb{pointer-events:auto;width:14px;height:14px;border-radius:50%;background:#e8ecf6;border:2px solid #3df2ff;cursor:pointer}
