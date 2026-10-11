@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 VERSION_HEAD = re.compile(r"^##\s+\[?(?P<v>Unreleased|\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)\]?(?:\s+-\s+(?P<d>\d{4}-\d{2}-\d{2}))?\s*$")
-SECTION_HEAD = re.compile(r"^###\s+(Added|Changed|Deprecated|Removed|Fixed|Security|Open points)\s*$")
+SECTION_HEAD = re.compile(r"^###\s+(Requirements|Added|Changed|Deprecated|Removed|Fixed|Security|Open points)\s*$")
 SEMVER = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$")
 
 

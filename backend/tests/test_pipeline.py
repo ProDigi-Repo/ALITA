@@ -160,7 +160,7 @@ def test_changelog_follows_keepachangelog_and_semver():
     keys = [tuple(int(x) for x in v.split(".")) for v in versions]
     assert keys == sorted(keys, reverse=True)           # neueste zuerst, streng absteigend
     assert all(r["date"] for r in rel if r["version"] != "Unreleased")
-    assert all(set(r["sections"]) <= {"Added", "Changed", "Deprecated", "Removed", "Fixed", "Security", "Open points"} for r in rel)  # + offene Punkte für den Anforderer
+    assert all(set(r["sections"]) <= {"Requirements", "Added", "Changed", "Deprecated", "Removed", "Fixed", "Security", "Open points"} for r in rel)  # + offene Punkte für den Anforderer
 
 
 def _summ(topic):

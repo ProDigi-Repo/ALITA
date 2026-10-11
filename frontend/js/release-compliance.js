@@ -4,7 +4,7 @@ function CLUSTER_NOTE(){const c=(!LIVE&&DEMO&&DEMO.clusters)||null;const model=c
 
 /* ---------- Release notes (Quelle: CHANGELOG.md; live über /api/release-notes) ---------- */
 function mdInline(t){return esc(t).replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')}
-const REL_ORDER=['Added','Changed','Deprecated','Removed','Fixed','Security','Open points'];
+const REL_ORDER=['Requirements','Added','Changed','Deprecated','Removed','Fixed','Security','Open points'];
 function relSections(r){const sec=r.sections&&Object.keys(r.sections).length?r.sections:{Changed:r.changes||[]};
   return REL_ORDER.filter(k=>sec[k]&&sec[k].length).map(k=>`<div class="relsec"><span class="relkind k-${k.toLowerCase().replace(/\s+/g,'-')}">${k}</span><ul>${sec[k].map(c=>`<li>${mdInline(c)}</li>`).join('')}</ul></div>`).join('')}
 function closeRel(){if($('#drawer').hidden&&$('#histPanel').hidden)$('#scrim').hidden=true}
