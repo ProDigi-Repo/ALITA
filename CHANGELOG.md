@@ -8,6 +8,12 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [Unreleased]
 
+## [1.16.1] - 2026-10-11
+
+### Fixed
+- B Interaction Interface on wide screens: the Graph Chat input was missing. The scope line above it (with "restrict to a person") took the whole height of the narrow input column and pushed the text box and the Send button out of the tile; it now takes only the space it needs.
+- B Interaction Interface, Graph Chat: the right column ("Your questions" + input) was cramped. "Your questions" now gets about 2½ times the height (≈150 px instead of 60 px), the text box and Send sit side by side, the scope line is set smaller, the input column runs down to the bottom of the tile and the repeated hint line (it is also under Advanced settings) is left out there.
+
 ## [1.16.0] - 2026-10-11
 
 ### Added
@@ -523,6 +529,7 @@ First stable release. From here on, incompatible changes to the REST API, the CL
 - Chat history per tile, metadata backup (`GET /api/export`), Docker Compose setup.
 
 [Unreleased]: #unreleased
+[1.16.1]: #1161---2026-10-11
 [1.16.0]: #1160---2026-10-11
 [1.15.0]: #1150---2026-10-11
 [1.14.0]: #1140---2026-10-11

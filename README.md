@@ -231,6 +231,7 @@ und `APP_VERSION` im Frontend angleichen. Der Test `test_changelog_follows_keepa
 
 | Version | Datum | Inhalt | früher |
 |---|---|---|---|
+| 1.16.1 | 2026-10-11 | Korrektur B-Seite: Eingabefeld des Graph Chat auf breiten Bildschirmen wieder sichtbar; rechte Spalte („Your questions“ + Eingabe) weniger gequetscht | |
 | 1.16.0 | 2026-10-11 | „Add new data“: eigenes Fenster (Datenbank · Datenart · Gesamtdatum · Dateien) mit Bestätigung „ein Projekt = eine ZIP“, mehrere Projekte pro Upload; neue Datenbank „Others“; Kosten: ALITA meldet nach dem Upload Tokens und Euro, jede Chatnachricht zeigt die Kosten von Frage und Antwort | |
 | 1.15.0 | 2026-10-11 | REQ-10, REQ-15 – REQ-18: Versionshistorie in Erkenntnisstufen – Zeitleiste in der Projektkarte, inhaltliche vs. formale Änderungen, Stufentabelle mit Links zu den Quelldateien, Fortschrittsfragen in beiden Chats; offene Punkte für den Anforderer im CHANGELOG | |
 | 1.14.0 | 2026-10-11 | REQ-19: Projektteams statt Datei-Metadaten als Autor:innen, Personen-Filter für beide Chats, Bereinigung von Metadaten-Namen; REQ-12: Chat-Umfang folgt der Auswahl (Projekt, Cluster, ganze Landkarte); ALITA-Helferin mit Rundgang und „RAG vs. Graph“; Wissenslandkarte in drei Ebenen, „Reset view“, Datenbank-Blumen im 3D; REQ-11: Erklärungen über den Chats | |

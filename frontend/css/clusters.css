@@ -153,7 +153,8 @@
   .bslot>.tile.t-graph>.hint{grid-column:2;grid-row:9;z-index:1;border-left:1px solid var(--line);min-width:0}
   .bslot>.tile.t-graph>.ainote{grid-column:1;grid-row:10}
   .bslot>.tile.t-graph>.chat .msg.user{display:none}
-  .bslot>.tile.t-graph>.composer{flex-direction:column;align-items:stretch}
+  .bslot>.tile.t-graph>.composer{flex-direction:column;align-items:stretch;flex-wrap:nowrap}
+  .bslot>.tile.t-graph>.composer .chat-scope{flex:none}   /* in the column composer the scope line must not take the whole height (it pushed the input out of the tile) */
   .bslot>.tile.t-graph>.composer .send{align-self:flex-end}
   .bslot>.tile.t-graph>.composer textarea{min-height:64px}
   .bslot>.tile.t-graph::after{content:"";grid-column:2;grid-row:2/-1;border-left:1px solid var(--line);background:var(--sunk);z-index:0}
@@ -211,3 +212,19 @@
 #page-graph .cg-docslot:empty{display:none}
 
 .cg-legend .cg-flw{display:inline-flex;align-items:center;gap:4px 8px;flex-wrap:wrap}.cg-legend .cg-flw i{display:inline-flex;font-style:normal}.cg-legend .cg-flw i svg{width:15px;height:15px}
+/* B page, wide: the right column (questions + input) was too cramped – more room for "Your questions", compact input */
+@media (min-width:900px){
+  #page-graph .bslot>.tile.t-graph>.gside{min-height:120px}
+  .bslot>.tile.t-graph>.hint{display:none}                      /* same hint as under Advanced settings – saves a row */
+  .bslot>.tile.t-graph>.composer{padding:8px 12px;gap:6px}
+  .bslot>.tile.t-graph>.composer textarea{min-height:44px;height:44px}
+  .bslot>.tile.t-graph>.composer .chat-scope{font-size:11px;line-height:1.4}
+  .bslot>.tile.t-graph>.composer .chat-scope .sc-addp{font-size:10.5px;padding:0 6px}
+}
+@media (min-width:900px){
+  /* input and Send side by side; the AI note stays under the answers, the input column runs to the bottom */
+  .bslot>.tile.t-graph>.composer{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;grid-row:8/11}
+  .bslot>.tile.t-graph>.composer .chat-scope{grid-column:1/-1}
+  .bslot>.tile.t-graph>.composer .send{align-self:end}
+  #page-graph .bslot>.tile.t-graph>.gside{min-height:96px}
+}
