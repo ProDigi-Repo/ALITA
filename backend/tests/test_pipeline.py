@@ -747,3 +747,45 @@ def test_progress_intent():
     assert detect_intent("Wie hat sich der Erkenntnisstand im Zeitverlauf entwickelt?") == "progress"
     assert detect_intent("How were the analyses conducted in this project?") == "progress"
     assert detect_intent("What are the findings?") == "findings"
+
+
+def test_overall_date_keeps_document_dates():
+    """Add new data: the overall date goes to the project and to files without a reliable date only."""
+    from datetime import datetime, timezone
+    from types import SimpleNamespace as NS
+
+    from app.ingest import apply_overall_date
+    old = datetime(2021, 3, 1, tzinfo=timezone.utc)
+    items = [NS(record=NS(date=old, date_source="doc_properties", year=2021)),
+             NS(record=NS(date=datetime(2026, 10, 10, tzinfo=timezone.utc), date_source="file_mtime", year=2026)),
+             NS(record=NS(date=None, date_source=None, year=None))]
+    proj = NS(date=None, date_from=None, date_to=None)
+    when = datetime(2022, 5, 20, tzinfo=timezone.utc)
+    apply_overall_date(proj, items, when)
+    assert proj.date == when and items[0].record.date == old
+    assert [i.record.date_source for i in items] == ["doc_properties", "project_date", "project_date"]
+    assert proj.date_from == old and proj.date_to == when
+
+
+def test_upload_usage_meter_and_cost():
+    """Pop-up after an upload: tokens of LLM calls and embeddings are counted per job and priced in euro."""
+    import asyncio
+    from types import SimpleNamespace as NS
+
+    from app import usage
+    usage._PRICES.update(at=9e18, data={})          # no network: fall back to the prices in the settings
+
+    async def job():
+        usage.add_run(NS(usage=lambda: NS(input_tokens=1000, output_tokens=200, requests=2)), "m")
+        usage.add_embed(NS(usage=None), ["x" * 400, "y" * 400])          # estimated: 800 chars ≈ 200 tokens
+    m = usage.start()
+    asyncio.run(job())
+    assert (m.chat_in, m.chat_out, m.chat_requests, m.embed_tokens, m.embed_estimated) == (1000, 200, 2, 200, True)
+    s = usage.summary(m)
+    from app.config import get_settings
+    cfg = get_settings()
+    usd = 1000 * cfg.price_chat_input_per_m / 1e6 + 200 * cfg.price_chat_output_per_m / 1e6 + 200 * cfg.price_embedding_per_m / 1e6
+    assert s["tokens"] == 1400 and abs(s["usd"] - usd) < 1e-6 and abs(s["eur"] - usd * cfg.usd_to_eur) < 1e-6
+    assert s["price_source"] == "settings (estimate)"
+    assert s["question_tokens"] == 1200 and s["answer_tokens"] == 200                 # chat: question = input + embedding, answer = output
+    assert abs(s["question_eur"] + s["answer_eur"] - s["eur"]) < 1e-5

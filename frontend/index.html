@@ -20,7 +20,7 @@
   <header class="top">
     <div class="brand">
       <h1>ALITA PROTOTYPE</h1>
-      <button class="ver" id="appVersion" type="button" title="Open release notes">v1.15.0</button>
+      <button class="ver" id="appVersion" type="button" title="Open release notes">v1.16.0</button>
       <span class="mode" id="mode" title="">Demo</span>
     </div>
     <nav class="nav" role="tablist" aria-label="Sections">
@@ -137,6 +137,7 @@
     <div class="dbs" id="dbs"></div>
     <span class="unas" id="dbUnassigned"></span>
     <button class="clear" id="dbClear" type="button" hidden title="Deselect all databases and clusters">Clear selection</button>
+    <button class="db-add" id="dbAdd" type="button" title="Upload new papers, notes or a research project (ZIP) – the selected databases are preset"><span aria-hidden="true">＋</span> Add new data</button>
   </section>
 
   <!-- ============ PAGE: CHAT ============ -->
@@ -492,6 +493,36 @@
     <label class="check" style="flex-direction:row;color:var(--fg)"><input type="checkbox" id="uLlm" checked> Generate summary and methods with the LLM</label>
     <div class="row"><button type="button" class="btn" id="uCancel">Cancel</button><button class="btn primary" type="submit">Upload</button></div>
   </form>
+</div>
+<!-- "Add new data" (database bar): database · data type · overall date · files -->
+<div class="modal adddata" id="addData" hidden>
+  <form class="box" id="addForm" aria-labelledby="adTitle">
+    <div class="ad-head"><h3 id="adTitle">Add new data</h3><button type="button" class="ad-x" data-adclose aria-label="Close">✕</button></div>
+    <fieldset class="ad-step"><legend><b>1</b> Which database should the documents go to?</legend>
+      <div class="ad-dbs" id="adDbs" role="radiogroup" aria-label="Database"></div></fieldset>
+    <fieldset class="ad-step"><legend><b>2</b> What kind of data is it?</legend>
+      <div class="ad-types" role="radiogroup" aria-label="Data type">
+        <label class="ad-type"><input type="radio" name="adtype" value="research_project"><i aria-hidden="true">◆</i><b>Research project</b><span>a project folder as ZIP – manuscripts, data, analyses, submissions</span></label>
+        <label class="ad-type"><input type="radio" name="adtype" value="research_paper"><i aria-hidden="true">■</i><b>Research papers</b><span>published or own papers, one or more files</span></label>
+        <label class="ad-type"><input type="radio" name="adtype" value="research_notes"><i aria-hidden="true">●</i><b>Research notes</b><span>notes, minutes, idea collections, web articles</span></label>
+      </div></fieldset>
+    <fieldset class="ad-step"><legend><b>3</b> <span id="adDateQ">Which overall date should the data get?</span></legend>
+      <div class="ad-date"><input type="date" id="adDate" aria-describedby="adDateHint"><button type="button" class="mini" id="adDateClear">no date</button></div>
+      <p id="adDateHint">Optional. Leave empty to take the dates from the files.</p></fieldset>
+    <fieldset class="ad-step"><legend><b>4</b> Files</legend>
+      <label class="ad-drop" id="adDrop"><input type="file" id="adFiles" multiple><span id="adDropText">Drop files here or <u>choose files</u></span></label>
+      <label id="adProjWrap" hidden>Link to an existing project (optional)<input type="text" id="adProject" list="projList" placeholder="e.g. 11-MentalModelProcesses"></label>
+      <label class="check" style="flex-direction:row;color:var(--fg)"><input type="checkbox" id="adLlm" checked> Generate summary and methods with the LLM</label></fieldset>
+    <p class="ad-sum" id="adSum" aria-live="polite"></p>
+    <div class="row"><button type="button" class="btn" data-adclose>Cancel</button><button class="btn primary" type="submit" id="adGo" disabled>Add data</button></div>
+  </form>
+  <div class="ad-confirm" id="adConfirm" hidden role="alertdialog" aria-modal="true" aria-labelledby="adcTitle">
+    <div class="box">
+      <h3 id="adcTitle">Check before uploading</h3>
+      <div id="adcBody"></div>
+      <div class="row"><button type="button" class="btn" id="adcBack">Back</button><button type="button" class="btn primary" id="adcGo">Upload</button></div>
+    </div>
+  </div>
 </div>
 <div class="toast" id="toast" role="status"></div>
 

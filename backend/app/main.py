@@ -513,13 +513,22 @@ def file(doc_id: str):
 
 # ------------------------------------------------------------ Ingestion
 async def _run_job(job_id: str, coro):
+    import asyncio
+
+    from . import usage
     JOBS[job_id]["status"] = "running"
+    meter = usage.start()                      # Tokens dieses Jobs (LLM + Embeddings) für das Pop-up nach dem Hochladen
     try:
         res = await coro
-        JOBS[job_id].update(status="done", result=res.model_dump(mode="json", exclude={"source_path"}))
+        upd = {"status": "done", "result": res.model_dump(mode="json", exclude={"source_path"})}
     except Exception as e:  # Fehler im Job-Status sichtbar machen
         logging.exception("Ingestion %s fehlgeschlagen", job_id)
-        JOBS[job_id].update(status="error", error=str(e))
+        upd = {"status": "error", "error": str(e)}
+    try:
+        upd["usage"] = await asyncio.to_thread(usage.summary, meter)
+    except Exception as e:  # die Kostenanzeige darf den Job nicht stören
+        log.warning("Usage of job %s not computed: %s", job_id, e)
+    JOBS[job_id].update(upd)
 
 
 @app.post("/api/ingest")
@@ -530,34 +539,44 @@ async def ingest(
     project_name: Annotated[str | None, Form()] = None,
     databases: Annotated[str | None, Form(description="komma-getrennt, z. B. ML,UM")] = None,
     use_llm: Annotated[bool, Form()] = True,
+    date: Annotated[str | None, Form(description="Gesamtdatum YYYY-MM-DD (Projekt: für Dateien ohne eigenes Datum; Paper/Notes: Datum)")] = None,
     x_key: KeyHeader = None,
 ):
+    from datetime import datetime, timezone
     s = get_settings()
-    opts = IngestOptions(use_llm=use_llm, api_key=x_key, databases=_dbs(databases))
+    when = None
+    if date:
+        try:
+            when = datetime.fromisoformat(date[:10]).replace(tzinfo=timezone.utc)
+        except ValueError as e:
+            raise HTTPException(400, "date must be YYYY-MM-DD") from e
+    opts = IngestOptions(use_llm=use_llm, api_key=x_key, databases=_dbs(databases), date=when)
     job_ids = []
     if doc_type == DocType.research_project:
-        up = files[0]
-        if not (up.filename or "").lower().endswith(".zip"):
-            raise HTTPException(400, "Please upload a research project as a ZIP of the project folder.")
+        # jedes Projekt = eine ZIP-Datei; mehrere ZIPs = mehrere Projekte
+        bad = [u.filename for u in files if not (u.filename or "").lower().endswith(".zip")]
+        if bad:
+            raise HTTPException(400, "Each research project must be uploaded as one ZIP of its project folder: " + ", ".join(bad))
         target = s.data_dir / "projects"
         target.mkdir(parents=True, exist_ok=True)
-        with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
-            shutil.copyfileobj(up.file, tmp)
-        # Projektname = Ordnername im ZIP (oder ZIP-Name, wenn die Dateien direkt im ZIP liegen)
-        with zipfile.ZipFile(tmp.name) as z:
-            names = [n for n in z.namelist() if n.strip("/") and not n.startswith("__MACOSX")]
-            roots = {n.split("/")[0] for n in names}
-            if len(roots) == 1 and all("/" in n for n in names):
-                folder = target / roots.pop()
-                z.extractall(target, members=names)
-            else:
-                folder = target / Path(up.filename).stem
-                z.extractall(folder, members=names)
-        Path(tmp.name).unlink(missing_ok=True)
-        jid = str(uuid.uuid4())
-        JOBS[jid] = {"status": "queued", "kind": "project", "name": folder.name}
-        background.add_task(_run_job, jid, ingest_project(folder, opts))
-        job_ids.append(jid)
+        for up in files:
+            with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
+                shutil.copyfileobj(up.file, tmp)
+            # Projektname = Ordnername im ZIP (oder ZIP-Name, wenn die Dateien direkt im ZIP liegen)
+            with zipfile.ZipFile(tmp.name) as z:
+                names = [n for n in z.namelist() if n.strip("/") and not n.startswith("__MACOSX")]
+                roots = {n.split("/")[0] for n in names}
+                if len(roots) == 1 and all("/" in n for n in names):
+                    folder = target / roots.pop()
+                    z.extractall(target, members=names)
+                else:
+                    folder = target / Path(up.filename).stem
+                    z.extractall(folder, members=names)
+            Path(tmp.name).unlink(missing_ok=True)
+            jid = str(uuid.uuid4())
+            JOBS[jid] = {"status": "queued", "kind": "project", "name": folder.name}
+            background.add_task(_run_job, jid, ingest_project(folder, opts))
+            job_ids.append(jid)
     else:
         target = s.data_dir / doc_type.value
         target.mkdir(parents=True, exist_ok=True)

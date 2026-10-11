@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     chat_model: str = "openai/gpt-6-luna"   # das eine Sprachmodell der App (Antworten, Graph RAG, Anschlussfragen, DEO, Cluster); keine Auswahl im UI
     enrich_model: str = "openai/gpt-6-luna"  # Structured Summaries beim Einlesen
     embedding_model: str = "openai/text-embedding-3-large"
+    # Preise für die Kostenanzeige nach dem Hochladen (USD je 1 Mio. Tokens). Live-Preise von OpenRouter haben Vorrang;
+    # diese Werte gelten nur, wenn OpenRouter nicht erreichbar ist. usd_to_eur: ungefährer Wechselkurs.
+    price_chat_input_per_m: float = 1.25
+    price_chat_output_per_m: float = 10.0
+    price_embedding_per_m: float = 0.13
+    usd_to_eur: float = 0.86
     embedding_dim: int = 3072      # muss zum Embedding-Modell passen (3-large: 3072, 3-small: 1536)
 
     # --- Qdrant -----------------------------------------------------------
@@ -36,15 +42,15 @@ class Settings(BaseSettings):
 
     # --- Datenbanken ------------------------------------------------------
     # Feste Liste der Datenbanken, denen Dateien zugeordnet werden (Metadatum "databases").
-    # In der .env: DATABASES=AL,CNN_DM,DL,JSW,LDK,ML,UM
-    databases: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["AL", "CNN_DM", "DL", "JSW", "LDK", "ML", "UM"])
+    # In der .env: DATABASES=AL,CNN_DM,DL,JSW,LDK,ML,UM,OTH  (OTH = „Others“ für alles, was nirgends sonst hingehört)
+    databases: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["AL", "CNN_DM", "DL", "JSW", "LDK", "ML", "UM", "OTH"])
     # Anzeigenamen (Blumen) der Datenbanken. Die Kürzel oben bleiben die internen Schlüssel
     # (Ordner research/<ID>/, Qdrant-Payload "databases", API-Filter); Namen erscheinen in Oberfläche,
     # Cluster-Labels und LLM-Kontext, und Fragen dürfen beide Schreibweisen nutzen.
     # In der .env als JSON: DATABASE_NAMES={"LDK":"Peony",...}
     database_names: dict[str, str] = Field(default_factory=lambda: {
         "AL": "Aster", "CNN_DM": "Camellia", "DL": "Dahlia", "JSW": "Jasmine",
-        "LDK": "Peony", "ML": "Magnolia", "UM": "Orchid"})
+        "LDK": "Peony", "ML": "Magnolia", "UM": "Orchid", "OTH": "Others"})
 
     # --- Clustering -------------------------------------------------------
     memory_max_turns: int = 20      # Gesprächsgedächtnis: so viele frühere Wechsel gehen mit jeder Frage mit

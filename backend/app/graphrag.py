@@ -86,6 +86,9 @@ def path_for(plan: dict, doc: dict | None) -> list:
 async def answer_stream(req: GraphRequest, api_key: str | None = None):
     from pydantic_ai import Agent
 
+    from . import usage
+    meter = usage.start()                     # was Frage und Antwort gekostet haben
+
     from . import store
     from .config import get_settings
     from .llm import chat_model, resolve_key
@@ -144,7 +147,7 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
     if not sources and not graph_docs and not overview and not prog_head:
         text = "I found nothing in the knowledge graph or the documents that answers this question with the current settings."
         yield "delta", {"t": text}
-        yield "done", {**meta, "answer": text, "sources": [], "intent": plan["intent"], "entities": plan["entities"]}
+        yield "done", {**meta, "answer": text, "sources": [], "intent": plan["intent"], "entities": plan["entities"], "usage": await usage.summary_async(meter)}
         return
     graph_ctx = "\n".join(
         f"- {d.get('title')} ({d.get('doc_type')}, {d.get('year') or 'n.d.'}); authors: {', '.join(d.get('authors') or []) or '–'}; "
@@ -168,6 +171,7 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
             if delta:
                 text += delta
                 yield "delta", {"t": delta}
+        usage.add_run(result, model_name)
     used = set(cited_numbers(text, len(sources))) or {r.n for r in sources}
     yield "done", {**meta, "answer": text, "sources": [r.model_dump() for r in sources if r.n in used],
-                   "intent": plan["intent"], "entities": plan["entities"]}
+                   "intent": plan["intent"], "entities": plan["entities"], "usage": await usage.summary_async(meter)}

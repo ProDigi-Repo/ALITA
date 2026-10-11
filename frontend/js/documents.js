@@ -247,6 +247,88 @@ function syncUpload(){
 }
 $$('input[name=utype]').forEach(r=>r.addEventListener('change',syncUpload));
 $('#openUpload').addEventListener('click',()=>openUpload());
+/* ---------- "Add new data" (button in the database bar): database · type · overall date · files ---------- */
+const AD={db:null,type:null};
+function adOpen(){
+  AD.db=SEL_DB.length===1?SEL_DB[0]:AD.db;AD.type=AD.type||null;
+  const n=db=>DOCS.filter(d=>(d.db||[]).includes(db)).length;
+  $('#adDbs').innerHTML=DATABASES.map(db=>`<label class="ad-db" style="--c:${dbColor(db)}"><input type="radio" name="addb" value="${esc(db)}" ${AD.db===db?'checked':''}><span class="ad-fl">${dbIcon(db)}</span><b>${esc(dbName(db))}</b><small>${n(db)} docs</small></label>`).join('');
+  $$('input[name=addb]').forEach(r=>r.addEventListener('change',()=>{AD.db=r.value;adSync()}));
+  $$('input[name=adtype]').forEach(r=>r.checked=r.value===AD.type);
+  $('#adFiles').value='';$('#adProject').value='';$('#adDate').value='';
+  adSync();$('#addData').hidden=false;
+  setTimeout(()=>($('input[name=addb]:checked')||$('input[name=addb]')).focus(),30);
+}
+function adSync(){
+  const t=AD.type,files=[...$('#adFiles').files];
+  $('#adFiles').accept=t==='research_project'?'.zip':'.pdf,.docx,.doc,.txt,.md,.pptx';
+  $('#adFiles').multiple=true;
+  $('#adProjWrap').hidden=!t||t==='research_project';
+  $('#adDateQ').textContent=t==='research_project'?'Which overall date should the project get?':t==='research_paper'?'Which date should the papers get (e.g. publication)?':t==='research_notes'?'Which date should the notes get?':'Which overall date should the data get?';
+  $('#adDateHint').textContent=t==='research_project'?'Optional. Files with their own document date keep it (the version history needs it); files without a reliable date and the project itself get this date.'
+    :'Optional. Leave empty to take the dates from the files.';
+  $('#adDropText').innerHTML=files.length?`<b>${files.length} file${files.length>1?'s':''}</b>: ${esc(files.slice(0,3).map(f=>f.name).join(', '))}${files.length>3?' …':''}`
+    :t==='research_project'?'Drop the projects here – <b>one ZIP per project</b> – or <u>choose files</u>':'Drop files here or <u>choose files</u>';
+  const ok=AD.db&&t&&files.length;$('#adGo').disabled=!ok;
+  $('#adGo').textContent=AD.db?`Add to ${dbName(AD.db)}`:'Add data';
+  $('#adSum').textContent=!AD.db?'Choose a database.':!t?'Choose the kind of data.':!files.length?'Choose the files.'
+    :`${files.length} ${t==='research_project'?(files.length>1?'projects (one ZIP each)':'project (ZIP)'):t==='research_paper'?'paper'+(files.length>1?'s':''):'note'+(files.length>1?'s':'')} → ${dbName(AD.db)}${$('#adDate').value?' · dated '+$('#adDate').value:' · dates from the files'}`;
+}
+$$('input[name=adtype]').forEach(r=>r.addEventListener('change',()=>{AD.type=r.value;adSync()}));
+['change','input'].forEach(ev=>{$('#adFiles').addEventListener(ev,adSync);$('#adDate').addEventListener(ev,adSync)});
+$('#adDateClear').addEventListener('click',()=>{$('#adDate').value='';adSync()});
+const adDrop=$('#adDrop');
+['dragenter','dragover'].forEach(ev=>adDrop.addEventListener(ev,e=>{e.preventDefault();adDrop.classList.add('over')}));
+['dragleave','drop'].forEach(ev=>adDrop.addEventListener(ev,()=>adDrop.classList.remove('over')));
+adDrop.addEventListener('drop',e=>{e.preventDefault();if(e.dataTransfer.files.length){$('#adFiles').files=e.dataTransfer.files;adSync()}});
+$$('[data-adclose]').forEach(b=>b.addEventListener('click',()=>$('#addData').hidden=true));
+$('#addData').addEventListener('click',e=>{if(e.target===$('#addData'))$('#addData').hidden=true});
+document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(!$('#adConfirm').hidden){$('#adConfirm').hidden=true;return}$('#addData').hidden=true});
+$('#dbAdd').addEventListener('click',adOpen);
+/* Second window before the upload: confirms the choice; for projects it checks that every project is one ZIP */
+$('#addForm').addEventListener('submit',e=>{
+  e.preventDefault();const files=[...$('#adFiles').files];
+  if(!AD.db||!AD.type||!files.length){adSync();return}
+  const t=AD.type,date=$('#adDate').value,zip=f=>/\.zip$/i.test(f.name);
+  const list=fs=>`<ul class="adc-files">${fs.map(f=>`<li class="${t==='research_project'?(zip(f)?'ok':'bad'):''}"><span>${t==='research_project'?(zip(f)?'✓':'✗'):'•'}</span>${esc(f.name)}${t==='research_project'&&zip(f)?` <small>→ project “${esc(f.name.replace(/\.zip$/i,''))}”*</small>`:''}</li>`).join('')}</ul>`;
+  let body,ok=true,need=false;
+  if(t==='research_project'){
+    const bad=files.filter(f=>!zip(f));ok=!bad.length;need=ok;
+    body=`<p class="adc-q"><b>Is every project delivered as its own ZIP file?</b></p>
+      <p>Each ZIP becomes <b>one research project</b> in <b>${esc(dbName(AD.db))}</b>; the folder inside the ZIP gives the project its name. Several projects = several ZIP files, never several projects in one ZIP.</p>
+      ${list(files)}
+      ${bad.length?`<p class="adc-warn">${bad.length===1?'This file is':'These files are'} not a ZIP: ${esc(bad.map(f=>f.name).join(', '))}. Pack each project folder into its own ZIP, then try again.</p>`
+        :`<label class="check adc-check"><input type="checkbox" id="adcSure"> Yes – ${files.length===1?'this ZIP contains exactly one project':`these ${files.length} ZIPs contain one project each`}</label>
+          <p class="adc-note">* The final name comes from the folder inside the ZIP. Date: ${date?esc(date)+' for the project and its files without a date of their own':'taken from the files'}.</p>`}`;
+  }else{
+    const zips=files.filter(zip);
+    body=`<p class="adc-q"><b>Upload ${files.length} ${t==='research_paper'?'paper':'note'}${files.length>1?'s':''} to ${esc(dbName(AD.db))}?</b></p>${list(files)}
+      <p>Date: ${date?esc(date):'taken from the files'}${$('#adProject').value.trim()?` · linked to project ${esc($('#adProject').value.trim())}`:''}</p>
+      ${zips.length?`<p class="adc-warn">${esc(zips.map(f=>f.name).join(', '))} ${zips.length>1?'are ZIP files':'is a ZIP file'}. If it is a project folder, go back and choose “Research project”.</p>`:''}`;
+  }
+  $('#adcBody').innerHTML=body;
+  const go=$('#adcGo');go.hidden=!ok;go.disabled=need;go.textContent=t==='research_project'?`Upload ${files.length} project${files.length>1?'s':''}`:'Upload';
+  const sure=$('#adcSure');if(sure)sure.addEventListener('change',()=>go.disabled=!sure.checked);
+  $('#adConfirm').hidden=false;(sure||go.hidden?$('#adcBack'):go).focus();
+});
+$('#adcBack').addEventListener('click',()=>$('#adConfirm').hidden=true);
+$('#adcGo').addEventListener('click',async()=>{
+  $('#adConfirm').hidden=true;const files=[...$('#adFiles').files];
+  if(!LIVE){$('#addData').hidden=true;toast('Demo mode: adding data requires the running backend');return}
+  const fd=new FormData();
+  fd.append('doc_type',AD.type);files.forEach(f=>fd.append('files',f));fd.append('databases',AD.db);
+  if($('#adDate').value)fd.append('date',$('#adDate').value);
+  if(AD.type!=='research_project'&&$('#adProject').value.trim())fd.append('project_name',$('#adProject').value.trim());
+  fd.append('use_llm',$('#adLlm').checked);
+  $('#adGo').disabled=true;$('#adGo').textContent='Uploading…';
+  try{
+    const r=await fetch('api/ingest',{method:'POST',body:fd,headers:headers(false)});
+    if(!r.ok)throw new Error((await r.json().catch(()=>({}))).detail||r.status);
+    const {jobs}=await r.json();$('#addData').hidden=true;toast(`${dbName(AD.db)}: processing started (${jobs.length} job${jobs.length===1?'':'s'})`);
+    pollJobs(jobs);
+  }catch(err){toast('Upload failed: '+err.message);adSync()}
+});
+
 $('#uCancel').addEventListener('click',()=>$('#upload').hidden=true);
 $('#uploadForm').addEventListener('submit',async e=>{
   e.preventDefault();
@@ -267,15 +349,38 @@ $('#uploadForm').addEventListener('submit',async e=>{
   }catch(err){toast('Upload failed: '+err.message)}
 });
 async function pollJobs(ids){
-  const open=new Set(ids);
+  const open=new Set(ids),done=[];
   while(open.size){
     await new Promise(r=>setTimeout(r,2500));
     for(const id of [...open]){
       const j=await fetch('api/jobs/'+id).then(r=>r.json()).catch(()=>null);
-      if(!j||j.status==='done'||j.status==='error'){open.delete(id);toast(j&&j.status==='error'?`Error in ${j.name}: ${j.error}`:`Done: ${j?j.name:id}`)}
+      if(!j||j.status==='done'||j.status==='error'){open.delete(id);done.push(j||{status:'error',name:id,error:'job not found'});
+        toast(j&&j.status==='error'?`Error in ${j.name}: ${j.error}`:`Done: ${j?j.name:id}`)}
     }
   }
   loadDocs();
+  try{uploadReport(done)}catch(e){console.error('upload report',e)}
+}
+/* After an upload: ALITA tells how many tokens it took and what that cost in euro */
+function fmtEur(x){return x==null?'–':x>0&&x<0.01?'€'+x.toFixed(4):'€'+x.toFixed(2)}
+function uploadReport(jobs){
+  if(!jobs.length)return;
+  const u=jobs.map(j=>j.usage).filter(Boolean),sum=k=>u.reduce((a,x)=>a+(+x[k]||0),0);
+  const ok=jobs.filter(j=>j.status==='done').length,bad=jobs.length-ok;
+  const n=v=>Math.round(v).toLocaleString('en');
+  const tok=sum('tokens'),eur=sum('eur'),usd=sum('usd'),cin=sum('chat_input'),cout=sum('chat_output'),req=sum('chat_requests'),emb=sum('embedding');
+  const est=u.some(x=>x.embedding_estimated),src=u.some(x=>x.price_source==='openrouter')?'live OpenRouter prices':'estimated prices',rate=(u[0]||{}).usd_to_eur;
+  const head=`<b class="cw-step">Upload done! 🎉</b> ${ok} of ${jobs.length} ${jobs.length>1?'jobs':'job'} finished${bad?` · <span class="cw-bad">${bad} with errors</span>`:''}.`;
+  let body;
+  if(!u.length)body='<br>I could not count the tokens this time – the backend did not report them (it may need an update).';
+  else if(!tok)body='<br>No AI tokens used – the files were only indexed, without the LLM. Cost: <b>€0.00</b> 🌱';
+  else body=`<br>You burned through <b class="cw-big">${n(tok)} tokens</b>:
+    <span class="cw-ab"><i class="cw-a1">✎</i>reading &amp; summarizing: ${n(cin)} in · ${n(cout)} out <small>(${n(req)} request${req===1?'':'s'}, ${fmtEur(sum('chat_eur'))})</small></span>
+    <span class="cw-ab"><i class="cw-b1">∿</i>embeddings: ${n(emb)}${est?' <small>(estimated)</small>':''} <small>(${fmtEur(sum('embedding_eur'))})</small></span>
+    That’s about <b class="cw-big">${fmtEur(eur)}</b> <small>(≈ $${usd.toFixed(usd<0.01?4:2)})</small>.
+    <span class="cw-tip">${src}${rate?` · 1 USD ≈ ${rate} EUR`:''}</span>`;
+  if(typeof window.alitaSay==='function')window.alitaSay(head+body);
+  else toast(`Upload done – ${n(tok)} tokens ≈ ${fmtEur(eur)}`);
 }
 
 /* ======================================================================
