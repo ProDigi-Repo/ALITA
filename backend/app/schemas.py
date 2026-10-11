@@ -235,6 +235,8 @@ class ChatResponse(BaseModel):
     system_prompt_id: str | None = None     # Fingerabdruck des wirksamen Prompts (Chat-Verlauf)
     memory_turns: int = 0                   # wie viele frühere Wechsel als Gedächtnis mitgingen
     retrieval_query: str | None = None      # Suchanfrage für die Vektorsuche (bei Anschlussfragen mit Kontext)
+    scope: str | None = None                # REQ-12: "map", wenn ohne Auswahl über die ganze Landkarte gefragt wurde
+    progress: dict | None = None            # REQ-16/18: Erkenntnisstufen des Projekts (Tabelle unter der Antwort)
 
 
 # ----------------------------------------------------------------- IDs

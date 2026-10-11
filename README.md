@@ -231,6 +231,7 @@ und `APP_VERSION` im Frontend angleichen. Der Test `test_changelog_follows_keepa
 
 | Version | Datum | Inhalt | früher |
 |---|---|---|---|
+| 1.15.0 | 2026-10-11 | REQ-10, REQ-15 – REQ-18: Versionshistorie in Erkenntnisstufen – Zeitleiste in der Projektkarte, inhaltliche vs. formale Änderungen, Stufentabelle mit Links zu den Quelldateien, Fortschrittsfragen in beiden Chats; offene Punkte für den Anforderer im CHANGELOG | |
 | 1.14.0 | 2026-10-11 | REQ-19: Projektteams statt Datei-Metadaten als Autor:innen, Personen-Filter für beide Chats, Bereinigung von Metadaten-Namen; REQ-12: Chat-Umfang folgt der Auswahl (Projekt, Cluster, ganze Landkarte); ALITA-Helferin mit Rundgang und „RAG vs. Graph“; Wissenslandkarte in drei Ebenen, „Reset view“, Datenbank-Blumen im 3D; REQ-11: Erklärungen über den Chats | |
 | 1.13.0 | 2026-10-11 | REQ-09: Cluster- und Projektansicht oben rechts mit Dokumentliste und Projektkarte; Projektebene über den Clustern in der Wissenslandkarte; REQ-08: ausgeschlossene Dateien (z. B. Literaturordner) im Datenbank-Infofenster mit Grund; REQ-21: Parameter und System Prompt unter „Advanced settings“ | – |
 | 1.12.0 | 2026-10-11 | REQ-02: Wissenslandkarte auf der B-Seite immer sichtbar (Seite auf Fensterhöhe, Dokumente öffnen im Bereich Projekte & Cluster); Klick auf Cluster wie auf A/B mit Beschreibung oben rechts; verbundene Cluster in jeder Cluster-Beschreibung; alte Cluster-Detailansicht entfernt; Fehler „Cluster [object Object]“ behoben | – |

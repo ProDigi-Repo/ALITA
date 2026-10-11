@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 VERSION_HEAD = re.compile(r"^##\s+\[?(?P<v>Unreleased|\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)\]?(?:\s+-\s+(?P<d>\d{4}-\d{2}-\d{2}))?\s*$")
-SECTION_HEAD = re.compile(r"^###\s+(Added|Changed|Deprecated|Removed|Fixed|Security)\s*$")
+SECTION_HEAD = re.compile(r"^###\s+(Added|Changed|Deprecated|Removed|Fixed|Security|Open points)\s*$")
 SEMVER = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$")
 
 
@@ -16,13 +16,16 @@ def parse_changelog(text: str) -> list[dict]:
     for line in text.splitlines():
         m = VERSION_HEAD.match(line)
         if m:
-            releases.append({"version": m.group("v"), "date": m.group("d") or "", "sections": {}, "changes": []})
+            releases.append({"version": m.group("v"), "date": m.group("d") or "", "sections": {}, "changes": [], "highlight": ""})
             section = None
             continue
         m = SECTION_HEAD.match(line)
         if m and releases:
             section = m.group(1)
             releases[-1]["sections"].setdefault(section, [])
+            continue
+        if line.startswith(">") and releases and section is None:   # Hinweis direkt unter der Versionszeile: besonderes Release
+            releases[-1]["highlight"] = (releases[-1]["highlight"] + " " + line.lstrip("> ").strip()).strip()
             continue
         if line.startswith("- ") and releases:
             item = line[2:].strip()

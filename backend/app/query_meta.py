@@ -11,16 +11,20 @@ from typing import Literal
 from pydantic import BaseModel
 
 Intent = Literal["find_sources", "summarize", "explain", "compare", "methodology", "findings",
-                 "limitations", "authorship", "timeline", "overview", "question"]
+                 "limitations", "authorship", "timeline", "overview", "progress", "question"]
 
 INTENT_LABELS = {
     "find_sources": "Find sources", "summarize": "Summarize", "explain": "Explain", "compare": "Compare",
     "methodology": "Methodology", "findings": "Findings", "limitations": "Limitations",
-    "authorship": "People & authorship", "timeline": "Timeline", "overview": "Overview", "question": "Question",
+    "authorship": "People & authorship", "timeline": "Timeline", "overview": "Overview", "progress": "Knowledge progress", "question": "Question",
 }
 
 # Reihenfolge = Priorität
 INTENT_RULES: list[tuple[str, str]] = [
+    # REQ-15: Erkenntnisfortschritt / wie Analysen durchgeführt wurden
+    ("progress", r"(erkenntnis(stand|fortschritt|stufe)|knowledge (stage|progress|state)|im zeitverlauf|over time|entwickelt|weiterentwick|"
+                 r"evolv|evolution|progress|versionshistorie|version history|stufen|stages|"
+                 r"(wie|how)\b.{0,40}\banaly\w*\b.{0,30}(durchgeführt|gemacht|conducted|performed|done|carried out))"),
     ("compare", r"\b(compare|comparison|differ|difference|versus|vs\.?|vergleich|unterschied)"),
     ("limitations", r"\b(limitation|weakness|shortcoming|limitationen|grenzen|einschränk)"),
     ("methodology", r"\b(method|methodology|design|approach|sample|data ?set|measure|methode|vorgehen|stichprobe|erhebung)"),

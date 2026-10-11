@@ -128,12 +128,20 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
             "graph": {"available": graph_ok, "documents": len(graph_docs), "neighbours": len(neighbours)},
             "model": model_name, "memory_turns": len(memory), "retrieval_query": search_q,
             "system_prompt_source": sp_source, "system_prompt_id": sp_id}
+    prog_head = ""
+    if plan["intent"] == "progress":                 # REQ-15/16: Erkenntnisstufen als Tabelle unter der Antwort
+        from .query_meta import Entity
+        from .rag import progress_context
+        prog, prog_head = progress_context(req.message, SearchFilters(project=list(req.projects) or plan["projects"][:1]),
+                                           [Entity(**e) for e in plan["entities"]], plan["databases"])
+        if prog:
+            meta["progress"] = prog
     yield "meta", meta
     overview = ""
     if req.overview:
         from .rag import scope_overview
         overview = scope_overview(plan["databases"])
-    if not sources and not graph_docs and not overview:
+    if not sources and not graph_docs and not overview and not prog_head:
         text = "I found nothing in the knowledge graph or the documents that answers this question with the current settings."
         yield "delta", {"t": text}
         yield "done", {**meta, "answer": text, "sources": [], "intent": plan["intent"], "entities": plan["entities"]}
@@ -147,7 +155,7 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
                       for r, h in zip(sources, hits))
     from .rag import people_context
     who = people_context([r.project_name for r in sources] + list(req.projects), plan["persons"] if req.persons else None)
-    prompt = (f"Overview of the whole knowledge map (all projects and clusters in scope):\n{overview}\n\n" if overview else "") + who + (f"Graph path: {' '.join(x if isinstance(x, str) else f'{x[0]} [{x[1]}]' for x in path) or '–'}\n"
+    prompt = (f"Overview of the whole knowledge map (all projects and clusters in scope):\n{overview}\n\n" if overview else "") + who + prog_head + (f"Graph path: {' '.join(x if isinstance(x, str) else f'{x[0]} [{x[1]}]' for x in path) or '–'}\n"
               f"Discourse elements asked for: {', '.join(plan['deo']) or 'any'}\n\n"
               f"Knowledge graph context:\n{graph_ctx or '–'}\n\nSources for this question:\n{ctx or '–'}\n\nQuestion: {req.message}")
     from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart

@@ -348,6 +348,35 @@ def assign_project(name: str, body: DatabaseAssignment):
     return {"updated": n}
 
 
+class ProgressRequest(BaseModel):
+    stages: int = 5
+    use_llm: bool = False
+
+
+@app.get("/api/projects/{name}/progress")
+def project_progress(name: str, stages: int = 5, recompute: bool = False):
+    """REQ-10/16/17/18: Versionshistorie in Erkenntnisstufen – Versionen, Art jeder Änderung, Stufen mit Dateien und Analysen."""
+    from .progress import project_progress as pp
+    if not store.get_project(name):
+        raise HTTPException(404, "Project not found")
+    return pp(name, stages, recompute)
+
+
+@app.post("/api/projects/{name}/progress")
+async def project_progress_llm(name: str, body: ProgressRequest, x_key: KeyHeader = None):
+    """Wie GET, berechnet neu und lässt (use_llm) je Stufe den Erkenntnisstand von der KI formulieren."""
+    from .progress import project_progress as pp
+    from .progress import summarize_stages
+    if not store.get_project(name):
+        raise HTTPException(404, "Project not found")
+    if not body.use_llm:
+        return pp(name, body.stages, True)
+    try:
+        return await summarize_stages(name, body.stages, x_key)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+
 class TeamAssignment(BaseModel):
     team: list[str] = []
 

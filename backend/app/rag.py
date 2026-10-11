@@ -2,6 +2,7 @@
 damit Kachel 2 (Graph Chat, Graph RAG) denselben Dienst wiederverwenden kann."""
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 
 from pydantic import BaseModel, Field
@@ -16,6 +17,8 @@ from .prompts import system_prompt
 from .query_meta import Entity, Intent, analyze, vocab_from_documents
 from .ranking import cited_numbers, diversify
 from .schemas import ChatRequest, ChatResponse, SourceRef
+
+log = logging.getLogger("rag")
 
 
 class Answer(BaseModel):
@@ -145,6 +148,32 @@ def people_context(project_names, persons: list[str] | None = None, projects: li
             + "\n".join(lines) + "\n\n")
 
 
+PROGRESS_RULES = ("The question asks how the knowledge of a project developed or how its analyses were done. "
+                  "A table of the knowledge stages, with links to every file, is shown directly under your answer – do not repeat it as a table. "
+                  "In 3–6 sentences: say how the insight developed from stage to stage, how the analyses were carried out (methods, data, models) "
+                  "and how many versions brought no fundamentally new insight (rewording, formatting, resubmissions). "
+                  "Refer to stages as 'Stage n'; cite numbered sources [n] where you use them.")
+
+
+def progress_context(question: str, filters, entities, databases: list[str] | None = None) -> tuple[dict | None, str]:
+    """REQ-15/16: Erkenntnisstufen des Projekts der Frage (Auswahl > Name in der Frage > einziges Projekt im Umfang)."""
+    from .progress import compact, project_progress, stage_count, table_text
+    names = list(getattr(filters, "project", None) or []) or [e.value for e in entities if e.type == "project"]
+    if not names:
+        dbs = set(databases or [])
+        projs = [p["name"] for p in store.list_projects() if not dbs or dbs & set(p.get("databases") or [])]
+        names = projs if len(projs) == 1 else []
+    if not names:
+        return None, ("The question asks about the development of a project, but no project is selected. "
+                      "Ask the user to select a project in the knowledge map (or name it), then knowledge stages can be shown.\n\n")
+    try:
+        prog = project_progress(names[0], stage_count(question))
+    except Exception as e:
+        log.warning("Progress for %s failed: %s", names[0], e)
+        return None, ""
+    return compact(prog), f"Knowledge stages of project {names[0]} (from its version history):\n{table_text(prog)}\n\n{PROGRESS_RULES}\n\n"
+
+
 async def prepare(req: ChatRequest, api_key: str | None) -> tuple[ChatRequest, Prepared]:
     """Gemeinsamer Teil von answer() und answer_stream(): Filter, Gedächtnis, Suche, Quellen, Prompt."""
     from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
@@ -168,6 +197,15 @@ async def prepare(req: ChatRequest, api_key: str | None) -> tuple[ChatRequest, P
     if overview:
         p.extra["scope"] = "map"
     head = f"Overview of the whole knowledge map (all projects and clusters in scope):\n{overview}\n\n" if overview else ""
+    if meta.intent == "progress":                    # REQ-15/16
+        prog, prog_head = progress_context(query or req.message, filters, meta.entities, filters.database)
+        head += prog_head
+        if prog:
+            p.extra["progress"] = prog
+        if prog_head and not sources and not overview:
+            p.prompt = f"{head}Question: {p.query}"
+            p.history = [ModelRequest(parts=[UserPromptPart(content=t.content)]) if t.role == "user"
+                         else ModelResponse(parts=[TextPart(content=t.content)]) for t in memory]
     if not sources and overview:   # top-level question without a matching passage: answer from the overview
         p.prompt = f"{head}No single document passage matched this question; answer from the overview.\n\nQuestion: {p.query}"
         p.history = [ModelRequest(parts=[UserPromptPart(content=t.content)]) if t.role == "user"

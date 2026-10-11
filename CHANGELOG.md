@@ -2,11 +2,31 @@
 
 All notable changes to ALITA Prototype are documented in this file.
 
-The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/),
+The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/) (plus a section "Open points" for questions to the requirement owner),
 and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: incompatible changes raise the major version.
 
 ## [Unreleased]
+
+## [1.15.0] - 2026-10-11
+
+> **Special release:** the first release delivered as a separate version that can be rolled back on its own (git tag `v1.15.0`; back with `git checkout v1.14.0`). It implements five requirements at once (REQ-10, REQ-15 – REQ-18) and lists **open points the requirement owner has to decide** at the end.
+
+### Added
+- REQ-10 – version history in the project view: the project card (B Interaction Interface, select a project in the knowledge map) has a new section "Knowledge progress". A timeline shows every manuscript version of the project as a dot, coloured by the kind of change (substantive · rewording · resubmission · formatting only), the knowledge stages as bands, and below them the analyses, data and model files linked to the stage they belong to (dashed = assumed link). Hover shows file, date and why the change was classified that way; a click opens the document.
+- REQ-17 – content vs. form: every manuscript version is compared with the previous one – passage overlap of the whole text and of results/discussion, new figures (coefficients, n, p), changed methods, change of journal or submission stage. The result says e.g. "71 of 75 versions contain no fundamentally new insight (40 rewording, 15 resubmission, 16 formatting only)". The comparison is rule-based and needs no AI.
+- REQ-16 – knowledge stages: the strongest substantive changes divide the history into 3, 5 or 10 stages (selectable). Per stage: period, journals, the knowledge state reached, what was new, how many versions brought no new insight, the files and the analyses. If there are fewer substantive changes than stages asked for, the system says so instead of inventing stages. "✨ Describe stages with AI" lets the AI word the knowledge state of each stage from the first and last version (about one request per stage, cached).
+- REQ-18 – links to the source files: versions are numbered in their order; each stage names its range ("Files 1–7") and lists every file, each one opens the document. Analyses carry the basis of their assignment (journal folder, date, or uncertain file date).
+- REQ-15 – questions about the progress of knowledge: both chats recognise questions such as "Wie hat sich der Erkenntnisstand entwickelt?", "Zeig das Projekt in 3 Stufen" or "How were the analyses conducted?". The answer is a short text plus the stage table (stage · knowledge state · files · analyses) under it; the number of stages can be named in the question (default 5). The project comes from the selection in the map, from the question, or is the only project in scope.
+- New endpoints `GET /api/projects/{name}/progress?stages=5` and `POST /api/projects/{name}/progress` (recompute, optionally with AI). Results are cached in `<DATA_DIR>/progress/` and recomputed automatically when the project's files change.
+
+### Open points
+- **Main document of a project.** The history follows the longest chain of manuscript versions (e.g. Artikel_v1 … v60). Projects with several papers or a separate presentation series get only this one chain; other files are assigned to its stages. Should every chain get its own stages?
+- **Links between versions and analyses are inferred**, not recorded: by journal folder of the submission, otherwise by date (dashed when the date is only the file date). Is an assumed link acceptable when it is marked, or should only confirmed links be shown (would need manual linking, like the project team in REQ-19)?
+- **When "substantive" starts** is a threshold on text and results changes. It is calibrated on test data only. We need one project whose real history the owner knows (which versions brought new results?) to check and tune it.
+- **AI descriptions cost requests** (about one per stage, only on "Describe stages with AI"). Should they be generated automatically after ingestion instead?
+- **Versions without full text** (e.g. PDFs without text layer, unsupported formats) cannot be compared and are shown as "not comparable".
+- Rollback: to return to the version before, run `git checkout v1.14.0` (or revert the commit "ALITA v1.15.0"); the cache folder `<DATA_DIR>/progress/` can simply be deleted.
 
 ## [1.14.0] - 2026-10-11
 
@@ -492,6 +512,7 @@ First stable release. From here on, incompatible changes to the REST API, the CL
 - Chat history per tile, metadata backup (`GET /api/export`), Docker Compose setup.
 
 [Unreleased]: #unreleased
+[1.15.0]: #1150---2026-10-11
 [1.14.0]: #1140---2026-10-11
 [1.13.0]: #1130---2026-10-11
 [1.12.0]: #1120---2026-10-11

@@ -406,12 +406,13 @@ function cgRenderProj(units){
         <dt>Period</dt><dd>${p.from_?p.from_.slice(0,4):'–'} – ${p.to?p.to.slice(0,4):'–'}</dd>
         ${(p.keywords||[]).length?`<dt>Keywords</dt><dd>${esc(p.keywords.slice(0,6).join(', '))}</dd>`:''}
         ${roles?`<dt>Contents</dt><dd>${roles}</dd>`:''}</dl>
+      ${typeof cgProgressSection==='function'?cgProgressSection(p.name):''}
       <h6>Clusters of this project</h6><div class="cp-conn">${[...by.entries()].sort((a,b)=>b[1]-a[1]).map(([ci,n])=>{const c=cls.find(k=>k.id===ci)||{id:ci,label:''};
         return `<button type="button" data-cc="${ci}" style="--h:${cvHue(ci)}" aria-pressed="${cvHas(ci)}" title="${n} document${n>1?'s':''} of the project in C${ci}"><b>C${ci}</b><span>${esc(cvName(c,info))}</span><small>${n}</small></button>`}).join('')}</div>
       ${cpDocListHtml(mine,'project')}</div>`;
   box.hidden=false;
   box.querySelector('[data-pclose]').addEventListener('click',()=>{const pj=cvProjects(units).find(x=>x.pn===p.name);CG.proj=null;if(pj&&[...pj.by.keys()].every(id=>CV.sels.has(id)))cvSelectProject(pj);else renderClusterPage()});
-  cpWireConn(box);wireTeam(box,()=>cgRenderProj(units));
+  cpWireConn(box);wireTeam(box,()=>cgRenderProj(units));if(typeof wireProgress==='function')wireProgress(box);
 }
 function renderClusterGraph(units,cls,o={}){
   const big=!!o.big,box=o.box||$('#cvGraph');
