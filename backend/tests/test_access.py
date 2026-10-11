@@ -84,7 +84,7 @@ def test_jwks_failure_fails_closed(client, private_key, monkeypatch):
 def test_identity_comes_from_signed_claims(client, private_key):
     h = headers(private_key) | {"Cf-Access-Authenticated-User-Email": "admin@example.org"}
     response = client.get("/api/me", headers=h)
-    assert response.json() == {"email": "reader@example.org", "is_admin": False, "access_enabled": True}
+    assert response.json() == {"email": "reader@example.org", "is_admin": False, "access_enabled": True, "auth_mode": "cloudflare"}
     assert response.headers["cache-control"] == "no-store"
     assert client.get("/api/me", headers=headers(private_key, email="ADMIN@example.org")).json()["is_admin"] is True
 

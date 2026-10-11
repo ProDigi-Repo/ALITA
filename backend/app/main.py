@@ -23,6 +23,7 @@ from .glossary import load_glossary
 from .graphrag import GraphRequest
 from .ingest import IngestOptions, ingest_file, ingest_project
 from .llm import MissingApiKey, resolve_key
+from .reviewers import router as reviewer_router
 
 log = logging.getLogger("alita.api")
 from pydantic import BaseModel
@@ -34,6 +35,7 @@ from . import __version__
 
 app = FastAPI(title="ALITA Prototype API", version=__version__)
 app.middleware("http")(protect_request)  # Frontend/API are same-origin; no permissive CORS.
+app.include_router(reviewer_router)
 
 KeyHeader = Annotated[str | None, Header(alias="X-OpenRouter-Key")]
 JOBS: dict[str, dict] = {}
@@ -87,7 +89,7 @@ def health() -> dict:
 @app.get("/api/me")
 def current_user(request: Request) -> dict:
     return {"email": request.state.email, "is_admin": request.state.is_admin,
-            "access_enabled": request.state.access_enabled}
+            "access_enabled": request.state.access_enabled, "auth_mode": request.state.auth_mode}
 
 
 # ------------------------------------------------------------------ Chat
