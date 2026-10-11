@@ -1,6 +1,8 @@
 /* ---------- API-Key ---------- */
 let apiKey='';
-try{apiKey=localStorage.getItem('or_key')||''}catch(e){}
+// Never persist a bearer key on shared computers; remove the old persisted value.
+try{localStorage.removeItem('or_key')}catch(e){}
+window.addEventListener('pagehide',()=>{apiKey='';$('#apiKey').value=''});
 function renderKey(){
   const s=$('#keyStatus');
   if(apiKey){s.className='pill ok';s.innerHTML='<span class="dot"></span>Key …'+esc(apiKey.slice(-4));$('#apiKey').value=apiKey}
@@ -10,8 +12,8 @@ $('#keyForm').addEventListener('submit',e=>{
   e.preventDefault();
   const v=$('#apiKey').value.trim();
   if(v && !v.startsWith('sk-or-')){toast('The key should start with "sk-or-"');return}
-  apiKey=v;try{v?localStorage.setItem('or_key',v):localStorage.removeItem('or_key')}catch(e){}
-  renderKey();toast(v?'Key saved · in this browser only':'Key removed');
+  apiKey=v;
+  renderKey();toast(v?'Key set · until this page is closed or reloaded':'Key removed');
 });
 $('#toggleKey').addEventListener('click',()=>{const i=$('#apiKey');i.type=i.type==='password'?'text':'password'});
 const CHAT_MODEL_ID='openai/gpt-6-luna';   // fixed model, no selection (backend: CHAT_MODEL)
@@ -233,6 +235,7 @@ function fmtSize(b){if(b==null)return '–';return b<1024?b+' B':b<1048576?(b/10
 
 /* ---------- Upload ---------- */
 function openUpload(t){
+  if(LIVE&&!IS_ADMIN){toast('Admin access required');return}
   if(t)$$('input[name=utype]').forEach(r=>r.checked=r.value===t);
   syncUpload();$('#upload').hidden=false;
 }
@@ -250,6 +253,7 @@ $('#openUpload').addEventListener('click',()=>openUpload());
 /* ---------- "Add new data" (button in the database bar): database · type · overall date · files ---------- */
 const AD={db:null,type:null};
 function adOpen(){
+  if(LIVE&&!IS_ADMIN){toast('Admin access required');return}
   AD.db=SEL_DB.length===1?SEL_DB[0]:AD.db;AD.type=AD.type||null;
   const n=db=>DOCS.filter(d=>(d.db||[]).includes(db)).length;
   $('#adDbs').innerHTML=DATABASES.map(db=>`<label class="ad-db" style="--c:${dbColor(db)}"><input type="radio" name="addb" value="${esc(db)}" ${AD.db===db?'checked':''}><span class="ad-fl">${dbIcon(db)}</span><b>${esc(dbName(db))}</b><small>${n(db)} docs</small></label>`).join('');

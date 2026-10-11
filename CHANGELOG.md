@@ -8,6 +8,14 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [Unreleased]
 
+### Added
+- Hetzner Compose profile and mailcode setup guide for a shared workspace behind Cloudflare Access/Tunnel; no published host ports.
+
+### Security
+- Verify Access JWT signatures, issuer, audience and expiry; reserve uploads and mutations for configured admins. Chat keeps using each user's own OpenRouter key.
+- Require an explicit Neo4j password instead of a committed default; restrict CORS, downloads and ZIP expansion, and cap HTTP uploads at 50 MiB.
+- Keep keys and chat history in page memory only, with Access logout. Export existing chats before upgrading: old browser-persisted keys/history are removed on first load.
+
 ## [2.0.0] - 2026-10-11
 
 > **Major release – requirements milestone:** all 21 requirements of the review (REQ-01 – REQ-21) are addressed: 17 done (5 of them with open points or data still needed), 1 deviation (REQ-11), 1 placeholder (REQ-20), 1 partial (REQ-21) – see "Requirements" below and `docs/requirements-status.md`. Built on the cleaned-up code of 1.16.2. The REST API stays compatible with 1.x; the major version marks the end of the requirements phase. Roll back with `git checkout v1.16.2`.
