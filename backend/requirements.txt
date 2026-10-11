@@ -3,6 +3,7 @@ uvicorn[standard]>=0.30
 python-multipart>=0.0.9
 pydantic>=2.9
 pydantic-settings>=2.6
+PyJWT[crypto]>=2.10,<3  # Cloudflare Access JWT signature/issuer/audience verification
 pydantic-ai-slim[openai,openrouter]>=1.40   # Agents + Embedder, Backend: OpenRouter
 qdrant-client>=1.12
 httpx>=0.27          # Index-Umzug (app.migrate): Qdrant-Snapshots

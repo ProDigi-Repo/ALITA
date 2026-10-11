@@ -1,0 +1,71 @@
+# From the repo root: COMPOSE_FILE=docker-compose.yml:deploy/hetzner/docker-compose.hetzner.yml
+# Compose >= 2.24.4 is required for !reset. No host ports, including localhost.
+services:
+  frontend:
+    image: nginx:1.28-alpine
+    ports: !reset []
+    networks: [edge, app]
+    security_opt: ["no-new-privileges:true"]
+
+  backend:
+    ports: !reset []
+    networks: [app, data]
+    environment:
+      ACCESS_ENABLED: "true"
+      ACCESS_TEAM_DOMAIN: ${ACCESS_TEAM_DOMAIN:?Set your Cloudflare team domain}
+      ACCESS_AUDIENCE: ${ACCESS_AUDIENCE:?Set the Access application AUD tag}
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?Set the HTTPS origin without trailing slash}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:?Set comma-separated admin email addresses}
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 6g
+    pids_limit: 256
+
+  qdrant:
+    ports: !reset []
+    networks: [data]
+    mem_limit: 4g
+
+  neo4j:
+    ports: !reset []
+    networks: [data]
+    environment:
+      NEO4J_server_memory_heap_initial__size: 1G
+      NEO4J_server_memory_heap_max__size: 2G
+      NEO4J_server_memory_pagecache_size: 1G
+    mem_limit: 4g
+
+  # No automatic ingestion at every production start; use the existing CLI deliberately.
+  seed:
+    profiles: [seed]
+    networks: [data]
+
+  ingest:
+    networks: [data]
+
+  migrate:
+    networks: [data]
+
+  cloudflared:
+    image: cloudflare/cloudflared:2026.10.0
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "run", "--token-file", "/run/secrets/cloudflare_tunnel_token"]
+    secrets: [cloudflare_tunnel_token]
+    networks: [edge]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    depends_on:
+      frontend:
+        condition: service_started
+
+networks:
+  edge:
+  app:
+  # Outbound connectivity remains available (Neo4j downloads n10s/ontologies).
+  # Only the backend and explicit CLI jobs share the database network.
+  data:
+
+secrets:
+  cloudflare_tunnel_token:
+    file: ./.secrets/cloudflare-token

@@ -36,7 +36,8 @@ research-rag/
 ## Start mit Docker Compose
 
 ```bash
-cp .env.example .env        # RESEARCH_DIR auf deinen Forschungsordner setzen (kein API-Key in .env: der kommt ins Interface)
+cp .env.example .env        # RESEARCH_DIR setzen; NEO4J_PASSWORD mit eigenem Zufallswert befüllen
+openssl rand -hex 32        # diesen Wert als NEO4J_PASSWORD in .env eintragen (kein OpenRouter-Key in .env)
 docker compose up -d --build
 ```
 
@@ -77,7 +78,14 @@ uvicorn app.main:app --reload                       # http://localhost:8000
 python -m app.ingest project "/pfad/zum/projekt" -v
 ```
 
-## Im Internet betreiben (Oracle Cloud + Cloudflare)
+## Im Internet betreiben (Hetzner + Cloudflare)
+
+Für einen gemeinsamen Workspace mit E-Mail-Einmalcode, eigenen OpenRouter-Keys und Admin-only-Uploads:
+[`deploy/hetzner/README.md`](deploy/hetzner/README.md). Das Hetzner-Profil schließt alle Hostports und erzwingt
+Cloudflare-JWT-Prüfung sowie eine Nutzer-/Admin-Trennung. Die Standard-Compose-Datei ist für lokale Entwicklung.
+Keys und Chatverläufe bleiben nur im Speicher der geöffneten Seite; gewünschte Chats vor Reload/Upgrade exportieren.
+
+## Alternative: Oracle Cloud + Cloudflare
 
 Gratis-Server auf Oracle Cloud (Always Free, ARM), erreichbar nur über einen Cloudflare Tunnel; davor sitzt
 Cloudflare Access mit Google-Login für freigegebene E-Mail-Adressen. Den fertigen Index zieht
@@ -316,8 +324,8 @@ in `research/LDK/notes/`. Auf Projektebene wird die Zusammenfassung aus dem Stru
 
 ## Chat-Verlauf
 
-Beide Chat-Kacheln haben „History“ und „New“. Gespräche werden im Browser gespeichert (localStorage, 50 pro Kachel),
-lassen sich wieder öffnen und löschen. Der Dokumenten-Chat schickt die letzten Wechsel der aktuellen Sitzung als
+Beide Chat-Kacheln haben „History“ und „New“. Gespräche bleiben nur im Speicher der geöffneten Seite (50 pro Kachel),
+lassen sich dort wieder öffnen und löschen. Vor Reload/Schließen bei Bedarf als TXT exportieren. Der Dokumenten-Chat schickt die letzten Wechsel der aktuellen Sitzung als
 `history` an `/api/chat`, damit Rückfragen den Kontext behalten.
 
 ## Entscheidungen
@@ -327,7 +335,7 @@ lassen sich wieder öffnen und löschen. Der Dokumenten-Chat schickt die letzten
 - **Exakte Duplikate** (gleicher Hash, z. B. dieselbe `Figures_v5.pptx` in jedem Journal-Ordner) stehen in der Liste, ihr Inhalt wird aber nur einmal eingebettet.
 - **LLM-Kosten**: `ENRICH_SCOPE=latest` erzeugt Summaries nur für die neueste Version textreicher Rollen. Paper und Notes bekommen immer eine eigene Summary. Mit `all` bekommt jede Version eine.
 - **Methoden-Glossar**: `glossary/methods.yaml` ist ein Platzhalter. Die IDs landen in `method_ids` und sind filterbar (`@methode:survey`). Wenn das richtige Glossar kommt, wird nur diese Datei getauscht und neu eingelesen.
-- **API-Key**: Nur der Key aus dem Interface zählt (Header `X-OpenRouter-Key`, bleibt im Browser). Ohne Key antwortet das Backend mit 401; ein Server-Key wird nie benutzt. Das Einlese-CLI nimmt `--api-key` oder `-e OPENROUTER_API_KEY=…` für den einen Lauf.
+- **API-Key**: Nur der Key aus dem Interface zählt (Header `X-OpenRouter-Key`, im Browser nur im Seitenspeicher; zur Verarbeitung an Backend/OpenRouter übertragen). Ohne Key antwortet das Backend mit 401; ein Server-Key wird nie benutzt. Das Einlese-CLI nimmt `--api-key` oder `-e OPENROUTER_API_KEY=…` für den einen Lauf.
 
 ## API
 
