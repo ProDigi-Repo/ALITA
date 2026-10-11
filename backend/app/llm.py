@@ -9,6 +9,7 @@ from __future__ import annotations
 from functools import lru_cache
 
 from .config import get_settings
+from .usage import add_embed
 
 
 class MissingApiKey(RuntimeError):
@@ -50,7 +51,6 @@ async def embed_documents(texts: list[str], api_key: str, batch: int = 64) -> li
     emb = embedder(api_key)
     for i in range(0, len(texts), batch):
         res = await emb.embed_documents(texts[i : i + batch])
-        from .usage import add_embed
         add_embed(res, texts[i : i + batch])
         out.extend([list(v) for v in res.embeddings])
     return out
@@ -58,6 +58,5 @@ async def embed_documents(texts: list[str], api_key: str, batch: int = 64) -> li
 
 async def embed_query(text: str, api_key: str) -> list[float]:
     res = await embedder(api_key).embed_query(text)
-    from .usage import add_embed
     add_embed(res, [text])
     return list(res.embeddings[0])

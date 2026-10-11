@@ -134,5 +134,4 @@ button.cw-tag:hover::after,button.cw-tag:focus-visible::after{animation:cwRing 1
 .cost small{font-size:10px;opacity:.85}
 .actions .cost-a{margin-left:auto;align-self:center}
 .cost-row{display:flex;justify-content:flex-end;margin-top:3px}
-.gs-q .cost{margin-top:3px;align-self:flex-start;background:none;padding:0}
-.gside .gs-q .cost{display:flex;width:max-content}
+.gside .gs-q .cost{display:flex;width:max-content;margin-top:3px;background:none;padding:0}

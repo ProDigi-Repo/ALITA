@@ -37,6 +37,8 @@ from datetime import datetime, timezone
 
 import numpy as np
 
+from .usage import add_run
+
 log = logging.getLogger("clustering")
 
 STOP = set("""
@@ -507,7 +509,7 @@ def associate_project_files(docs: list[dict], doc_meta: dict[str, dict]) -> None
         freq = Counter(doc_meta[a["doc_id"]]["cluster_id"] for a in cands)
         folder = _folder(d.get("rel_path"))
 
-        def closeness(a: dict) -> tuple:
+        def closeness(a: dict, folder=folder, freq=freq) -> tuple:
             af, n = _folder(a.get("rel_path")), 0
             while n < min(len(af), len(folder)) and af[n] == folder[n]:
                 n += 1
@@ -684,7 +686,6 @@ async def describe_clusters(units: list[dict], res: dict, names: set[str], api_k
         members = [u for u, l in zip(units, res["labels"]) if l == c]
         try:
             r = await agent.run(cluster_prompt(c, label, members))
-            from .usage import add_run
             add_run(r)
             ps = lambda t: pseudonymize_text(t, names, s.pseudonym_salt)  # noqa: E731
             out[c] = {"title": ps(r.output.title), "description": ps(r.output.description), "description_source": "llm",

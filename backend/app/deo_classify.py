@@ -9,6 +9,7 @@ import logging
 from pydantic import BaseModel, Field
 
 from .deo import DEO_CLASSES, valid
+from .usage import add_run
 
 log = logging.getLogger(__name__)
 
@@ -42,7 +43,6 @@ async def classify(texts: list[str], api_key: str, model: str, batch: int = 16) 
         prompt = "\n\n".join(f"[{i + 1}] {' '.join(t.split())[:700]}" for i, t in enumerate(part))
         try:
             res = await agent.run(prompt)
-            from .usage import add_run
             add_run(res)
             for lab in res.output.labels:
                 if 1 <= lab.i <= len(part):

@@ -7,11 +7,13 @@ from dataclasses import dataclass, field
 
 from pydantic import BaseModel, Field
 
-from . import store
+from . import store, usage
 from .config import get_settings
 from .filters import parse_prompt_filters, to_qdrant
 from .llm import chat_model, embed_query, resolve_key
 from .memory import heuristic_query, is_follow_up, select_memory, transcript
+from .people import doc_ids_for_persons, people_context
+from .progress import chat_context as progress_chat_context
 from .prompts import resolve as resolve_prompt
 from .prompts import system_prompt
 from .query_meta import Entity, Intent, analyze, vocab_from_documents
@@ -38,7 +40,6 @@ async def retrieve(query: str, req: ChatRequest, api_key: str):
     # mehr holen als nötig, dann pro Dokument begrenzen (verhindert, dass 6 Versionen eines Artikels alles belegen)
     flt = req.filters
     if flt.person:                                      # REQ-19: nur Daten dieser Person(en)
-        from .people import doc_ids_for_persons
         ids = doc_ids_for_persons(flt.person, store.scroll_documents(), store.list_projects())
         if flt.doc_ids:
             ids = [i for i in ids if i in set(flt.doc_ids)]
@@ -78,8 +79,7 @@ async def standalone_query(query: str, memory: list, model_name: str, key: str, 
                 "using the conversation for missing context (topics, documents, methods it refers to). "
                 "Return only the query, in the language of the question, at most 40 words."))
             r = await agent.run(f"Conversation:\n{transcript(memory)}\n\nLatest question: {query}")
-            from .usage import add_run
-            add_run(r, model_name)
+            usage.add_run(r, model_name)
             q = (r.output or "").strip().strip('"')
             if q:
                 return q[:500]
@@ -133,49 +133,6 @@ def scope_overview(databases: list[str] | None = None, docs: list[dict] | None =
     return text[:max_chars] + ("…" if len(text) > max_chars else "")
 
 
-def people_context(project_names, persons: list[str] | None = None, projects: list[dict] | None = None) -> str:
-    """REQ-19: who belongs to which project – only the curated team, never names from file metadata."""
-    names = sorted({n for n in project_names if n})
-    lines = []
-    if names:
-        by = {p.get("name"): p for p in (projects if projects is not None else store.list_projects())}
-        for n in names:
-            team = (by.get(n) or {}).get("authors") or []
-            lines.append(f"- Project {n}: team {', '.join(team)}" if team else f"- Project {n}: team not recorded – do not name people for it")
-    if persons:
-        lines.append(f"The user restricted this question to the data of: {', '.join(persons)}.")
-    if not lines:
-        return ""
-    return ("Who is who (curated; names in file metadata only tell who last saved a file and are never authors or project members):\n"
-            + "\n".join(lines) + "\n\n")
-
-
-PROGRESS_RULES = ("The question asks how the knowledge of a project developed or how its analyses were done. "
-                  "A table of the knowledge stages, with links to every file, is shown directly under your answer – do not repeat it as a table. "
-                  "In 3–6 sentences: say how the insight developed from stage to stage, how the analyses were carried out (methods, data, models) "
-                  "and how many versions brought no fundamentally new insight (rewording, formatting, resubmissions). "
-                  "Refer to stages as 'Stage n'; cite numbered sources [n] where you use them.")
-
-
-def progress_context(question: str, filters, entities, databases: list[str] | None = None) -> tuple[dict | None, str]:
-    """REQ-15/16: Erkenntnisstufen des Projekts der Frage (Auswahl > Name in der Frage > einziges Projekt im Umfang)."""
-    from .progress import compact, project_progress, stage_count, table_text
-    names = list(getattr(filters, "project", None) or []) or [e.value for e in entities if e.type == "project"]
-    if not names:
-        dbs = set(databases or [])
-        projs = [p["name"] for p in store.list_projects() if not dbs or dbs & set(p.get("databases") or [])]
-        names = projs if len(projs) == 1 else []
-    if not names:
-        return None, ("The question asks about the development of a project, but no project is selected. "
-                      "Ask the user to select a project in the knowledge map (or name it), then knowledge stages can be shown.\n\n")
-    try:
-        prog = project_progress(names[0], stage_count(question))
-    except Exception as e:
-        log.warning("Progress for %s failed: %s", names[0], e)
-        return None, ""
-    return compact(prog), f"Knowledge stages of project {names[0]} (from its version history):\n{table_text(prog)}\n\n{PROGRESS_RULES}\n\n"
-
-
 async def prepare(req: ChatRequest, api_key: str | None) -> tuple[ChatRequest, Prepared]:
     """Gemeinsamer Teil von answer() und answer_stream(): Filter, Gedächtnis, Suche, Quellen, Prompt."""
     from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
@@ -200,7 +157,7 @@ async def prepare(req: ChatRequest, api_key: str | None) -> tuple[ChatRequest, P
         p.extra["scope"] = "map"
     head = f"Overview of the whole knowledge map (all projects and clusters in scope):\n{overview}\n\n" if overview else ""
     if meta.intent == "progress":                    # REQ-15/16
-        prog, prog_head = progress_context(query or req.message, filters, meta.entities, filters.database)
+        prog, prog_head = progress_chat_context(query or req.message, filters, meta.entities, filters.database)
         head += prog_head
         if prog:
             p.extra["progress"] = prog
@@ -238,7 +195,6 @@ def _response(p: Prepared, text: str, used: set[int], intent=None, entities=None
 async def answer(req: ChatRequest, api_key: str | None = None) -> ChatResponse:
     from pydantic_ai import Agent
 
-    from . import usage
     meter = usage.start()                     # was Frage und Antwort gekostet haben
     req, p = await prepare(req, api_key)
     if not p.prompt:
@@ -256,7 +212,6 @@ async def answer_stream(req: ChatRequest, api_key: str | None = None):
     meta (Quellen, Filter, Gedächtnis) → delta … delta → done (endgültige Antwort mit genutzten Quellen)."""
     from pydantic_ai import Agent
 
-    from . import usage
     meter = usage.start()                     # was Frage und Antwort gekostet haben
     req, p = await prepare(req, api_key)
     yield "meta", {"sources": [r.model_dump() for r in p.sources], "applied_filters": p.filters.model_dump(),

@@ -34,13 +34,12 @@ function errMsg(chat,text){const d=document.createElement('div');d.className='ms
 function mdLite(s){return esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').split(/\n{2,}/).map(p=>`<p>${p.replace(/\n/g,'<br>')}</p>`).join('')}
 
 /* Cost of a chat turn: the question (input incl. retrieved context, query rewrite and embedding) and the answer (output) */
-function costEur(x){return x==null?'–':x>0&&x<0.01?'€'+x.toFixed(4):'€'+x.toFixed(2)}
 function costHtml(u,part){
   if(!u||u.tokens==null)return '';
   const n=v=>Math.round(v||0).toLocaleString('en'),est=u.price_source&&u.price_source!=='openrouter'?' · estimated prices':'';
-  const tip=`Question: ${n(u.question_tokens)} tokens (${n(u.chat_input)} input incl. sources and context${u.embedding?`, ${n(u.embedding)} embedding`:''}) = ${costEur(u.question_eur)}\nAnswer: ${n(u.answer_tokens)} tokens = ${costEur(u.answer_eur)}\nTogether: ${costEur(u.eur)} (≈ $${(+u.usd||0).toFixed(4)})${est}`;
-  if(part==='question')return `<span class="cost cost-q" title="${esc(tip)}">💶 question ${costEur(u.question_eur)} <small>${n(u.question_tokens)} tokens</small></span>`;
-  return `<span class="cost cost-a" title="${esc(tip)}">💶 answer ${costEur(u.answer_eur)} <small>${n(u.answer_tokens)} tokens · turn ${costEur(u.eur)}</small></span>`;
+  const tip=`Question: ${n(u.question_tokens)} tokens (${n(u.chat_input)} input incl. sources and context${u.embedding?`, ${n(u.embedding)} embedding`:''}) = ${fmtEur(u.question_eur)}\nAnswer: ${n(u.answer_tokens)} tokens = ${fmtEur(u.answer_eur)}\nTogether: ${fmtEur(u.eur)} (≈ $${(+u.usd||0).toFixed(4)})${est}`;
+  if(part==='question')return `<span class="cost cost-q" title="${esc(tip)}">💶 question ${fmtEur(u.question_eur)} <small>${n(u.question_tokens)} tokens</small></span>`;
+  return `<span class="cost cost-a" title="${esc(tip)}">💶 answer ${fmtEur(u.answer_eur)} <small>${n(u.answer_tokens)} tokens · turn ${fmtEur(u.eur)}</small></span>`;
 }
 function botMsg(chat,a){
   const id='m'+(++uid);

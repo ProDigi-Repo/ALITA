@@ -12,7 +12,7 @@ const DATE_SRC={doc_properties:'document properties',pdf_metadata:'PDF metadata'
 const SUM_FIELDS=[['purpose','Purpose'],['design_methodology_approach','Design / Methodology / Approach'],['findings','Findings'],['research_limitations_implications','Research limitations / implications'],['originality_value','Originality / value']];
 
 /* ---------- Backend or demo ---------- */
-const APP_VERSION='1.16.1';let LIVE=false;let BACKEND_VERSION='';
+const APP_VERSION='1.16.2';let LIVE=false;let BACKEND_VERSION='';
 const DEMO = window.DEMO_DATA || null;
 let METHOD_LABEL={lab_experiment:'Lab experiment',simulation_game:'Simulation / business game',survey:'Survey',interview:'Qualitative interviews',case_study:'Case study',literature_review:'Literature review',regression:'Regression analysis',multilevel:'Multilevel analysis (HLM)',sem:'Structural equation modeling',interrater_reliability:'Interrater reliability',mental_model_elicitation:'Mental model elicitation',system_dynamics:'System dynamics',qualitative_content_analysis:'Qualitative content analysis'};
 async function detectBackend(){
@@ -30,6 +30,8 @@ async function detectBackend(){
 function headers(json=true){const h={};if(json)h['Content-Type']='application/json';if(apiKey)h['X-OpenRouter-Key']=apiKey;return h}
 
 /* filter summary text, e.g. "db=ML · type=Paper" (used by the chats and the parameter lines) */
+/* euro amounts of token costs: below one cent with four decimals */
+function fmtEur(x){return x==null?'–':x>0&&x<0.01?'€'+x.toFixed(4):'€'+x.toFixed(2)}
 function filterSummary(f){
   const o=[];
   if(f.database&&f.database.length)o.push('db='+f.database.map(d=>typeof dbName==='function'?dbName(d):d).join('|'));
