@@ -417,7 +417,7 @@ function cgRenderProj(units){
 function renderClusterGraph(units,cls,o={}){
   const big=!!o.big,box=o.box||$('#cvGraph');
   const W=Math.max(320,box.clientWidth||600),H=big?Math.max(240,box.clientHeight||380):230;
-  const isSel=id=>big?CG.sel===id:cvHas(id),anyS=big?CG.sel!=null:CV.sels.size>0,colorDb=big?CG.mode==='db':CV.mode==='db',showDocs=big?CG.docs:true;
+  const isSel=id=>big?CG.sel===id:cvHas(id),anyS=big?CG.sel!=null:CV.sels.size>0,colorDb=big?CG.mode==='db':CV.mode==='db',showDocs=true;
   const links=cvLinks(units),act=cls.filter(c=>c.on.length),info=clusterInfo();
   if(!big){
     $('#cvGraphMeta').textContent=`${act.length} cluster nodes · ${links.length} bridges`;
@@ -495,12 +495,11 @@ function renderClusterGraph(units,cls,o={}){
 }
 
 /* ---------- Cluster Graph page (graph approach only) ---------- */
-const CG={sel:null,mode:'type',docs:true};
-try{CG.mode=localStorage.getItem('cg_mode')==='db'?'db':'type';CG.docs=localStorage.getItem('cg_docs')!=='0'}catch(e){}
-function cgSync(){$$('#cgMode button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===CG.mode));$('#cgDocs').checked=CG.docs}
+const CG={sel:null,mode:'type'};
+try{CG.mode=localStorage.getItem('cg_mode')==='db'?'db':'type'}catch(e){}
+function cgSync(){$$('#cgMode button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===CG.mode))}
 cgSync();
 $$('#cgMode button').forEach(b=>b.addEventListener('click',()=>{CG.mode=b.dataset.m;try{localStorage.setItem('cg_mode',CG.mode)}catch(e){}cgSync();renderClusterPage()}));
-$('#cgDocs').addEventListener('change',e=>{CG.docs=e.target.checked;try{localStorage.setItem('cg_docs',CG.docs?'1':'0')}catch(e){}renderClusterPage()});
 /* REQ-02: the B page fills exactly the window height – the four areas scroll inside, the knowledge map never leaves the screen */
 /* B page: a click on a cluster works as on the A/B Interaction Interface – it selects the cluster for the chats
    (again = deselect, several possible) and its description appears at the top of "Projects & clusters" */

@@ -46,7 +46,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .rel ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;font-size:13px}
 .relsec{display:flex;flex-direction:column;gap:4px}
 .relkind{font-family:var(--f-mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
-.relkind.k-added{color:var(--ok)}.relkind.k-security{color:var(--rag)}.relkind.k-fixed{color:var(--fg)}.relkind.k-open-points{color:#7048e8}
+.relkind.k-added{color:var(--ok)}.relkind.k-security{color:var(--rag)}.relkind.k-fixed{color:var(--fg)}.relkind.k-open-points{color:#7048e8}.relkind.k-requirements{color:#d9480f}
 .rel .now{font-family:var(--f-mono);font-size:10px;color:var(--ok);background:var(--ok-soft);padding:0 6px;border-radius:3px}
 .brand h1{font-family:var(--f-display);font-weight:600;font-size:20px;margin:0;letter-spacing:.01em}
 .mode{font-family:var(--f-mono);font-size:11px;padding:2px 7px;border-radius:4px;text-transform:uppercase;letter-spacing:.06em;background:var(--graph-soft);color:var(--graph)}
