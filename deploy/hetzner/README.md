@@ -3,6 +3,8 @@
 Alle freigegebenen Personen dürfen alle Dokumente lesen/herunterladen und beide Chats nutzen.
 Nur `ADMIN_EMAILS` dürfen hochladen, Metadaten ändern und Wartungs-/Neuberechnungsaufrufe ausführen.
 Jede Person bringt ihren eigenen OpenRouter-Key mit. Es gibt keine lokalen Benutzerkonten.
+Für anonyme Begutachtung ohne Mailadresse gibt es optional einen separaten
+[Reviewer-Zugang mit Einladungscode](reviewers.md).
 
 ## 1. VM vorbereiten
 

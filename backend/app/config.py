@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import AwareDatetime, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     access_audience: str = ""
     public_origin: str = ""
     admin_emails: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    # Optional, separate host for anonymous read-only invitations. Disabled when empty.
+    review_origin: str = ""
+    review_session_secret: SecretStr = SecretStr("")
+    review_invites: dict[str, AwareDatetime] = Field(default_factory=dict)  # SHA-256(code) -> UTC expiry
 
     @field_validator("admin_emails", mode="before")
     @classmethod
@@ -40,6 +44,14 @@ class Settings(BaseSettings):
                     or origin.scheme != "https" or not origin.hostname or origin.username or origin.password
                     or origin.path or origin.query or origin.fragment):
                 raise ValueError("Access requires ACCESS_TEAM_DOMAIN, ACCESS_AUDIENCE, ADMIN_EMAILS and PUBLIC_ORIGIN (HTTPS origin, no trailing slash)")
+        if self.review_origin:
+            origin = urlsplit(self.review_origin)
+            if (not self.access_enabled or origin.scheme != "https" or not origin.hostname
+                    or origin.hostname == urlsplit(self.public_origin).hostname or origin.username or origin.password
+                    or origin.path or origin.query or origin.fragment
+                    or len(self.review_session_secret.get_secret_value()) < 32
+                    or any(not re.fullmatch(r"[0-9a-f]{64}", digest) for digest in self.review_invites)):
+                raise ValueError("Reviewer access requires a separate HTTPS origin, a strong session secret and hashed invitations")
         return self
 
     # --- OpenRouter -------------------------------------------------------

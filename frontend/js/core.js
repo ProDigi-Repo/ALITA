@@ -12,7 +12,7 @@ const DATE_SRC={doc_properties:'document properties',pdf_metadata:'PDF metadata'
 const SUM_FIELDS=[['purpose','Purpose'],['design_methodology_approach','Design / Methodology / Approach'],['findings','Findings'],['research_limitations_implications','Research limitations / implications'],['originality_value','Originality / value']];
 
 /* ---------- Backend or demo ---------- */
-const APP_VERSION='2.0.0';let LIVE=false;let BACKEND_VERSION='';let IS_ADMIN=false;
+const APP_VERSION='2.0.0';let LIVE=false;let BACKEND_VERSION='';let IS_ADMIN=false;let AUTH_MODE='local';
 const DEMO = window.DEMO_DATA || null;
 let METHOD_LABEL={lab_experiment:'Lab experiment',simulation_game:'Simulation / business game',survey:'Survey',interview:'Qualitative interviews',case_study:'Case study',literature_review:'Literature review',regression:'Regression analysis',multilevel:'Multilevel analysis (HLM)',sem:'Structural equation modeling',interrater_reliability:'Interrater reliability',mental_model_elicitation:'Mental model elicitation',system_dynamics:'System dynamics',qualitative_content_analysis:'Qualitative content analysis'};
 async function detectBackend(){
@@ -24,10 +24,15 @@ async function detectBackend(){
   }catch(e){}
   if(LIVE){
     try{
-      const r=await fetch('api/me');if(!r.ok)throw new Error('Login required');
-      const user=await r.json();IS_ADMIN=user.is_admin===true;
+      const r=await fetch('api/me');
+      if(r.status===401){
+        const problem=await r.json();
+        if(problem.login_url==='/review-login.html'){location.replace(problem.login_url);return false}
+      }
+      if(!r.ok)throw new Error('Login required');
+      const user=await r.json();IS_ADMIN=user.is_admin===true;AUTH_MODE=user.auth_mode||'local';
       const logout=$('#logout');logout.hidden=!user.access_enabled;
-      logout.title=user.email||'';
+      logout.title=user.email||(AUTH_MODE==='reviewer'?'Anonymous reviewer':'');
     }catch(e){IS_ADMIN=false}
     ['#dbAdd','#openUpload'].forEach(s=>$(s).hidden=!IS_ADMIN);
   }
@@ -36,7 +41,12 @@ async function detectBackend(){
   if(LIVE&&BACKEND_VERSION)$('#appVersion').title='Release notes · Frontend v'+APP_VERSION+' · Backend v'+BACKEND_VERSION;m.classList.toggle('live',LIVE);
   m.title=LIVE?'Connected to the backend':'No backend reachable: the document list shows real metadata from the sample project (without LLM enrichment); chat answers are examples.';
 }
-$('#logout').addEventListener('click',()=>{location.replace('/cdn-cgi/access/logout')});
+$('#logout').addEventListener('click',async()=>{
+  if(AUTH_MODE==='reviewer'){
+    try{const r=await fetch('api/reviewer/logout',{method:'POST'});if(!r.ok)throw new Error('Logout failed')}catch(e){toast('Logout failed; please try again');return}
+    location.replace('/review-login.html');
+  }else location.replace('/cdn-cgi/access/logout');
+});
 // Do not restore credentials or conversations from the back/forward cache after logout.
 window.addEventListener('pageshow',e=>{if(e.persisted)location.reload()});
 

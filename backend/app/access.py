@@ -1,12 +1,14 @@
 """Cloudflare JWT verification and a shared-reader/admin boundary; no local accounts."""
 from collections.abc import Awaitable, Callable
 from functools import lru_cache
+from urllib.parse import urlsplit
 
 import jwt
 from fastapi import Request
 from fastapi.responses import JSONResponse, Response
 from starlette.concurrency import run_in_threadpool
 
+from . import reviewers
 from .config import get_settings
 
 # Everything else that writes is admin-only, including future API routes.
@@ -42,9 +44,17 @@ async def protect_request(request: Request, call_next: Callable[[Request], Await
     request.state.access_enabled = s.access_enabled
     request.state.email = None
     request.state.is_admin = not s.access_enabled
-    # Liveness only; Cloudflare still protects this path on the public hostname.
+    request.state.auth_mode = "cloudflare" if s.access_enabled else "local"
+    review_host = bool(s.review_origin) and request.url.hostname == urlsplit(s.review_origin).hostname
+    review_session_endpoint = review_host and request.method == "POST" and request.url.path in reviewers.SESSION_PATHS
+    # Liveness only; Cloudflare still protects this path on the private hostname.
     healthcheck = request.method == "GET" and request.url.path == "/api/health"
-    if s.access_enabled and not healthcheck:
+    if review_host:
+        request.state.auth_mode = "reviewer"
+        request.state.is_admin = False
+        if not healthcheck and not review_session_endpoint and not reviewers.valid_session(request, s):
+            return reviewers.unauthorized()
+    elif s.access_enabled and not healthcheck:
         token = request.headers.get("Cf-Access-Jwt-Assertion")
         if not token:
             return denied(401, "Cloudflare Access login required")
@@ -55,13 +65,15 @@ async def protect_request(request: Request, call_next: Callable[[Request], Await
         except jwt.PyJWTError:
             return denied(401, "Invalid Cloudflare Access token")
         request.state.is_admin = request.state.email in s.admin_emails
-        if request.method not in {"GET", "HEAD", "OPTIONS"}:
-            # Access authenticates via a browser cookie: reject cross-site form submissions too.
-            origin = request.headers.get("origin")
-            if (origin is not None and origin != s.public_origin) or request.headers.get("sec-fetch-site") == "cross-site":
-                return denied(403, "Cross-site requests are not allowed")
-            if (request.method, request.url.path) not in CHAT_ROUTES and not request.state.is_admin:
-                return denied(403, "Admin access required")
+    if s.access_enabled and request.method not in {"GET", "HEAD", "OPTIONS"}:
+        # Both login modes use browser cookies; reviewer mutations always require Origin.
+        origin = request.headers.get("origin")
+        expected = s.review_origin if review_host else s.public_origin
+        if ((origin is not None or review_host) and origin != expected) or request.headers.get("sec-fetch-site") == "cross-site":
+            return denied(403, "Cross-site requests are not allowed")
+        if ((request.method, request.url.path) not in CHAT_ROUTES and not review_session_endpoint
+                and not request.state.is_admin):
+            return denied(403, "Admin access required")
     response = await call_next(request)
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-Content-Type-Options"] = "nosniff"

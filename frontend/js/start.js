@@ -3,7 +3,7 @@
   let start='graph';   // B Interaction Interface is always the start page (a #hash in the URL still wins)
   const h=location.hash.slice(1);if(h==='release-notes')start='release';else if(['chat','docs','graph','release','compliance','tech'].includes(h))start=h;
   showPage(start);
-  await detectBackend();
+  if(await detectBackend()===false)return;
   await loadSysDefaults();
   await loadDocs();
   if(!LIVE&&DOCS.length){
