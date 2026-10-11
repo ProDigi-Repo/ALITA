@@ -160,7 +160,7 @@ def test_changelog_follows_keepachangelog_and_semver():
     keys = [tuple(int(x) for x in v.split(".")) for v in versions]
     assert keys == sorted(keys, reverse=True)           # neueste zuerst, streng absteigend
     assert all(r["date"] for r in rel if r["version"] != "Unreleased")
-    assert all(set(r["sections"]) <= {"Added", "Changed", "Deprecated", "Removed", "Fixed", "Security"} for r in rel)
+    assert all(set(r["sections"]) <= {"Added", "Changed", "Deprecated", "Removed", "Fixed", "Security", "Open points"} for r in rel)  # + offene Punkte für den Anforderer
 
 
 def _summ(topic):
@@ -688,3 +688,62 @@ def test_graph_request_person_scope():
     from app.graphrag import GraphRequest, plan_question
     plan = plan_question(GraphRequest(message="What are the findings?", persons=["Strohecker"]), {})
     assert plan["persons"] == ["Strohecker"]
+
+
+def _prog_docs():
+    """Artikel v1..v6: v3 bringt neue Ergebnisse, v5 eine neue Methode; v2/v4 umformuliert, v6 nur Wiedereinreichung."""
+    import random
+    random.seed(1)
+    words = [f"w{i}" for i in range(400)]
+    base = " ".join(random.choice(words) for _ in range(600))
+    res1 = "Results: the effect of trust was 0.21 (p < .05, n = 120) and satisfaction rose. " + base[:900]
+    res2 = "Results: trust 0.34 and 0.41, commitment 0.27, loyalty 0.19; n = 312, p < .001. New moderation by age 0.12. " + " ".join(random.choice(words) for _ in range(200))
+    def reword(t, k):
+        w = t.split(); random.seed(k)
+        for i in random.sample(range(len(w)), len(w) // 12):
+            w[i] = "x" + w[i]
+        return " ".join(w)
+    texts = {1: (base, res1), 2: (reword(base, 2), res1), 3: (reword(base, 2), res2), 4: (reword(base, 4), res2),
+             5: (reword(base, 4) + " " + " ".join(random.choice(words) for _ in range(250)), res2), 6: (reword(base, 4) + " " + " ".join(random.choice(words) for _ in range(250)), res2)}
+    docs, chunks = [], {}
+    for v, (body, res) in texts.items():
+        did = f"v{v}"
+        docs.append({"doc_id": did, "filename": f"Artikel_v{v}.docx", "filetype": "docx", "role": "manuscript", "date": f"2021-0{v}-01T00:00:00+00:00",
+                     "date_source": "doc_properties", "content_hash": did, "method_ids": ["pls_sem"] + (["mga"] if v >= 5 else []),
+                     "venue": "IJPR" if v < 6 else "JBR", "stage": "initial_submission",
+                     "project": {"version_group": "artikel", "version": str(v), "version_num": v}})
+        chunks[did] = [{"text": body, "deo": ["Introduction"], "ordinal": 0}, {"text": res, "deo": ["Results"], "ordinal": 1}]
+    docs.append({"doc_id": "a1", "filename": "PLSAlgo0410.xlsx", "role": "analysis_output", "date": "2021-03-15T00:00:00+00:00",
+                 "date_source": "doc_properties", "project": {}})
+    docs.append({"doc_id": "a2", "filename": "MGA.xlsx", "role": "analysis_output", "venue": "JBR", "stage": "initial_submission", "project": {}})
+    docs.append({"doc_id": "r1", "filename": "Smith 2019.pdf", "role": "reference", "project": {}})
+    return docs, chunks
+
+
+def test_progress_classifies_changes_and_builds_stages():
+    """REQ-16/17/18: substantive changes open stages; rewording/resubmission are counted as formal; files are numbered."""
+    from app.progress import analyze, build_stages, compact, stage_count
+    docs, chunks = _prog_docs()
+    res = analyze(docs, lambda i: chunks.get(i, []))
+    kinds = {v["n"]: v["kind"] for v in res["versions"]}
+    assert kinds[1] == "start" and kinds[3] == "substantive" and kinds[5] == "substantive"
+    assert kinds[2] in {"reword", "format"} and kinds[6] == "resubmission"
+    p = build_stages(res, 3)
+    assert [(s["from"], s["to"]) for s in p["stages"]] == [(1, 2), (3, 4), (5, 6)]
+    assert p["stages"][0]["label"] == "Files 1–2"
+    assert "a1" in [a["doc_id"] for a in p["stages"][1]["analyses"]]                          # by date
+    assert [a["basis"] for a in p["stages"][2]["analyses"] if a["doc_id"] == "a2"] == ["journal folder"]
+    assert all(f["doc_id"] != "r1" for s in p["stages"] for f in s["analyses"] + s["related"])  # literature is no history
+    assert "contain no fundamentally new insight" in p["notes"][0]
+    p10 = build_stages(res, 10)
+    assert len(p10["stages"]) == 3 and any("instead of 10" in n for n in p10["notes"])
+    assert stage_count("Zeig den Erkenntnisstand in 10 Stufen") == 10 and stage_count("how did it evolve?") == 5
+    c = compact(p)
+    assert c["stages"][1]["files"][0]["filename"] == "Artikel_v3.docx"
+
+
+def test_progress_intent():
+    from app.query_meta import detect_intent
+    assert detect_intent("Wie hat sich der Erkenntnisstand im Zeitverlauf entwickelt?") == "progress"
+    assert detect_intent("How were the analyses conducted in this project?") == "progress"
+    assert detect_intent("What are the findings?") == "findings"

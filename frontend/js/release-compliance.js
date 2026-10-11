@@ -4,9 +4,9 @@ function CLUSTER_NOTE(){const c=(!LIVE&&DEMO&&DEMO.clusters)||null;const model=c
 
 /* ---------- Release notes (Quelle: CHANGELOG.md; live über /api/release-notes) ---------- */
 function mdInline(t){return esc(t).replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')}
-const REL_ORDER=['Added','Changed','Deprecated','Removed','Fixed','Security'];
+const REL_ORDER=['Added','Changed','Deprecated','Removed','Fixed','Security','Open points'];
 function relSections(r){const sec=r.sections&&Object.keys(r.sections).length?r.sections:{Changed:r.changes||[]};
-  return REL_ORDER.filter(k=>sec[k]&&sec[k].length).map(k=>`<div class="relsec"><span class="relkind k-${k.toLowerCase()}">${k}</span><ul>${sec[k].map(c=>`<li>${mdInline(c)}</li>`).join('')}</ul></div>`).join('')}
+  return REL_ORDER.filter(k=>sec[k]&&sec[k].length).map(k=>`<div class="relsec"><span class="relkind k-${k.toLowerCase().replace(/\s+/g,'-')}">${k}</span><ul>${sec[k].map(c=>`<li>${mdInline(c)}</li>`).join('')}</ul></div>`).join('')}
 function closeRel(){if($('#drawer').hidden&&$('#histPanel').hidden)$('#scrim').hidden=true}
 $('#appVersion').addEventListener('click',()=>showPage('release'));
 $('#scrim').addEventListener('click',closeRel);
@@ -21,9 +21,9 @@ async function getReleases(){
 }
 async function renderReleasePage(){
   const rel=await getReleases();
-  $('#relToc').innerHTML='<h4>Versions</h4>'+rel.map(r=>`<a href="#rel-${esc(r.version)}" data-v="${esc(r.version)}" class="${r.version===APP_VERSION?'on':''}">v${esc(r.version)}<small>${esc(r.date||'')}</small></a>`).join('');
+  $('#relToc').innerHTML='<h4>Versions</h4>'+rel.map(r=>`<a href="#rel-${esc(r.version)}" data-v="${esc(r.version)}" class="${r.version===APP_VERSION?'on':''}${r.highlight?' special':''}">${r.highlight?'<i aria-label="special release">★</i>':''}v${esc(r.version)}<small>${esc(r.date||'')}</small></a>`).join('');
   $('#relPage').innerHTML=`<h1>Release notes</h1><p class="lead">Frontend v${APP_VERSION}${BACKEND_VERSION?' · Backend v'+esc(BACKEND_VERSION):''} · format <a href="https://keepachangelog.com/en/1.1.0/" target="_blank" rel="noopener">Keep a Changelog 1.1.0</a> · versions follow <a href="https://semver.org/spec/v2.0.0.html" target="_blank" rel="noopener">Semantic Versioning 2.0.0</a> · source: CHANGELOG.md</p>`+
-    rel.map(r=>`<section class="rel ${r.version===APP_VERSION?'cur':''}" id="rel-${esc(r.version)}"><h4><code>v${esc(r.version)}</code><span>${esc(r.date||'')}</span>${r.version===APP_VERSION?'<span class="now">current</span>':''}</h4>${relSections(r)}</section>`).join('');
+    rel.map(r=>`<section class="rel ${r.version===APP_VERSION?'cur':''}${r.highlight?' special':''}" id="rel-${esc(r.version)}"><h4><code>v${esc(r.version)}</code><span>${esc(r.date||'')}</span>${r.version===APP_VERSION?'<span class="now">current</span>':''}${r.highlight?'<span class="special-badge">★ special release</span>':''}</h4>${r.highlight?`<div class="rel-highlight">${mdInline(r.highlight)}</div>`:''}${relSections(r)}</section>`).join('');
   $$('#relToc a').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();$$('#relToc a').forEach(x=>x.classList.toggle('on',x===a));const t=document.getElementById('rel-'+a.dataset.v);if(t)t.scrollIntoView({behavior:'smooth',block:'start'})}));
 }
 

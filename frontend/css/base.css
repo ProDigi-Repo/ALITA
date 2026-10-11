@@ -46,7 +46,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .rel ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;font-size:13px}
 .relsec{display:flex;flex-direction:column;gap:4px}
 .relkind{font-family:var(--f-mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
-.relkind.k-added{color:var(--ok)}.relkind.k-security{color:var(--rag)}.relkind.k-fixed{color:var(--fg)}
+.relkind.k-added{color:var(--ok)}.relkind.k-security{color:var(--rag)}.relkind.k-fixed{color:var(--fg)}.relkind.k-open-points{color:#7048e8}
 .rel .now{font-family:var(--f-mono);font-size:10px;color:var(--ok);background:var(--ok-soft);padding:0 6px;border-radius:3px}
 .brand h1{font-family:var(--f-display);font-weight:600;font-size:20px;margin:0;letter-spacing:.01em}
 .mode{font-family:var(--f-mono);font-size:11px;padding:2px 7px;border-radius:4px;text-transform:uppercase;letter-spacing:.06em;background:var(--graph-soft);color:var(--graph)}
@@ -502,3 +502,9 @@ table.dt{border-collapse:collapse;width:100%;min-width:920px;font-size:13px}
 .tile.acollapsed .atoggle .chev{transform:none}
 .tile.acollapsed .atoggle .pstate::after{content:'Show'}
 .tile.acollapsed>.ptoggle,.tile.acollapsed>.filters,.tile.acollapsed>.stoggle,.tile.acollapsed>.spanel{display:none!important}
+/* special release (a "> " note under the version line in CHANGELOG.md) */
+.rel.special{border-left:4px solid #7048e8;background:linear-gradient(90deg,color-mix(in srgb,#7048e8 9%,transparent),transparent 70%);border-radius:0 10px 10px 0;padding:10px 12px 10px 14px}
+.rel .special-badge{font-family:var(--f-mono);font-size:10.5px;font-weight:700;color:#fff;background:linear-gradient(90deg,#7048e8,#d9480f);padding:1px 8px;border-radius:999px;letter-spacing:.02em}
+.rel-highlight{font-size:13px;line-height:1.5;border:1px solid color-mix(in srgb,#7048e8 35%,transparent);background:color-mix(in srgb,#7048e8 6%,var(--bg,#fff));border-radius:8px;padding:8px 10px}
+#relToc a.special{color:#7048e8;font-weight:600}
+#relToc a.special i{font-style:normal;margin-right:3px}
