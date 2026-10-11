@@ -8,6 +8,11 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [Unreleased]
 
+## [1.16.2] - 2026-10-11
+
+### Changed
+- Code clean-up before the major release, no visible changes: the chat context for people and knowledge progress moved out of `rag.py` into `people.py` (`people_context`) and `progress.py` (`chat_context`), where the rest of that logic lives; the token meter is imported once per module instead of inside loops; `ruff check` is clean again (import order, loop variables bound in the clustering helper); one shared euro formatter (`fmtEur`) in the frontend instead of two; the B page chat column styles that had been added as override blocks are merged into the one layout block they belong to, and the "Add new data" and database bar styles sit next to their sections. Tests unchanged and green.
+
 ## [1.16.1] - 2026-10-11
 
 ### Fixed
@@ -529,6 +534,7 @@ First stable release. From here on, incompatible changes to the REST API, the CL
 - Chat history per tile, metadata backup (`GET /api/export`), Docker Compose setup.
 
 [Unreleased]: #unreleased
+[1.16.2]: #1162---2026-10-11
 [1.16.1]: #1161---2026-10-11
 [1.16.0]: #1160---2026-10-11
 [1.15.0]: #1150---2026-10-11

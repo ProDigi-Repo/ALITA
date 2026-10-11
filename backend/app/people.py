@@ -169,3 +169,25 @@ def people_index(docs: list[dict], projects: list[dict], databases: list[str] | 
     for e in out.values():
         e["documents"] += sum(team_docs.get(p, 0) for p in e["projects"])
     return sorted(out.values(), key=lambda e: (-len(e["projects"]), -e["documents"], e["name"]))
+
+
+def _store():
+    from . import store
+    return store
+
+
+def people_context(project_names, persons: list[str] | None = None, projects: list[dict] | None = None) -> str:
+    """REQ-19: who belongs to which project – only the curated team, never names from file metadata."""
+    names = sorted({n for n in project_names if n})
+    lines = []
+    if names:
+        by = {p.get("name"): p for p in (projects if projects is not None else _store().list_projects())}
+        for n in names:
+            team = (by.get(n) or {}).get("authors") or []
+            lines.append(f"- Project {n}: team {', '.join(team)}" if team else f"- Project {n}: team not recorded – do not name people for it")
+    if persons:
+        lines.append(f"The user restricted this question to the data of: {', '.join(persons)}.")
+    if not lines:
+        return ""
+    return ("Who is who (curated; names in file metadata only tell who last saved a file and are never authors or project members):\n"
+            + "\n".join(lines) + "\n\n")

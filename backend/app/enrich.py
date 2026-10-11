@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from .glossary import Glossary
 from .schemas import MethodTag, StructuredSummary
+from .usage import add_run
 
 # ------------------------------------------------------------ 1) Parser
 _FIELDS = {
@@ -117,7 +118,6 @@ async def llm_enrich(
     )
     header = f"Dokumenttyp: {doc_kind}\nDatei: {filename}\n" + (f"Projekt: {project_name}\n" if project_name else "")
     res = await agent.run(header + "\n---\n" + _context(text))
-    from .usage import add_run
     add_run(res, model_name)
     o: LlmEnrichment = res.output
     known = glossary.by_id()

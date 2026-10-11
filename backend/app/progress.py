@@ -363,3 +363,30 @@ def compact(p: dict) -> dict:
                         "files": [{k: vs[n].get(k) for k in keep} for n in s["files"]],
                         "analyses": [{k: a.get(k) for k in ("doc_id", "filename", "role", "basis", "date", "methods")} for a in s["analyses"]]}
                        for s in p.get("stages", [])]}
+
+
+# ------------------------------------------------------------------ Chat (REQ-15/16)
+PROGRESS_RULES = ("The question asks how the knowledge of a project developed or how its analyses were done. "
+                  "A table of the knowledge stages, with links to every file, is shown directly under your answer – do not repeat it as a table. "
+                  "In 3–6 sentences: say how the insight developed from stage to stage, how the analyses were carried out (methods, data, models) "
+                  "and how many versions brought no fundamentally new insight (rewording, formatting, resubmissions). "
+                  "Refer to stages as 'Stage n'; cite numbered sources [n] where you use them.")
+
+
+def chat_context(question: str, filters, entities, databases: list[str] | None = None) -> tuple[dict | None, str]:
+    """REQ-15/16: Erkenntnisstufen des Projekts der Frage (Auswahl > Name in der Frage > einziges Projekt im Umfang)."""
+    from . import store
+    names = list(getattr(filters, "project", None) or []) or [e.value for e in entities if e.type == "project"]
+    if not names:
+        dbs = set(databases or [])
+        projs = [p["name"] for p in store.list_projects() if not dbs or dbs & set(p.get("databases") or [])]
+        names = projs if len(projs) == 1 else []
+    if not names:
+        return None, ("The question asks about the development of a project, but no project is selected. "
+                      "Ask the user to select a project in the knowledge map (or name it), then knowledge stages can be shown.\n\n")
+    try:
+        prog = project_progress(names[0], stage_count(question))
+    except Exception as e:
+        log.warning("Progress for %s failed: %s", names[0], e)
+        return None, ""
+    return compact(prog), f"Knowledge stages of project {names[0]} (from its version history):\n{table_text(prog)}\n\n{PROGRESS_RULES}\n\n"

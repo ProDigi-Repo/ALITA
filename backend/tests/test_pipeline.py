@@ -551,6 +551,7 @@ def test_cluster_names_are_descriptive_without_llm():
     import re
 
     import numpy as np
+
     from app.clustering import heuristic_titles, top_terms
     texts, labels = _named_texts(), [1, 1, 1, 2, 2, 2, 3, 3]
     t = heuristic_titles(texts, labels, top_terms(texts, np.array(labels)), set())
@@ -562,6 +563,7 @@ def test_cluster_names_are_descriptive_without_llm():
 
 def test_cluster_names_keep_person_names_out_and_acronyms_cased():
     import numpy as np
+
     from app.clustering import heuristic_titles, top_terms
     T = lambda title: f"Title: {title}\nPurpose: Study by Miller."  # noqa: E731
     texts, labels = [T("PLS-SEM of AI adoption"), T("AI adoption with PLS-SEM"), T("Miller Miller")], [1, 1, 2]
@@ -583,6 +585,7 @@ def test_llm_titles_win_generic_ones_are_replaced_and_names_are_unique():
 
 def test_cluster_vectors_return_a_title_per_cluster():
     import numpy as np
+
     from app.clustering import cluster_vectors
     rng = np.random.default_rng(1)
     base = np.eye(8)[:3]
@@ -665,18 +668,16 @@ def test_person_matching_and_scope():
 
 def test_people_context_uses_team_not_editors():
     """REQ-19: the answer prompt names only the curated team."""
-    import sys, types
+    import sys
+    import types
 
     import app
     fake = types.SimpleNamespace(list_projects=lambda: [{"name": "Sustainability", "authors": ["Jürgen Strohecker"]}, {"name": "X", "authors": []}],
                                  scroll_documents=lambda limit=0, flt=None: [])
     old = sys.modules.get("app.store"); sys.modules["app.store"] = fake; app.store = fake
     try:
-        import importlib
-
-        from app import rag
-        importlib.reload(rag)
-        text = rag.people_context(["Sustainability", "X"], ["Strohecker"])
+        from app.people import people_context
+        text = people_context(["Sustainability", "X"], ["Strohecker"])
     finally:
         if old: sys.modules["app.store"] = old; app.store = old
         else: sys.modules.pop("app.store"); del app.store

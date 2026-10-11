@@ -9,7 +9,11 @@ import logging
 
 from pydantic import BaseModel, Field
 
+from . import usage
 from .deo import deo_for_question, valid
+from .people import people_context
+from .progress import chat_context as progress_chat_context
+from .query_meta import Entity
 from .schemas import ChatTurn, SearchFilters
 
 log = logging.getLogger("graphrag")
@@ -86,7 +90,6 @@ def path_for(plan: dict, doc: dict | None) -> list:
 async def answer_stream(req: GraphRequest, api_key: str | None = None):
     from pydantic_ai import Agent
 
-    from . import usage
     meter = usage.start()                     # was Frage und Antwort gekostet haben
 
     from . import store
@@ -133,9 +136,7 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
             "system_prompt_source": sp_source, "system_prompt_id": sp_id}
     prog_head = ""
     if plan["intent"] == "progress":                 # REQ-15/16: Erkenntnisstufen als Tabelle unter der Antwort
-        from .query_meta import Entity
-        from .rag import progress_context
-        prog, prog_head = progress_context(req.message, SearchFilters(project=list(req.projects) or plan["projects"][:1]),
+        prog, prog_head = progress_chat_context(req.message, SearchFilters(project=list(req.projects) or plan["projects"][:1]),
                                            [Entity(**e) for e in plan["entities"]], plan["databases"])
         if prog:
             meta["progress"] = prog
@@ -156,7 +157,6 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
         for d in graph_docs[:6])
     ctx = "\n\n".join(f"[{r.n}] {r.title} ({r.doc_type}{', ' + r.locator if r.locator else ''}; DEO: {', '.join(h.payload.get('deo') or []) or '–'})\n{h.payload['text']}"
                       for r, h in zip(sources, hits))
-    from .rag import people_context
     who = people_context([r.project_name for r in sources] + list(req.projects), plan["persons"] if req.persons else None)
     prompt = (f"Overview of the whole knowledge map (all projects and clusters in scope):\n{overview}\n\n" if overview else "") + who + prog_head + (f"Graph path: {' '.join(x if isinstance(x, str) else f'{x[0]} [{x[1]}]' for x in path) or '–'}\n"
               f"Discourse elements asked for: {', '.join(plan['deo']) or 'any'}\n\n"

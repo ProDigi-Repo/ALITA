@@ -362,7 +362,6 @@ async function pollJobs(ids){
   try{uploadReport(done)}catch(e){console.error('upload report',e)}
 }
 /* After an upload: ALITA tells how many tokens it took and what that cost in euro */
-function fmtEur(x){return x==null?'–':x>0&&x<0.01?'€'+x.toFixed(4):'€'+x.toFixed(2)}
 function uploadReport(jobs){
   if(!jobs.length)return;
   const u=jobs.map(j=>j.usage).filter(Boolean),sum=k=>u.reduce((a,x)=>a+(+x[k]||0),0);

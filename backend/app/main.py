@@ -1,12 +1,14 @@
 """FastAPI-App: Chat, Dokumentenliste, Upload/Ingestion, Dateiauslieferung, Frontend."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import shutil
 import tempfile
 import uuid
 import zipfile
 from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated
 
@@ -15,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import rag, store
+from . import rag, store, usage
 from .config import get_settings
 from .glossary import load_glossary
 from .graphrag import GraphRequest
@@ -445,7 +447,6 @@ def project_detail(name: str):
 @app.get("/api/export")
 def export_all():
     """Backup aller Metadaten (Dokumente inkl. Summaries, Datenbanken, Projekte) als JSON – ohne Vektoren."""
-    from datetime import datetime, timezone
     docs = store.scroll_documents()
     for d in docs:
         d.pop("source_path", None)
@@ -513,9 +514,6 @@ def file(doc_id: str):
 
 # ------------------------------------------------------------ Ingestion
 async def _run_job(job_id: str, coro):
-    import asyncio
-
-    from . import usage
     JOBS[job_id]["status"] = "running"
     meter = usage.start()                      # Tokens dieses Jobs (LLM + Embeddings) für das Pop-up nach dem Hochladen
     try:
@@ -542,7 +540,6 @@ async def ingest(
     date: Annotated[str | None, Form(description="Gesamtdatum YYYY-MM-DD (Projekt: für Dateien ohne eigenes Datum; Paper/Notes: Datum)")] = None,
     x_key: KeyHeader = None,
 ):
-    from datetime import datetime, timezone
     s = get_settings()
     when = None
     if date:

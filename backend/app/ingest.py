@@ -25,9 +25,9 @@ from pathlib import Path
 from .chunking import chunk_segments
 from .config import get_settings
 from .enrich import parse_keywords, parse_structured_abstract
-from .people import clean_people, team_for
 from .extract import MIME, Extracted, extract, filetype_of
 from .glossary import keyword_classify, load_glossary, merge_tags
+from .people import clean_people, team_for
 from .project_meta import (
     YEAR_IN_NAME,
     best_date,
