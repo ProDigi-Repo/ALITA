@@ -58,15 +58,18 @@
 .bslot{display:flex;min-height:560px}
 #page-graph .bslot{min-height:0}
 .bslot>.tile{flex:1;min-width:0}
-/* REQ-01: B Interaction Interface = four areas (map | projects & clusters / window to the outside | chat) */
-#page-graph .bgrid{flex:none;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:minmax(300px,1fr) minmax(360px,1.15fr);
-  grid-template-areas:"map cluster" "outside chat";gap:14px;height:var(--bH,auto)}   /* REQ-02: --bH = window height below the bars (fitBPage) */
+/* REQ-01/24/28: B Interaction Interface = map (whole left side) | projects & clusters (right, 2/3) over the chat (right, 1/3); window to the outside = button + pop-up (css/outside.css) */
+#page-graph .bgrid{flex:none;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:minmax(320px,2fr) minmax(260px,1fr);
+  grid-template-areas:"map cluster" "map chat";gap:14px;height:var(--bH,auto)}   /* REQ-02: --bH = window height below the bars (fitBPage) */
 #page-graph .bq-chat>.tile{overflow:auto}
 #page-graph .bq-map{grid-area:map;min-height:0}
 #page-graph .bq-cluster{grid-area:cluster}
-#page-graph .bq-outside{grid-area:outside}
 #page-graph .bq-chat{grid-area:chat;min-height:0;display:flex}
 #page-graph .bq-chat>.tile{flex:1;min-height:0}
+/* REQ-33: enlarged knowledge map */
+#page-graph .bq-map.maxed{position:fixed;inset:16px;z-index:65;height:auto!important;max-height:none;box-shadow:0 18px 60px rgb(0 0 0 / .45)}
+#page-graph .cg-max-scrim{position:fixed;inset:0;z-index:64;background:rgb(6 8 15 / .55)}
+#page-graph .cg-max[aria-pressed="true"]{background:var(--graph,#d9480f);color:#fff;border-color:transparent}
 .bq{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;min-width:0;min-height:0}
 .bq-head{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--sunk);border-bottom:1px solid var(--line)}
 .bq-head .badge{font-family:var(--f-mono);font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:4px;background:var(--muted);color:#fff}
@@ -81,9 +84,9 @@
 .bq-cluster .cpd-bar{position:static}
 .bq-empty{align-items:center;justify-content:center;text-align:center;color:var(--muted);padding:24px;gap:6px;background:repeating-linear-gradient(45deg,transparent 0 12px,var(--sunk) 12px 13px)}
 .bq-empty b{color:var(--fg);font-size:14px}
-@media (max-width:1100px){#page-graph .bgrid{grid-template-columns:1fr;grid-template-rows:none;grid-template-areas:"map" "cluster" "chat" "outside";height:auto}
+@media (max-width:1100px){#page-graph .bgrid{grid-template-columns:1fr;grid-template-rows:none;grid-template-areas:"map" "cluster" "chat";height:auto}
   /* REQ-02 on narrow screens: the knowledge map stays pinned at the top while the other areas scroll beneath it */
-  #page-graph .bq-map{height:min(420px,42vh);position:sticky;top:0;z-index:6;align-self:start;box-shadow:0 6px 18px rgb(0 0 0 / .12)}#page-graph .bq-cluster{max-height:640px}#page-graph .bq-outside{min-height:220px}#page-graph .bq-chat{min-height:620px}}
+  #page-graph .bq-map{height:min(420px,42vh);position:sticky;top:0;z-index:6;align-self:start;box-shadow:0 6px 18px rgb(0 0 0 / .12)}#page-graph .bq-cluster{max-height:640px}#page-graph .bq-chat{min-height:620px}}
 @media (max-width:980px){.cgwrap{grid-template-columns:1fr}#cgGraph svg{min-height:420px}}
 .dbw{position:relative;display:inline-flex}
 .dbw .db{padding-right:26px}

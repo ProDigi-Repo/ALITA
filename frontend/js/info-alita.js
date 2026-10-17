@@ -47,7 +47,7 @@
     ['#page-graph .bq-map','Knowledge map','Your whole knowledge at a glance: <b>projects &amp; papers</b> on top, <b>semantic clusters</b> in the middle, <b>documents</b> below. Click a cluster or a project to explore it.'],
     ['#page-graph .v3-reset','Reset view','Zoomed or turned too far? <b>⟲ Reset view</b> brings the map back to the start.'],
     ['#page-graph .bq-cluster','Projects & clusters','What you clicked opens here: descriptions, <b>connected clusters</b> and all <b>documents</b> – without leaving the page.'],
-    ['#bOutside','Window to the outside','Coming soon: challenge selected content against <b>external databases</b>. The results will show up here.'],
+    ['#bOutsideBtn','Window to the outside','Coming soon: challenge selected content against <b>external databases</b>. This button opens the window where the results will show up.'],
     ['#cviz','Cluster views','Map <b>A</b> filters the Document Chat, graph <b>B</b> the Graph Chat. <b>3D · time</b> lets you walk through the years.'],
     ['#page-chat .why-row','A or B?','<b>A</b> tells you <i>what</i> your documents say, <b>B</b> <i>how</i> things are connected.'],
     ['.tile:not([hidden]) .atoggle','Advanced settings','Filters and the system prompt of a chat live here – open them only when you need them.'],

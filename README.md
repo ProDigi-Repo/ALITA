@@ -231,7 +231,8 @@ und `APP_VERSION` im Frontend angleichen. Der Test `test_changelog_follows_keepa
 
 | Version | Datum | Inhalt | früher |
 |---|---|---|---|
-| **2.0.0** | 2026-10-11 | **Major Release – Meilenstein Anforderungen:** alle 21 Anforderungen (REQ-01 – REQ-21) adressiert, Übersicht mit Status, Release und Umsetzung in `docs/requirements-status.md` und in den Release Notes; API bleibt kompatibel | |
+| **2.1.0** | 2026-10-17 | **Minor Release – Arbeitsfläche und Zeitstrahl:** B-Seite über die volle Bildschirmbreite (Karte links in voller Höhe, rechts „Projects & clusters“ und Graph Chat), Karte füllt ihre Kachel und lässt sich vergrößern, 3D-Zeitansicht mit genauen Dokumentdaten und Zeit-Zoom bis auf Tage; Anforderungen REQ-22 – REQ-34 (inkl. Feedback von Dustin) in `docs/requirements-status.md` und `docs/requirements-log.xlsx`; nur Frontend | |
+| 2.0.0 | 2026-10-11 | Major Release – Meilenstein Anforderungen: alle 21 Anforderungen (REQ-01 – REQ-21) adressiert, Übersicht mit Status, Release und Umsetzung in `docs/requirements-status.md` und in den Release Notes; API bleibt kompatibel | |
 | 1.16.2 | 2026-10-11 | Code-Aufräumen vor dem Major Release, ohne sichtbare Änderungen (Module für Personen/Erkenntnisstufen, Lint sauber, CSS-Überschreibungen zusammengeführt) | |
 | 1.16.1 | 2026-10-11 | Korrektur B-Seite: Eingabefeld des Graph Chat auf breiten Bildschirmen wieder sichtbar; rechte Spalte („Your questions“ + Eingabe) weniger gequetscht | |
 | 1.16.0 | 2026-10-11 | „Add new data“: eigenes Fenster (Datenbank · Datenart · Gesamtdatum · Dateien) mit Bestätigung „ein Projekt = eine ZIP“, mehrere Projekte pro Upload; neue Datenbank „Others“; Kosten: ALITA meldet nach dem Upload Tokens und Euro, jede Chatnachricht zeigt die Kosten von Frage und Antwort | |

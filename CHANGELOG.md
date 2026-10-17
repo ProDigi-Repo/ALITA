@@ -8,6 +8,43 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-17
+
+> **Minor release – workspace and time line:** the B Interaction Interface uses the whole screen (map on the left over the full height, "Projects & clusters" and the Graph Chat on the right), the knowledge map fills its tile and can be enlarged, and the 3D · time view shows every document at its exact date with a time zoom down to days. 13 new requirements from the review of 2.0.0 (REQ-22 – REQ-34, incl. feedback from Dustin) – all done; see "Requirements" below, `docs/requirements-status.md` and `docs/requirements-log.xlsx` (each request with its original wording and as a requirement). Frontend only: the REST API and the backend are unchanged – a browser reload is enough, no rebuild. Roll back with `git checkout v2.0.0`.
+
+### Requirements
+- **REQ-22 Full screen width** – ✅ done: the 1600 px limit of the page layout is removed; all pages run from edge to edge.
+- **REQ-23 B explanation below the database bar** – ✅ done: "B searches the knowledge graph …" is a full-width line directly below the database bar.
+- **REQ-24 Window to the outside only as a button** – ✅ done: no fixed area any more; a button opens it as a pop-up.
+- **REQ-25 Button with the animation, small, on the left** – ✅ done: the button left of the B explanation shows a live mini version of the desert construction site.
+- **REQ-26 Knowledge map fills the tile width** – ✅ done: periods, projects and clusters spread over the width of the tile.
+- **REQ-27 Chat as a strip across the full width** – ↺ replaced by REQ-28 (same day).
+- **REQ-28 Map on the left, projects & clusters and chat on the right** – ✅ done: map over the whole left side; right: "Projects & clusters" (⅔) above the Graph Chat (⅓).
+- **REQ-29 Knowledge map fills the tile height** – ✅ done: the three layers grow with the tile height; the camera fits the map to the tile.
+- **REQ-30 Refactor** – ✅ done: see "Changed – code" below.
+- **REQ-31 3D · time view: clicking a cluster selects it** – ✅ done (report by Dustin): see "Fixed".
+- **REQ-32 3D · time view: time zoom and exact dates** – ✅ done (request by Dustin): exact document dates, zoom with the time range, "Scale" Years / Months / Weeks / Days.
+- **REQ-33 Enlarge the knowledge map** – ✅ done (request by Dustin): "⤢ Enlarge" opens the map almost full screen.
+- **REQ-34 Dragging must not break the time line** – ✅ done (remark by Dustin): clusters stay inside their own period column.
+
+### Added
+- Knowledge map (B page): "⤢ Enlarge" button – the map opens as a large window over the page and is redrawn at that size; "✕ Close", Esc or a click beside it goes back.
+- 3D · time view, time zoom: the time axis uses each document's exact date instead of only its year and zooms with the chosen time range – 6 or more years show years, a narrower range shows months. A new "Scale" choice (Auto / Years / Months / Weeks / Days) zooms further; planes and labels follow the scale (e.g. "Jun", "Jul"), cluster trails are drawn per month / week / day, and "Fly through time" slows down on fine scales.
+- 3D · time view tooltip: the exact date and where it comes from (file properties, from the text, curated, or the uncertain file date); documents that only have a year sit mid-year and are counted in the header.
+
+### Changed
+- Web interface uses the full screen width (the 1600 px limit of the page layout is removed).
+- B Interaction Interface, new layout: the knowledge map takes the whole left side (full height); on the right "Projects & clusters" takes the upper two thirds and the Graph Chat the lower third.
+- B Interaction Interface: the explanation "B searches the knowledge graph …" sits directly below the database bar instead of inside the chat area.
+- "Window to the outside" (REQ-20, planned) is no longer a fixed area: a small button left of the B explanation shows a mini version of the animated desert construction site and opens the full window as a pop-up (✕, Esc or a click beside it closes it).
+- Knowledge map (B page) fills its tile in both directions: periods, projects and clusters spread over the width, the layers grow with the height, the document band is only as deep as its rows, and the camera is fitted once per tile size (your own zoom is kept until the size changes or you press "⟲ Reset view"); the drawing height is no longer capped at 720 px, and the map is laid out again when the window width changes.
+- Knowledge map (3D, periods side by side): clusters can still be dragged, but only inside their own period column (and, on the B page, inside the cluster band) – the time line stays true.
+- Code (no visible change): B-page layout maths, layer bands and camera fit are small documented helpers (`v3BLayout`, `v3BBands`, `v3FitCam`) and the B-page wiring is in one place (`cgMax`, `onBResize`, `wireBPage`) in `js/clusters.js`; the 3D time axis is its own module `js/space3d-time.js` (`s3T`, `s3Z`, `s3Scale`, `s3Ticks`), marks are drawn by one helper (`s3Mark`); everything for "Window to the outside" is in `js/outside.js` and `css/outside.css`.
+
+### Fixed
+- 3D · time view: clicking a cluster now selects it and keeps its description open. A click on a "Connected clusters" entry switches the description to that cluster (before, it selected the cluster for the chats but kept showing the old one – "C6 selected, C7 shown"); a click in the space takes the cluster under the pointer at that moment instead of the last hovered one; releasing the mouse after rotating no longer toggles the selection.
+- 3D · time view: project files were drawn as project bars that all start at the beginning of the project, so all files of a project stood in one row (and could not be opened). They are now single points (◆) at their own date and open on click; only a whole project is still drawn as a bar.
+
 ## [2.0.0] - 2026-10-11
 
 > **Major release – requirements milestone:** all 21 requirements of the review (REQ-01 – REQ-21) are addressed: 17 done (5 of them with open points or data still needed), 1 deviation (REQ-11), 1 placeholder (REQ-20), 1 partial (REQ-21) – see "Requirements" below and `docs/requirements-status.md`. Built on the cleaned-up code of 1.16.2. The REST API stays compatible with 1.x; the major version marks the end of the requirements phase. Roll back with `git checkout v1.16.2`.

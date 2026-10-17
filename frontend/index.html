@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="css/space3d.css">
 <link rel="stylesheet" href="css/clusters.css">
 <link rel="stylesheet" href="css/desert.css">
+<link rel="stylesheet" href="css/outside.css">
 <link rel="stylesheet" href="css/progress.css">
 <link rel="stylesheet" href="css/pages.css">
 </head>
@@ -20,7 +21,7 @@
   <header class="top">
     <div class="brand">
       <h1>ALITA PROTOTYPE</h1>
-      <button class="ver" id="appVersion" type="button" title="Open release notes">v2.0.0</button>
+      <button class="ver" id="appVersion" type="button" title="Open release notes">v2.1.0</button>
       <span class="mode" id="mode" title="">Demo</span>
     </div>
     <nav class="nav" role="tablist" aria-label="Sections">
@@ -284,12 +285,16 @@
   <div class="page" id="page-graph" hidden>
     <!-- REQ-01: workspace in four areas – knowledge map | project/cluster view
                                           window to the outside | chat -->
+    <!-- REQ-11: what B does – directly below the database bar -->
+    <div class="b-top"><button type="button" class="b-outside-btn" id="bOutsideBtn" aria-haspopup="dialog" aria-controls="bOutside" title="Window to the outside – external challenge (planned, REQ-20). Click to open."><span class="bo-scene" id="bOutsideScene" aria-hidden="true"></span><span class="bo-label"><span aria-hidden="true">🚧</span> Window to the outside</span></button><div class="chat-why cw-b b-why"><button type="button" class="cw-tag" title="Say hello to ALITA" aria-label="Say hello to ALITA">i</button><p><b>B searches the knowledge graph</b> – the connections between people, projects, methods, clusters and document parts (Graph RAG). Ask it <i>how</i> things are connected – e.g. <q>Who worked with whom on project X?</q> Answers follow paths in the graph and show them. <span class="cw-alt">For what a document says in detail use <b>A</b>.</span></p></div></div>
     <div class="cgwrap bgrid">
+      <div class="cg-max-scrim" id="cgMaxScrim" hidden></div>
       <section class="cg-main t-graph bq-map" aria-label="Knowledge map: all clusters">
         <div class="cv-head"><span class="badge">B</span><h3>Knowledge map</h3>
           <div class="cv-mode" id="cgMode" role="group" aria-label="Color documents by"><button type="button" data-m="type" aria-pressed="true">Document type</button><button type="button" data-m="db" aria-pressed="false">Database</button></div>
           <button class="mini v3-toggle" type="button">2D</button><button class="mini v3-reset" type="button" title="Back to the start view: zoom, rotation and moved clusters">⟲ Reset view</button>
           <button class="mini s3btn" type="button" data-open3d title="Walk through the clusters in 3D, with the years as depth">3D · time</button>
+          <button class="mini cg-max" type="button" id="cgMax" aria-pressed="false" title="Enlarge the knowledge map">⤢ Enlarge</button>
           <span class="meta" id="cgMeta"></span><span class="cv-basis emb" id="cgBasis">semantic · embeddings</span></div>
         <div class="cg-body"><div id="cgGraph"></div><div class="cv-tip" id="cgTip" hidden></div></div>
         <div class="cg-legend" id="cgLegend"></div>
@@ -303,8 +308,9 @@
           <aside class="cg-side" id="cgSide" aria-label="Cluster details"></aside>
         </div>
       </section>
-      <section class="bq bq-outside" id="bOutside" aria-label="Window to the outside: external challenge (planned)">
-        <div class="bq-head"><h3>Window to the outside</h3><span class="meta">External challenge · 🚧 planned · REQ-20</span></div>
+      <div class="b-outside-scrim" id="bOutsideScrim" hidden></div>
+      <section class="bq bq-outside" id="bOutside" role="dialog" aria-modal="true" hidden aria-label="Window to the outside: external challenge (planned)">
+        <div class="bq-head"><h3>Window to the outside</h3><span class="meta">External challenge · 🚧 planned · REQ-20</span><button type="button" class="icon-btn b-outside-close" id="bOutsideClose" aria-label="Close" title="Close (Esc)">✕</button></div>
         <div class="bq-body desert" aria-hidden="false">
           <svg class="dz" viewBox="0 0 800 420" preserveAspectRatio="xMidYMax slice" role="img" aria-label="Animated desert construction site: the window to the outside is still being built">
             <defs>
@@ -393,7 +399,7 @@
             <small>REQ-20 · concept part of the proposal / call; implementation follows later.</small></div>
         </div>
       </section>
-      <div class="bslot bq-chat" id="bTileSlot"><div class="chat-why cw-b"><button type="button" class="cw-tag" title="Say hello to ALITA" aria-label="Say hello to ALITA">i</button><p><b>B searches the knowledge graph</b> – the connections between people, projects, methods, clusters and document parts (Graph RAG). Ask it <i>how</i> things are connected – e.g. <q>Who worked with whom on project X?</q> Answers follow paths in the graph and show them. <span class="cw-alt">For what a document says in detail use <b>A</b>.</span></p></div></div>
+      <div class="bslot bq-chat" id="bTileSlot"></div>
     </div>
   </div>
 
@@ -535,6 +541,7 @@
     <div class="s3-title"><b>Cluster space</b><span>map = position · depth = year</span></div>
     <span class="s3-meta" id="s3Meta"></span>
     <div class="s3-year">Time <span class="s3-range"><span class="s3-track"></span><span class="s3-fill" id="s3Fill"></span><input type="range" id="s3From" step="1" aria-label="From year"><input type="range" id="s3Year" step="1" aria-label="Up to year"></span> <output id="s3YearOut"></output></div>
+    <label class="s3-unit" title="Time scale of the depth axis. Auto: years for 6 or more years, months for a narrower range – narrow the time range to zoom in">Scale <select id="s3Unit"><option value="auto">Auto</option><option value="year">Years</option><option value="month">Months</option><option value="week">Weeks</option><option value="day">Days</option></select> <output id="s3UnitOut"></output></label>
     <button type="button" class="s3b" id="s3Play" aria-pressed="false">▶ Fly through time</button>
     <div class="s3-mode" id="s3Mode" role="group" aria-label="Color by"><button type="button" data-m="cluster" aria-pressed="true">Clusters</button><button type="button" data-m="db" aria-pressed="false">Databases</button></div>
     <button type="button" class="s3b" id="s3Reset">Reset view</button>
@@ -542,7 +549,7 @@
   </div>
   <canvas id="s3Canvas" tabindex="0" aria-label="3D cluster space. Drag to look around, W and S to walk."></canvas>
   <div class="s3-legend" id="s3Legend"></div>
-  <div class="s3-help" id="s3Help"><b>Controls</b><br><kbd>W</kbd> <kbd>S</kbd> or wheel = walk forward / back<br><kbd>A</kbd> <kbd>D</kbd> = sideways · <kbd>Q</kbd> <kbd>E</kbd> = down / up<br><kbd>Shift</kbd> = faster · drag = look around<br>click a point = open document · <kbd>Esc</kbd> = close<br><span class="s3-key">■ paper · ● note · ◆ project start, bar = project over its years · Time: drag both ends to choose the years · flower inside = database · ring + line = cluster centre per year</span></div>
+  <div class="s3-help" id="s3Help"><b>Controls</b><br><kbd>W</kbd> <kbd>S</kbd> or wheel = walk forward / back<br><kbd>A</kbd> <kbd>D</kbd> = sideways · <kbd>Q</kbd> <kbd>E</kbd> = down / up<br><kbd>Shift</kbd> = faster · drag = look around<br>click a point = open document · <kbd>Esc</kbd> = close<br><span class="s3-key">■ paper · ● note · ◆ project file at its date (bar = a whole project over its years) · Time: drag both ends to choose the years – a narrower range zooms the time axis (months, or weeks / days under Scale) and every document sits at its exact date · flower inside = database · ring + line = cluster centre per year</span></div>
   <div class="s3-pad" id="s3Pad" aria-label="Walk"><button type="button" data-k="w" aria-label="Forward">▲</button><button type="button" data-k="a" aria-label="Left">◀</button><button type="button" data-k="s" aria-label="Back">▼</button><button type="button" data-k="d" aria-label="Right">▶</button><button type="button" data-k="e" aria-label="Up">⤒</button><button type="button" data-k="q" aria-label="Down">⤓</button></div>
   <div class="s3-tip" id="s3Tip" hidden></div>
 </div>
@@ -551,6 +558,7 @@
 <script src="js/databases.js"></script>
 <script src="js/release-compliance.js"></script>
 <script src="js/clusters.js"></script>
+<script src="js/outside.js"></script>
 <script src="js/cluster-profile.js"></script>
 <script src="js/chat-tools.js"></script>
 <script src="js/info-alita.js"></script>
@@ -559,6 +567,7 @@
 <script src="js/chat.js"></script>
 <script src="js/people.js"></script>
 <script src="js/progress.js"></script>
+<script src="js/space3d-time.js"></script>
 <script src="js/space3d.js"></script>
 <script src="js/sealife.js"></script>
 <script src="js/magicdust.js"></script>
