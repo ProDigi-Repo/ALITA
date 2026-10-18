@@ -392,3 +392,7 @@ ruff check backend          # Lint (Regeln in backend/ruff.toml)
 ```
 
 Die Tests laufen ohne Netz und prüfen Rollen, Versionen, Journal-Erkennung, Prompt-Filter, Abstract-Parser, Chunking und einen Projekt-Scan.
+
+[GitHub Actions CI](docs/ci.md) führt bei PRs und Änderungen auf `main` automatisch Tests,
+Lint-/Syntaxprüfungen, Compose-/nginx-Checks und einen Secret-Scan aus. Keine Server-Zugangsdaten
+oder OpenRouter-Keys erforderlich; der Produktiv-Deploy bleibt manuell.
