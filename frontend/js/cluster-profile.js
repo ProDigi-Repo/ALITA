@@ -42,7 +42,9 @@ function cpDocListHtml(list,label,open){
 }
 function cpWireDocs(root){root.querySelectorAll('[data-doc]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();if(typeof openDoc==='function')openDoc(b.dataset.doc)}))}
 function cpWireConn(root){cpWireDocs(root);root.querySelectorAll('[data-cc]').forEach(b=>b.addEventListener('click',()=>{const id=+b.dataset.cc;
-  if(!$('#page-graph').hidden&&typeof cgPick==='function')cgPick(id);else cvSelect(id)}))}
+  if(!$('#page-graph').hidden&&typeof cgPick==='function')cgPick(id);else cvSelect(id);
+  // 3D · time view: the description below must follow the click – show the connected cluster and keep it there
+  const d=cpS3();if(d&&root===d){d.dataset.pin=String(id);cpS3Render(d,id)}}))}
 function clusterCardHtml(ci){
   const p=clusterProfile(ci),info=(clusterInfo()||{})[ci]||{},label=(cvClusters(cvUnits()).find(c=>c.id===ci)||{}).label||'';
   const chips=a=>a.length?`<div class="cp-chips">${a.map(x=>`<span>${esc(x.name)}${x.n>1?` <i>×${x.n}</i>`:''}</span>`).join('')}</div>`:'<div class="cp-none">none named in the summaries</div>';
@@ -80,8 +82,11 @@ function showProfile(ci,ev){CP_HOV=ci;const d=cpS3();if(!d||d.dataset.pin)return
 function hideProfile(){CP_HOV=null}
 document.addEventListener('click',ev=>{
   const d=cpS3();if(!d||d.contains(ev.target))return;
-  const hit=ev.target.closest&&ev.target.closest('#s3Canvas');if(!hit||CP_HOV==null)return;
-  const ci=CP_HOV;if(d.dataset.pin===String(ci))delete d.dataset.pin;else d.dataset.pin=String(ci);cpS3Render(d,ci);
+  const hit=ev.target.closest&&ev.target.closest('#s3Canvas');if(!hit)return;
+  if((S3.lastMoved||0)>=5)return;                                                   // end of a rotate drag, not a click
+  const ci=typeof S3.clusterAt==='function'?S3.clusterAt(ev.clientX,ev.clientY):CP_HOV;   // the cluster under the pointer now
+  if(ci==null)return;
+  if(d.dataset.pin===String(ci))delete d.dataset.pin;else d.dataset.pin=String(ci);cpS3Render(d,ci);
 },true);
 document.addEventListener('keydown',ev=>{const d=cpS3();if(ev.key==='Escape'&&d&&d.dataset.pin){delete d.dataset.pin;cpS3Render(d,+d.dataset.c)}});
 function wireProfileHover(sel){$$(sel).forEach(b=>{if(b._cp)return;b._cp=1;b.addEventListener('mousemove',ev=>showProfile(+b.dataset.c,ev));b.addEventListener('mouseleave',hideProfile)})}

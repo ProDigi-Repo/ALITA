@@ -42,3 +42,8 @@
 .s3-range input[type=range]::-moz-range-track{background:none}
 .s3-range input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;pointer-events:auto;width:16px;height:16px;margin-top:3px;border-radius:50%;background:#e8ecf6;border:2px solid #3df2ff;cursor:pointer}
 .s3-range input[type=range]::-moz-range-thumb{pointer-events:auto;width:14px;height:14px;border-radius:50%;background:#e8ecf6;border:2px solid #3df2ff;cursor:pointer}
+
+/* REQ-32 time scale */
+.s3-unit{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#8d97b3}
+.s3-unit select{background:#111628;color:#e8ecf6;border:1px solid #262c45;border-radius:6px;padding:3px 6px;font:inherit;font-size:12px}
+.s3-unit output{color:#3df2ff;font-family:var(--f-mono);font-size:11px}

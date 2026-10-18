@@ -33,7 +33,9 @@
 .chat-why q{font-style:italic;quotes:"„" "“"}
 .chat-why .cw-alt{color:var(--muted)}
 #page-graph .bq-chat{flex-direction:column;gap:14px}
-#page-graph .bq-chat>.chat-why{flex:none;padding:7px 10px;font-size:12px}
+#page-graph .b-top{flex:none;display:flex;gap:14px;align-items:stretch;margin-bottom:14px}   /* below the database bar: B explainer + "Window to the outside" button */
+#page-graph .b-why{flex:1;min-width:0}
+@media (max-width:700px){#page-graph .b-top{flex-direction:column}}
 
 /* info sign: pulses on hover, a click lets a mini ALITA pop out */
 .chat-why{position:relative}

@@ -198,30 +198,60 @@ function cvFlowerImg(n){
 function cvFlowerBadge(g,n,x,y,r){const img=cvFlowerImg(n);g.fillStyle='#fff';g.beginPath();g.arc(x,y,r,0,Math.PI*2);g.fill();
   g.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--db-'+n).trim()||'#888';g.lineWidth=1;g.stroke();if(img)g.drawImage(img,x-r*.82,y-r*.82,r*1.64,r*1.64)}
 setTimeout(()=>{try{DATABASES.forEach(cvFlowerImg)}catch(e){}},0);
+/* REQ-26/29 – B page layout that fills its tile.
+   v3Proj scales with min(W,H) only, so a wide or tall tile would leave empty margins. Instead the world layout is
+   stretched to the tile: periods (GAPX), cluster spread (SPREAD), project row (spanX) grow with the width,
+   the layer bands grow with the height (KY). Elsewhere (A/B page) everything keeps the fixed defaults. */
+function v3BLayout(BW,GH,n,R,DIST,lay){
+  const base=R*V3_GAP;
+  if(!lay)return {BW,visW:0,GAPX:base,SPREAD:1,KY:1,sx:i=>(i-(n-1)/2)*base,spanX:(n-1)*base+R*2.4};
+  const visW=BW*DIST/(Math.min(BW,GH)*1.35);                                    // world units visible across the tile at the start distance
+  const GAPX=n>1?Math.max(base,Math.min(base*6,(visW*0.86-R*3.4)/(n-1))):base;  // distance between period columns
+  const SPREAD=Math.min(2.2,Math.max(1,n>1?GAPX/base:visW/(R*5)));              // clusters inside a period spread wider too
+  const contentW=n>1?(n-1)*GAPX+R*3.4:visW*0.9;
+  const KY=Math.max(1,Math.min(2.6,contentW*GH/BW*0.9/(R*6.2)));                // vertical stretch from the tile's aspect ratio
+  return {BW,visW,GAPX,SPREAD,KY,sx:i=>(i-(n-1)/2)*GAPX,spanX:Math.max((n-1)*GAPX+R*2.4,visW*0.86-R)};
+}
+/* B page layer bands (y up): projects & papers on top, semantic clusters in the middle, documents below –
+   stretched by KY; the document band is only as deep as its rows of document marks */
+function v3BBands(R,KY,docRows,docSp){
+  const Y_PJ=R*2.55*KY,Y_SEM=[-R*1.3*KY,R*1.55*KY],top=Y_SEM[0]-R*0.45;
+  return {Y_PJ,Y_TOP:[Y_PJ-R*0.5,Y_PJ+R*0.55],Y_SEM,Y_DOC:[top-Math.max(R*0.7,8+docRows*docSp),top]};
+}
+/* REQ-29 – zoom (cam.dist) and shift (cam.oy) the camera until the given world points fill W×H (a few fixed-point steps) */
+function v3FitCam(cam,pts,W,H,fx=0.96,fy=0.9){
+  for(let it=0;it<6;it++){const q=pts.map(([x,y])=>v3Proj(cam,{x,y,z:0},W,H));if(q.some(v=>!v))return;
+    const xs=q.map(v=>v.x),ys=q.map(v=>v.y),bw=Math.max(...xs)-Math.min(...xs),bh=Math.max(...ys)-Math.min(...ys);
+    cam.dist*=Math.max(bw/(W*fx),bh/(H*fy));cam.oy=(cam.oy||0)+H/2-(Math.max(...ys)+Math.min(...ys))/2}
+}
 function mountGraph3D(units,cls,box=$('#cvGraph'),key='graph',GH=350){ // key/GH: own camera state and height for the B page
-  const S=v3Slices(units),n=S.length,R=58,sx=i=>(i-(n-1)/2)*R*V3_GAP;
+  const S=v3Slices(units),n=S.length,R=58;
   const LAY=key==='graphB',DIST=LAY?560:345;   // B page: three layers – projects & papers / semantic clusters / documents
+  const {BW,GAPX,SPREAD,KY,sx,spanX}=v3BLayout(box.clientWidth||600,GH,n,R,DIST,LAY);
   const st=V3[key]||(V3[key]={cam:{...v3Cam(),yaw:0,pitch:0.12,dist:DIST,oy:LAY?10:40},nodes:{}});
   const nodes=[],inSlice=[];
   S.forEach((sl,i)=>{const on=sl.units.filter(u=>u.on);inSlice[i]=on;
     cls.forEach(c=>{const mem=on.filter(u=>u.ci===c.id);if(!mem.length)return;const key=c.id+'|'+i;
-      if(!st.nodes[key]){const m=mem.reduce((a,u)=>({x:a.x+u.cx,y:a.y+u.cy}),{x:0,y:0});st.nodes[key]={x:sx(i)+m.x/mem.length*R*0.9,y:m.y/mem.length*R*0.9,z:((c.id%3)-1)*12,vx:0,vy:0,vz:0,pin:false}}
-      const nd=st.nodes[key];Object.assign(nd,{key,c,i,mem,ax:sx(i)});nodes.push(nd)})});
+      const mx=mem.reduce((s,u)=>s+u.cx,0)/mem.length*R*0.9,my=mem.reduce((s,u)=>s+u.cy,0)/mem.length*R*0.9;   // semantic position
+      if(!st.nodes[key])st.nodes[key]={x:sx(i)+mx*SPREAD,y:my*KY,z:((c.id%3)-1)*12,vx:0,vy:0,vz:0,pin:false};
+      const nd=st.nodes[key];Object.assign(nd,{key,c,i,mem,ax:sx(i)+(SPREAD>1?mx*SPREAD:0),ay:KY>1?my*KY:0});nodes.push(nd)})});   // ax/ay = anchors the layout pulls towards
   if(!nodes.length){box.innerHTML='<div class="cv-empty">No dated, clustered documents for the current database selection.</div>';return}
   const byKey=Object.fromEntries(nodes.map(d=>[d.key,d]));
   const L=S.map((sl,i)=>cvLinks(inSlice[i]).map(l=>({...l,i,a:byKey[l.a+'|'+i],b:byKey[l.b+'|'+i]})).filter(l=>l.a&&l.b)).flat();
   const T=[];cls.forEach(c=>{const ks=nodes.filter(d=>d.c.id===c.id).sort((a,b)=>a.i-b.i);for(let k=1;k<ks.length;k++)T.push({a:ks[k-1],b:ks[k],c})});
   const rad=d=>5+Math.sqrt(d.mem.length)*3.4;
+  const docsOf=d=>d.mem.filter(u=>u.t!=='research_paper');
+  const DOCSP=3.4,DCOLS=8,{Y_PJ,Y_TOP,Y_SEM,Y_DOC}=v3BBands(R,KY,Math.ceil(Math.max(1,...nodes.map(d=>docsOf(d).length))/DCOLS),DOCSP);
   // project level above the periods (B page): fixed nodes, linked to the cluster nodes that hold their files
   const PJ=key==='graphB'?cvProjects(units,new Set(nodes.map(d=>d.c.id))):[];
-  const spanX=(n-1)*R*V3_GAP+R*2.4;
   const PA=LAY?nodes.flatMap(d=>d.mem.filter(u=>u.t==='research_paper').map(u=>({u,d}))):[];   // papers = works of their own (top layer)
   const NT=PJ.length+PA.length,slot=k=>(k-(NT-1)/2)*spanX/Math.max(NT,1);
-  PJ.forEach((p,k)=>Object.assign(p,{x:slot(k),y:R*2.55,z:0,
+  PJ.forEach((p,k)=>Object.assign(p,{x:slot(k),y:Y_PJ,z:0,
     to:nodes.map(d=>({d,cnt:d.mem.filter(u=>u.t==='research_project'&&u.pn===p.pn).length})).filter(x=>x.cnt)}));
-  PA.forEach((a,k)=>Object.assign(a,{x:slot(PJ.length+k),y:R*2.55,z:0}));
-  const Y_TOP=[R*2.05,R*3.1],Y_SEM=[-R*1.3,R*1.55],Y_DOC=[-R*3.7,-R*1.75],DOCSP=3.4,DCOLS=8;   // layer bands (y up)
-  const docsOf=d=>d.mem.filter(u=>u.t!=='research_paper');
+  PA.forEach((a,k)=>Object.assign(a,{x:slot(PJ.length+k),y:Y_PJ,z:0}));
+  // REQ-34: a node may be moved, but only inside its own period column (and the cluster band) – the time axis stays true
+  const halfCol=n>1?GAPX/2-R*0.3:(LAY?spanX/2:R*1.5);
+  const keep=d=>{const c=sx(d.i);d.x=Math.max(c-halfCol,Math.min(c+halfCol,d.x));if(LAY)d.y=Math.max(Y_SEM[0]+R*0.2,Math.min(Y_SEM[1]-R*0.2,d.y))};
   const step=()=>{
     for(let a=0;a<nodes.length;a++)for(let b=a+1;b<nodes.length;b++){const p=nodes[a],q=nodes[b];if(p.i!==q.i)continue;let dx=p.x-q.x,dy=p.y-q.y,dz=p.z-q.z,d2=dx*dx+dy*dy+dz*dz+0.01,d=Math.sqrt(d2),f=900/d2;
       dx/=d;dy/=d;dz/=d;if(!p.pin){p.vx+=dx*f;p.vy+=dy*f;p.vz+=dz*f}if(!q.pin){q.vx-=dx*f;q.vy-=dy*f;q.vz-=dz*f}}
@@ -229,8 +259,8 @@ function mountGraph3D(units,cls,box=$('#cvGraph'),key='graph',GH=350){ // key/GH
     L.forEach(l=>{const p=l.a,q=l.b,dx=q.x-p.x,dy=q.y-p.y,dz=q.z-p.z,d=Math.sqrt(dx*dx+dy*dy+dz*dz)+0.01,k=0.02*(0.4+0.6*l.n/mx)*(d-34)/d;
       if(!p.pin){p.vx+=dx*k;p.vy+=dy*k;p.vz+=dz*k}if(!q.pin){q.vx-=dx*k;q.vy-=dy*k;q.vz-=dz*k}});
     T.forEach(t=>{const p=t.a,q=t.b,k=0.008;['y','z'].forEach(ax=>{const d=(q[ax]-p[ax])*k;if(!p.pin)p['v'+ax]+=d;if(!q.pin)q['v'+ax]-=d})});
-    let e=0;nodes.forEach(p=>{if(p.pin){p.vx=p.vy=p.vz=0;return}p.vx-=(p.x-p.ax)*0.02;p.vy-=p.y*0.01;p.vz-=p.z*0.01;
-      p.vx*=0.8;p.vy*=0.8;p.vz*=0.8;p.x+=p.vx;p.y+=p.vy;p.z+=p.vz;e+=Math.abs(p.vx)+Math.abs(p.vy)+Math.abs(p.vz)});
+    let e=0;nodes.forEach(p=>{if(p.pin){p.vx=p.vy=p.vz=0;return}p.vx-=(p.x-p.ax)*0.02;p.vy-=(p.y-(p.ay||0))*0.01;p.vz-=p.z*0.01;
+      p.vx*=0.8;p.vy*=0.8;p.vz*=0.8;p.x+=p.vx;p.y+=p.vy;p.z+=p.vz;keep(p);e+=Math.abs(p.vx)+Math.abs(p.vy)+Math.abs(p.vz)});
     return e;
   };
   const draw=()=>{
@@ -282,10 +312,13 @@ function mountGraph3D(units,cls,box=$('#cvGraph'),key='graph',GH=350){ // key/GH
       if(h.kind==='doc'){const u=h.u;if(cv)cv.style.cursor='pointer';if(tip)cvTip(tip,box.parentElement,`<b>${esc(u.ti||'')}</b><br>${CV_TYPE[u.t]||''}${u.y?' · '+u.y:''} · C${u.ci}${u.pn?' · '+esc(u.pn):''}<br><i>click to open</i>`,e);return}cv.style.cursor='move';showProfile(h.c.id,e)},
     grab:h=>{st.dragging=true;h.node.pin=true;run()},
     pull:(h,dx,dy)=>{const W=box.clientWidth,H=GH,cam=st.cam,f=Math.min(W,H)*1.35,k=cam.dist/f,cy=Math.cos(cam.yaw),sy=Math.sin(cam.yaw),cp=Math.cos(cam.pitch),sp=Math.sin(cam.pitch);
-      const rx=dx*k,uy=-dy*k,d=h.node;d.x+=rx*cy-uy*sp*sy;d.y+=uy*cp;d.z+=-rx*sy-uy*sp*cy},
+      const rx=dx*k,uy=-dy*k,d=h.node;d.x+=rx*cy-uy*sp*sy;d.y+=uy*cp;d.z+=-rx*sy-uy*sp*cy;keep(d)},
     release:(h,moved)=>{st.dragging=false;if(!moved)h.node.pin=false;run()},
     click:h=>{if(h.kind==='project'){cvSelectProject(h.p);return}if(h.kind==='doc'){if(h.u.id&&typeof openDoc==='function')openDoc(h.u.id);return}if(key==='graphB'){cgPick(h.c.id);return}cvSelect(h.c.id)},
-    reset:()=>{st.cam={...v3Cam(),yaw:0,pitch:LAY?0.12:0.18,dist:DIST,oy:LAY?10:40};st.nodes={};mountGraph3D(cvUnits(),cvClusters(cvUnits()),box,key,GH)}};
+    reset:()=>{st.cam={...v3Cam(),yaw:0,pitch:LAY?0.12:0.18,dist:DIST,oy:LAY?10:40};st.nodes={};st.fit=null;mountGraph3D(cvUnits(),cvClusters(cvUnits()),box,key,GH)}};
+  if(LAY){const fk=BW+'x'+GH+'|'+n+'|'+NT;   // fit once per tile size / data shape – the user's own zoom survives redraws
+    if(st.fit!==fk){st.fit=fk;const x0=-spanX/2-R*0.5,x1=spanX/2+R*0.5;
+      v3FitCam(st.cam,[[x0,Y_TOP[1]],[x1,Y_TOP[1]],[x0,Y_DOC[0]],[x1,Y_DOC[0]],[x0,Y_SEM[0]],[x1,Y_SEM[1]]],BW,GH)}}
   draw();v3Wire(st,box.querySelector('canvas'),api);box.querySelector('canvas')._api=api;run();
   $('#cvGraphHint').textContent=`Per period: node size = documents in that period · orange = bridges within the period · dotted = the same cluster from period to period`;
 }
@@ -510,13 +543,32 @@ function cgPick(id){
   const b=$('#page-graph .bq-cluster .bq-body');if(b)b.scrollTop=0;
 }
 let B_FIT_H=0;
+const B_MAP_MAX_H=1600;   // drawing height cap of the knowledge map (REQ-28: it now fills a full-height column)
 function fitBPage(){
   const pg=$('#page-graph'),g=pg&&pg.querySelector('.bgrid');if(!g||pg.hidden)return;
   if(matchMedia('(max-width:1100px)').matches){g.style.removeProperty('--bH');return}
   const top=g.getBoundingClientRect().top+scrollY,h=Math.max(700,Math.floor(innerHeight-top-14));
   if(Math.abs(h-B_FIT_H)<4)return;B_FIT_H=h;g.style.setProperty('--bH',h+'px');try{renderClusterPage()}catch(e){}
 }
-addEventListener('resize',()=>{clearTimeout(fitBPage.t);fitBPage.t=setTimeout(fitBPage,120)});
+/* REQ-33: "⤢ Enlarge" – the knowledge map as a large window over the page (Esc, ✕ or a click beside it to go back) */
+function cgMax(on){
+  const s=$('#page-graph .bq-map'),b=$('#cgMax'),sc=$('#cgMaxScrim');if(!s||!b)return;
+  s.classList.toggle('maxed',on);sc.hidden=!on;b.setAttribute('aria-pressed',String(on));
+  b.textContent=on?'✕ Close':'⤢ Enlarge';b.title=on?'Back to the normal size (Esc)':'Enlarge the knowledge map';
+  try{renderClusterPage()}catch(e){}   // the class change is laid out synchronously, so the map is redrawn at the new size right away
+}
+/* window resize: new height → fitBPage; new width → lay the map out again (REQ-26) */
+function onBResize(){
+  fitBPage();const m=$('#page-graph .bq-map');if(!m||$('#page-graph').hidden)return;
+  const w=m.clientWidth;if(Math.abs(w-(onBResize.w||0))>8){onBResize.w=w;try{renderClusterPage()}catch(e){}}
+}
+(function wireBPage(){
+  const btn=$('#cgMax'),scrim=$('#cgMaxScrim'),isMax=()=>!!$('#page-graph .bq-map.maxed');
+  if(btn)btn.addEventListener('click',()=>cgMax(!isMax()));
+  if(scrim)scrim.addEventListener('click',()=>cgMax(false));
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&isMax()&&!(typeof S3!=='undefined'&&S3.open))cgMax(false)});
+  addEventListener('resize',()=>{clearTimeout(onBResize.t);onBResize.t=setTimeout(onBResize,120)});
+})();
 addEventListener('load',()=>setTimeout(fitBPage,50));
 function renderClusterPage(){
   if(typeof cpRenderSel==='function')cpRenderSel();
@@ -526,7 +578,7 @@ function renderClusterPage(){
   const box=$('#cgGraph');
   if(units.length<2){box.innerHTML='<div class="cv-empty" style="height:360px">No cluster analysis yet.</div>';$('#cgSide').innerHTML='';$('#cgLegend').innerHTML='';$('#cgMeta').textContent='';return}
   const r=renderClusterGraph(units,cls,{big:true,box});
-  if(V3.on)mountGraph3D(units,cls,box,'graphB',Math.round(Math.min(720,Math.max(240,box.parentElement.clientHeight||480))));   // same 2D/3D switch as on A/B
+  if(V3.on)mountGraph3D(units,cls,box,'graphB',Math.round(Math.min(B_MAP_MAX_H,Math.max(240,box.parentElement.clientHeight||480))));   // same 2D/3D switch as on A/B
   const run=(!LIVE&&DEMO&&DEMO.clusters&&DEMO.clusters.run)||'';
   $('#cgMeta').textContent=`${r.act.length} clusters · ${units.filter(u=>u.on).length} documents · ${r.links.length} bridges${SEL_DB.length?' · '+dbNames(SEL_DB).join('+'):''}${run?' · run '+run.slice(0,10):''}`;
   const dbs=DATABASES.filter(n=>units.some(u=>u.on&&(u.db||[]).includes(n)));
@@ -691,3 +743,4 @@ $('#dbpClose').addEventListener('click',closeDbInfo);
 $('#scrim').addEventListener('click',closeDbInfo);
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDbInfo()});
 $('#dbInfoAll').addEventListener('click',()=>openDbInfo(null));
+
