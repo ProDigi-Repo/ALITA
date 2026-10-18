@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>ALITA · Reviewer access</title>
+<style>
+  :root{font-family:system-ui,sans-serif;color:#172236;background:#f3f6fa}
+  body{margin:0;min-height:100vh;display:grid;place-items:center}
+  main{max-width:30rem;margin:1.5rem;padding:2rem;background:white;border:1px solid #d9e1eb;border-radius:1rem}
+  h1{margin-top:0}p{line-height:1.6}label{display:block;font-weight:600}
+  input,button{box-sizing:border-box;width:100%;padding:.8rem;margin-top:.6rem;border-radius:.5rem;font:inherit}
+  input{border:1px solid #9baabc}button{border:0;background:#1858a8;color:white;cursor:pointer}
+  button:disabled{opacity:.6;cursor:wait}#message{min-height:1.5rem;color:#a92121}small{line-height:1.6;display:block;color:#46556b}
+</style>
+<script src="/js/review-login.js" defer></script>
+</head>
+<body>
+<main>
+<h1>ALITA · Reviewer access</h1>
+<p>Enter the invitation code supplied by the editor. No name or email address is required.</p>
+<form id="reviewLogin" autocomplete="off">
+  <label for="invitation">Invitation code</label>
+  <input id="invitation" type="password" required minlength="24" maxlength="128" autocomplete="off" spellcheck="false" autofocus>
+  <button id="signIn" type="submit">Continue</button>
+  <p id="message" role="status" aria-live="polite"></p>
+</form>
+<small>Reviewers can read and download all documents, but cannot change data. Chat requires your own OpenRouter API key. Cloudflare may process connection information such as your IP address; this is not a guarantee of network anonymity.</small>
+</main>
+</body>
+</html>

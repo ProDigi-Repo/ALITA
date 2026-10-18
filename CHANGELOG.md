@@ -8,6 +8,15 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [Unreleased]
 
+### Added
+- Optional anonymous reviewer host with expiring invitation codes, read-only sessions, document downloads and each reviewer's own OpenRouter key. Includes an issue/revoke CLI; private Cloudflare Access remains unchanged.
+- Hetzner Compose profile and mailcode setup guide for a shared workspace behind Cloudflare Access/Tunnel; no published host ports.
+
+### Security
+- Verify Access JWT signatures, issuer, audience and expiry; reserve uploads and mutations for configured admins. Chat keeps using each user's own OpenRouter key.
+- Require an explicit Neo4j password instead of a committed default; restrict CORS, downloads and ZIP expansion, and cap HTTP uploads at 50 MiB.
+- Keep keys and chat history in page memory only, with Access logout. Export existing chats before upgrading: old browser-persisted keys/history are removed on first load.
+
 ## [2.1.0] - 2026-10-17
 
 > **Minor release – workspace and time line:** the B Interaction Interface uses the whole screen (map on the left over the full height, "Projects & clusters" and the Graph Chat on the right), the knowledge map fills its tile and can be enlarged, and the 3D · time view shows every document at its exact date with a time zoom down to days. 13 new requirements from the review of 2.0.0 (REQ-22 – REQ-34, incl. feedback from Dustin) – all done; see "Requirements" below, `docs/requirements-status.md` and `docs/requirements-log.xlsx` (each request with its original wording and as a requirement). Frontend only: the REST API and the backend are unchanged – a browser reload is enough, no rebuild. Roll back with `git checkout v2.0.0`.

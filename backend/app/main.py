@@ -4,25 +4,26 @@ from __future__ import annotations
 import asyncio
 import logging
 import shutil
-import tempfile
+import stat
 import uuid
 import zipfile
 from collections import Counter
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Annotated
 
-from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import rag, store, usage
+from .access import protect_request
 from .config import get_settings
 from .glossary import load_glossary
 from .graphrag import GraphRequest
 from .ingest import IngestOptions, ingest_file, ingest_project
 from .llm import MissingApiKey, resolve_key
+from .reviewers import router as reviewer_router
 
 log = logging.getLogger("alita.api")
 from pydantic import BaseModel
@@ -33,7 +34,8 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message
 from . import __version__
 
 app = FastAPI(title="ALITA Prototype API", version=__version__)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.middleware("http")(protect_request)  # Frontend/API are same-origin; no permissive CORS.
+app.include_router(reviewer_router)
 
 KeyHeader = Annotated[str | None, Header(alias="X-OpenRouter-Key")]
 JOBS: dict[str, dict] = {}
@@ -82,6 +84,12 @@ def health() -> dict:
     s = get_settings()
     return {"status": "ok", "version": __version__, "chat_model": s.chat_model, "embedding_model": s.embedding_model,
             "server_key": False, "key_source": "interface", "databases": s.databases, "database_names": s.database_names}
+
+
+@app.get("/api/me")
+def current_user(request: Request) -> dict:
+    return {"email": request.state.email, "is_admin": request.state.is_admin,
+            "access_enabled": request.state.access_enabled, "auth_mode": request.state.auth_mode}
 
 
 # ------------------------------------------------------------------ Chat
@@ -356,9 +364,11 @@ class ProgressRequest(BaseModel):
 
 
 @app.get("/api/projects/{name}/progress")
-def project_progress(name: str, stages: int = 5, recompute: bool = False):
+def project_progress(name: str, request: Request, stages: int = 5, recompute: bool = False):
     """REQ-10/16/17/18: Versionshistorie in Erkenntnisstufen – Versionen, Art jeder Änderung, Stufen mit Dateien und Analysen."""
     from .progress import project_progress as pp
+    if recompute and not request.state.is_admin:
+        raise HTTPException(403, "Admin access required")
     if not store.get_project(name):
         raise HTTPException(404, "Project not found")
     return pp(name, stages, recompute)
@@ -508,8 +518,12 @@ def file(doc_id: str):
     d = store.get_document(doc_id)
     if not d or not Path(d["source_path"]).is_file():
         raise HTTPException(404, "File not found")
-    return FileResponse(d["source_path"], filename=d["filename"], media_type=d.get("mime") or None,
-                        content_disposition_type="inline")
+    # Only PDFs need an inline preview. HTML/SVG and other uploads must not run in the app's origin.
+    inline = Path(d["filename"]).suffix.lower() == ".pdf" and d.get("mime") == "application/pdf"
+    return FileResponse(d["source_path"], filename=d["filename"],
+                        media_type="application/pdf" if inline else "application/octet-stream",
+                        content_disposition_type="inline" if inline else "attachment",
+                        headers={"X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox"})
 
 
 # ------------------------------------------------------------ Ingestion
@@ -527,6 +541,19 @@ async def _run_job(job_id: str, coro):
     except Exception as e:  # die Kostenanzeige darf den Job nicht stören
         log.warning("Usage of job %s not computed: %s", job_id, e)
     JOBS[job_id].update(upd)
+
+
+def checked_zip_members(archive: zipfile.ZipFile) -> list[str]:
+    """Bound expansion and reject unsafe members before extracting an admin upload."""
+    entries = archive.infolist()
+    if len(entries) > 1000 or sum(entry.file_size for entry in entries) > 250 * 1024 * 1024:
+        raise HTTPException(413, "ZIP exceeds 1000 entries or 250 MiB uncompressed")
+    for entry in entries:
+        path = PurePosixPath(entry.filename)
+        if (path.is_absolute() or ".." in path.parts or "\\" in entry.filename or ":" in entry.filename
+                or stat.S_ISLNK(entry.external_attr >> 16)):
+            raise HTTPException(400, "Unsafe ZIP member")
+    return [entry.filename for entry in entries if entry.filename.strip("/") and not entry.filename.startswith("__MACOSX")]
 
 
 @app.post("/api/ingest")
@@ -557,19 +584,18 @@ async def ingest(
         target = s.data_dir / "projects"
         target.mkdir(parents=True, exist_ok=True)
         for up in files:
-            with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
-                shutil.copyfileobj(up.file, tmp)
-            # Projektname = Ordnername im ZIP (oder ZIP-Name, wenn die Dateien direkt im ZIP liegen)
-            with zipfile.ZipFile(tmp.name) as z:
-                names = [n for n in z.namelist() if n.strip("/") and not n.startswith("__MACOSX")]
-                roots = {n.split("/")[0] for n in names}
-                if len(roots) == 1 and all("/" in n for n in names):
-                    folder = target / roots.pop()
-                    z.extractall(target, members=names)
-                else:
-                    folder = target / Path(up.filename).stem
-                    z.extractall(folder, members=names)
-            Path(tmp.name).unlink(missing_ok=True)
+            try:
+                with zipfile.ZipFile(up.file) as z:
+                    names = checked_zip_members(z)
+                    roots = {n.split("/")[0] for n in names}
+                    if len(roots) == 1 and all("/" in n for n in names):
+                        folder = target / roots.pop()
+                        z.extractall(target, members=names)
+                    else:
+                        folder = target / Path(up.filename).stem
+                        z.extractall(folder, members=names)
+            except zipfile.BadZipFile as e:
+                raise HTTPException(400, "Invalid ZIP archive") from e
             jid = str(uuid.uuid4())
             JOBS[jid] = {"status": "queued", "kind": "project", "name": folder.name}
             background.add_task(_run_job, jid, ingest_project(folder, opts))
