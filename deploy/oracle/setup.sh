@@ -35,7 +35,7 @@ setkey() {  # setkey NAME WERT  (nur wenn noch nicht gesetzt)
   if ! grep -q "^$1=" .env; then echo "$1=$2" >> .env; echo "   $1 gesetzt"; fi
 }
 setkey COMPOSE_FILE "docker-compose.yml:deploy/oracle/docker-compose.oracle.yml"
-if grep -q '^NEO4J_PASSWORD=alita-neo4j' .env && ! docker volume ls 2>/dev/null | grep -q neo4j_data; then
+if grep -Eq '^NEO4J_PASSWORD=(alita-neo4j)?$' .env && ! docker volume ls 2>/dev/null | grep -q neo4j_data; then
   sed -i "s/^NEO4J_PASSWORD=.*/NEO4J_PASSWORD=$(openssl rand -hex 16)/" .env; echo "   NEO4J_PASSWORD zufällig gesetzt"
 fi
 setkey NEO4J_PASSWORD "$(openssl rand -hex 16)"

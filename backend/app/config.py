@@ -1,11 +1,13 @@
 """Zentrale Konfiguration über pydantic-settings (.env oder Umgebungsvariablen)."""
 from __future__ import annotations
 
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
+from urllib.parse import urlsplit
 
-from pydantic import Field, field_validator
+from pydantic import AwareDatetime, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -15,6 +17,42 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=(ROOT / ".env", ".env"), env_file_encoding="utf-8", extra="ignore"
     )
+
+    # --- Cloudflare Access (nur im Server-Profil verpflichtend) -----------
+    access_enabled: bool = False
+    access_team_domain: str = ""
+    access_audience: str = ""
+    public_origin: str = ""
+    admin_emails: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    # Optional, separate host for anonymous read-only invitations. Disabled when empty.
+    review_origin: str = ""
+    review_session_secret: SecretStr = SecretStr("")
+    review_invites: dict[str, AwareDatetime] = Field(default_factory=dict)  # SHA-256(code) -> UTC expiry
+
+    @field_validator("admin_emails", mode="before")
+    @classmethod
+    def _admins(cls, value):
+        values = value.split(",") if isinstance(value, str) else value
+        return [email.strip().lower() for email in values if email.strip()]
+
+    @model_validator(mode="after")
+    def _access_config(self):
+        if self.access_enabled:
+            origin = urlsplit(self.public_origin)
+            if (not re.fullmatch(r"[a-zA-Z0-9-]+\.cloudflareaccess\.com", self.access_team_domain)
+                    or not self.access_audience.strip() or not self.admin_emails
+                    or origin.scheme != "https" or not origin.hostname or origin.username or origin.password
+                    or origin.path or origin.query or origin.fragment):
+                raise ValueError("Access requires ACCESS_TEAM_DOMAIN, ACCESS_AUDIENCE, ADMIN_EMAILS and PUBLIC_ORIGIN (HTTPS origin, no trailing slash)")
+        if self.review_origin:
+            origin = urlsplit(self.review_origin)
+            if (not self.access_enabled or origin.scheme != "https" or not origin.hostname
+                    or origin.hostname == urlsplit(self.public_origin).hostname or origin.username or origin.password
+                    or origin.path or origin.query or origin.fragment
+                    or len(self.review_session_secret.get_secret_value()) < 32
+                    or any(not re.fullmatch(r"[0-9a-f]{64}", digest) for digest in self.review_invites)):
+                raise ValueError("Reviewer access requires a separate HTTPS origin, a strong session secret and hashed invitations")
+        return self
 
     # --- OpenRouter -------------------------------------------------------
     openrouter_api_key: str = ""
@@ -61,7 +99,7 @@ class Settings(BaseSettings):
     graph_enabled: bool = True      # Neo4j-Wissensgraph (DoCO/DEO) pflegen und für Graph RAG nutzen
     neo4j_url: str = "bolt://neo4j:7687"
     neo4j_user: str = "neo4j"
-    neo4j_password: str = "alita-neo4j"
+    neo4j_password: str = ""
     neo4j_database: str = "neo4j"
     graph_import_ontologies: bool = True  # DoCO/DEO/FaBiO/CiTO per neosemantics (n10s) aus dem Netz laden
     auto_cluster: bool = True     # nach jeder Ingestion neu clustern
