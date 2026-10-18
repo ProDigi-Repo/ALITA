@@ -1,0 +1,45 @@
+# Optional pilot limits; use AFTER docker-compose.hetzner.yml. Requires host swap.
+# Sum of hard limits exceeds 4 GB: run ingestion/imports serially, not beside heavy chat traffic.
+services:
+  backend:
+    mem_limit: 1280m
+    memswap_limit: 2g
+    environment:
+      OPENBLAS_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--workers", "1", "--limit-concurrency", "8"]
+  neo4j:
+    mem_limit: 1152m
+    memswap_limit: 1536m
+    environment:
+      NEO4J_server_memory_heap_initial__size: 256M
+      NEO4J_server_memory_heap_max__size: 512M
+      NEO4J_server_memory_pagecache_size: 256M
+  qdrant:
+    mem_limit: 1g
+    memswap_limit: 1536m
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    environment:
+      QDRANT__STORAGE__PERFORMANCE__MAX_SEARCH_THREADS: "1"
+      QDRANT__STORAGE__OPTIMIZERS__MAX_OPTIMIZATION_THREADS: "1"
+  frontend:
+    mem_limit: 96m
+    memswap_limit: 96m
+  cloudflared:
+    mem_limit: 128m
+    memswap_limit: 192m
+  ingest:
+    mem_limit: 1280m
+    memswap_limit: 2g
+    environment:
+      OPENBLAS_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+  migrate:
+    mem_limit: 768m
+    memswap_limit: 1g
+  seed:
+    mem_limit: 1280m
+    memswap_limit: 2g
