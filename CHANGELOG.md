@@ -9,6 +9,7 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 ## [Unreleased]
 
 ### Added
+- Reusable manual Hetzner code-deployment script with candidate import/health checks, rollback, private configuration backups and data-count checks; optional 4-GB pilot limits and an operations runbook. No automatic GitHub deployment or production configuration change.
 - Optional anonymous reviewer host with expiring invitation codes, read-only sessions, document downloads and each reviewer's own OpenRouter key. Includes an issue/revoke CLI; private Cloudflare Access remains unchanged.
 - Hetzner Compose profile and mailcode setup guide for a shared workspace behind Cloudflare Access/Tunnel; no published host ports.
 

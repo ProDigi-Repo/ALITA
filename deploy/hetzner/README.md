@@ -5,10 +5,13 @@ Nur `ADMIN_EMAILS` dürfen hochladen, Metadaten ändern und Wartungs-/Neuberechn
 Jede Person bringt ihren eigenen OpenRouter-Key mit. Es gibt keine lokalen Benutzerkonten.
 Für anonyme Begutachtung ohne Mailadresse gibt es optional einen separaten
 [Reviewer-Zugang mit Einladungscode](reviewers.md).
+Das [Betriebs-Runbook](operations.md) beschreibt das optionale 4-GB-Pilotprofil,
+manuelle Code-Deployments und Rollbacks mit `deploy.sh`.
 
 ## 1. VM vorbereiten
 
 - Ubuntu 24.04 LTS; als Startwert 4 vCPU / 16 GB RAM / mindestens 100 GB SSD, je nach Datenmenge.
+  Für kleine, sparsame Pilotinstallationen alternativ das [4-GB-Profil mit Host-Swap](operations.md#optionales-4-gb-pilotprofil) verwenden; parallele Last ist damit nicht garantiert.
 - Docker Engine und Compose **>= 2.24.4** installieren: [offizielle Ubuntu-Anleitung](https://docs.docker.com/engine/install/ubuntu/).
 - Hetzner Cloud Firewall: eingehend alles sperren außer SSH (TCP 22) von deiner Admin-IP/VPN,
   für IPv4 **und** IPv6. SSH nur mit Schlüssel; keine öffentliche Freigabe von 80/443 oder DB-Ports.

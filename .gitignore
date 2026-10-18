@@ -2,6 +2,7 @@
 .env.*
 !.env.example
 .secrets/
+compose.host.yml
 data/
 __pycache__/
 *.pyc
