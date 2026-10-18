@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Tests and checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    env:
+      OPENBLAS_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+      UV_LINK_MODE: copy
+      GITLEAKS_IMAGE: ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f # v8.30.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Scan tracked source and new commits for secrets
+        env:
+          SCAN_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          SCAN_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          # Archive only tracked source: never scan caches, local .env files or installed dependencies.
+          snapshot=$(mktemp -d "$RUNNER_TEMP/alita-source.XXXXXX")
+          trap 'rm -rf -- "$snapshot"' EXIT
+          git archive HEAD | tar -x -C "$snapshot"
+          docker run --rm --network none --user "$(id -u):$(id -g)" \
+            -v "$snapshot:/src:ro" "$GITLEAKS_IMAGE" dir /src --redact --no-banner
+          # PR/push commit range; manual runs also scan the latest commit (not all legacy history).
+          [[ "$SCAN_HEAD" =~ ^[0-9a-f]{40}$ ]]
+          if [[ "$SCAN_BASE" =~ ^[0-9a-f]{40}$ && "$SCAN_BASE" != 0000000000000000000000000000000000000000 ]] \
+              && git cat-file -e "$SCAN_BASE^{commit}" 2>/dev/null; then
+            log_opts="$SCAN_BASE..$SCAN_HEAD"
+          else
+            log_opts="-1 $SCAN_HEAD"
+          fi
+          docker run --rm --network none --user "$(id -u):$(id -g)" \
+            -v "$PWD:/repo:ro" "$GITLEAKS_IMAGE" git /repo --log-opts="$log_opts" --redact --no-banner
+
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.13.1"
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: backend/requirements.txt
+          save-cache: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Install dependencies and check tools
+        run: |
+          uv venv --python 3.12
+          uv pip install -r backend/requirements.txt ruff==0.17.1 shellcheck-py==0.11.0.1
+          docker compose version
+
+      - name: Python lint
+        run: .venv/bin/ruff check backend tools/reviewer_invites.py
+
+      - name: Shell syntax and deployment lint
+        run: |
+          git ls-files -z '*.sh' | xargs -0 -r -n 1 bash -n
+          .venv/bin/shellcheck deploy/hetzner/deploy.sh
+
+      - name: JavaScript syntax
+        run: |
+          for file in frontend/js/*.js; do node --check "$file"; done
+
+      - name: nginx configuration
+        run: |
+          docker run --rm --network none \
+            -v "$PWD/docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
+            nginx:1.28-alpine nginx -t
+
+      - name: Backend, authorization and deployment tests
+        working-directory: backend
+        run: ../.venv/bin/python -m pytest -q
+
+      - name: Generated frontend data is current
+        run: |
+          .venv/bin/python tools/build_frontend.py data
+          git diff --exit-code -- frontend/js/data.js
