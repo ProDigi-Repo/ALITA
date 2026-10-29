@@ -120,7 +120,7 @@ _CHAPTER = re.compile(r"^(CHAPTER|KAPITEL)\s+([IVXLC]+|\d+)\b\.?\s*(.*)$")
 _SECTION = re.compile(r"^(SECTION|ABSCHNITT)\s+(\d+)\b\.?\s*(.*)$")
 _ARTICLE = re.compile(r"^(Article|Artikel|Art\.)\s+(\d+(?:[a-z]{1,2}|\s[a-z](?![a-z])|\([a-z]\))?)\s*(?:$|[–—:\-.]\s*(.{0,140})$)")   # 28a, „54 a“, „28(a)“
 _PARA_SIGN = re.compile(r"^§\s*(\d+[a-z]?)\s*(.{0,140})$")
-_ANNEX = re.compile(r"^(ANNEX|ANHANG|Annex|Anhang)\s+([IVXLC]+|[A-Z]|\d+)\b\s*(?:$|[–—:\-.(]\s*(.{0,140})$)")
+_ANNEX = re.compile(r"^(ANNEX|ANHANG|Annex|Anhang|APPENDIX|Appendix)\s+([IVXLC]+|[A-Z]|\d+)\b\s*(?:$|[–—:\-.(]\s*(.{0,140})$)")
 _SUPPLEMENT = re.compile(r"^(LEGISLATIVE FINANCIAL STATEMENT|FINANZBOGEN ZU RECHTSAKTEN)\b")   # Anlage der Kommissionsvorschläge
 _DEF_EN = re.compile(r"^\((\d{1,3}[a-z]?)\)(?:\s+(\S.*))?$")      # Begriffsbestimmungen „(1) ‘AI system’ means …“
 _ENACTING = re.compile(r"(HAVE|HAS) ADOPTED TH(IS|E FOLLOWING)|HAT FOLGENDE|HABEN FOLGENDE|ERLASSEN:?\s*$", re.I)
@@ -140,6 +140,7 @@ _CLAUSE = re.compile(r"^(\d{1,2}(?:\.\d{1,3}){0,4})\.?\s+([A-ZÄÖÜ‘“\"'(][
 _MARGIN = re.compile(r"^(\d{1,4})\.\s+(\S.*)$")
 _ANNEX_CLAUSE = re.compile(r"^([A-Z](?:\.\d{1,3}){1,4})\.?\s+([A-ZÄÖÜ‘“\"'(][^\n]{1,110})$")   # „C.1.2 Solution …“ in Anhängen
 _BARE_NUM = re.compile(r"^(\d{1,2}(?:\.\d{1,3}){1,4})\.?$")                                   # „3.1“ allein: Begriff folgt
+_BACK_MATTER = re.compile(r"^(References|Bibliography|Literaturhinweise|Normative References)\s*$")   # Norm: Literaturverzeichnis
 _ANNEX_STATUS = re.compile(r"^\((informative|normative|informativ|normativ)\)$", re.I)
 _MARGIN_P = re.compile(r"^\((\d{1,4})\)\s+(\S.*)$")             # Randnummern „(13)“ der Kommissionsleitlinien
 _ROMAN_SEC = re.compile(r"^([IVX]{1,5})\.\s+([A-Z].{1,110})$")   # „II. Objective and main elements …“
@@ -480,6 +481,10 @@ def parse_components(text: str, kind: str = "law") -> list[Component]:
                 cur = add(f"anx_{m.group(2)}", "annex", m.group(2), None, ttl)
                 expect_title = cur if not cur.title else None
                 continue
+            if kind == "standard" and _BACK_MATTER.match(ln) and not cur.cid.startswith("bib"):
+                clause_stack = []                 # „References“ (NIST) / „Bibliography“ (ISO): eigene Anlage, nicht Ende von 4.7
+                cur = add("bib", "supplement", "", None, ln.strip())
+                continue
             annex_ctx = cur.cid.split("/")[0] if cur.cid.startswith("anx_") else None
             m = _ANNEX_CLAUSE.match(ln) if annex_ctx and kind == "standard" else None
             if m and m.group(1)[0] == annex_ctx[4:5] and not ln.rstrip().endswith((".", ";", ",")):
@@ -590,6 +595,8 @@ def component_label(cid: str, title: str = "") -> str:
         return f"Q {head[2:]}"
     elif head.startswith("tp_"):
         return f"Topic {head[3:]}"
+    elif head == "bib":
+        return "References"
     elif head == "lfs":
         return "Legislative financial statement"
     for p in parts[1:]:

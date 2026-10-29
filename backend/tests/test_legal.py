@@ -633,3 +633,29 @@ def test_standard_terms_annex_status_and_annex_clauses():
     assert cs["anx_A"].title == "Types of uncertainty: aleatoric and epistemic (informative)"
     assert cs["anx_C"].title == "Use cases (informative)" and cs["anx_C/cl_C.1.1"].parent == "anx_C/cl_C.1"
     assert "cl_3~2" not in cs and "GPS Outage" in cs["anx_C/cl_C.1.1"].text      # Tabellenzeilen im Anhang sind Text
+
+
+NIST_STYLE = """NIST SP 800-18r2
+Table of Contents
+1. Introduction ............................................ 1
+Appendix A. RMF Task Outputs ............................. 40
+1. Introduction
+This publication provides guidance.
+4. System Plan Development
+4.7. Monitor
+Monitoring continues.
+References
+[SP 800-37] Joint Task Force (2018) Risk Management Framework.
+Appendix A. RMF Task Outputs Related to System Plan Elements
+Table 1 lists outputs.
+Appendix C. Glossary
+system plan
+A security plan, privacy plan or C-SCRM plan.
+"""
+
+
+def test_nist_appendices_and_references():
+    cs = {c.cid: c for c in L.parse_components(NIST_STYLE, "standard")}
+    assert cs["anx_A"].title.startswith("RMF Task Outputs") and cs["anx_C"].title == "Glossary"
+    assert cs["bib"].type == "supplement" and "SP 800-37" in cs["bib"].text and "SP 800-37" not in cs["cl_4.7"].text
+    assert L.component_label("bib") == "References" and "cl_1~2" not in cs

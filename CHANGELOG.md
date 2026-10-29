@@ -8,6 +8,16 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [Unreleased]
 
+## [3.3.2] - 2026-10-30
+
+> **Patch release – NIST SP 800-18 Rev. 2.** Second standard of the database "EU AI Act": NIST Special Publication 800-18 Revision 2, "Developing Security, Privacy, and Cybersecurity Supply Chain Risk Management Plans for Systems" (June 2026, 70 pages, free of charge). NIST documents have "Appendix A." instead of "Annex A" and an unnumbered "References" section; the appendices were not found and the reference list ended up in section 4.7. Checked on the real file: sections 1–4.7 (28 clauses), References, Appendices A–D; DIN SPEC 92005 and all other documents are split as before. One new requirement (REQ-50). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest standard /research/EUAIA/standards` (reads both standards – check the DIN licence first, see 3.3.1). Roll back with `git checkout v3.3.1`.
+
+### Requirements
+- **REQ-50 Add another standard (NIST SP 800-18 Rev. 2)** – ✅ prepared and checked offline; second entry in `research/EUAIA/standards/_legal.yaml`; ingestion runs in Docker. (The first upload for this request was the DIN SPEC 92005 file again; nothing was changed for it.)
+
+### Fixed
+- Standards: "Appendix A. …" is recognised as an annex (NIST); an unnumbered "References", "Bibliography" or "Literaturhinweise" heading starts a supplement of its own (cited as "References") instead of continuing the last clause.
+
 ## [3.3.1] - 2026-10-30
 
 > **Patch release – the first standard.** DIN SPEC 92005:2024-03 "Artificial Intelligence – Uncertainty quantification in machine learning" (46 pages, text in English) as the first standard of the database "EU AI Act". The file is a personal DIN Media download: every page carries a stamp with the buyer's name, customer number, download ID and time. ALITA now removes such licence stamps when reading a PDF, so they reach neither the index nor the language model. Checked on the real file: no stamp left; sections 1–7 with all subclauses, 28 terms, Annexes A–C with clauses C.1 … C.2.x – 92 parts, 174 text units. One new requirement (REQ-49). **Licence:** a standard bought from DIN Media is usually licensed to one person; storing its full text in a shared ALITA instance and sending it to an external AI service (summaries, embeddings) may not be covered – check before ingesting. **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest standard /research/EUAIA/standards`. Roll back with `git checkout v3.3.0`.
