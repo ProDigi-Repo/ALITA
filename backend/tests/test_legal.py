@@ -527,3 +527,37 @@ def test_commission_guideline_margins_sections_and_footnotes():
                                                               for c in cs.values())
     assert "cl_4" not in cs and "cl_2" not in cs                          # Fußnoten „4 …“, „2 …“ sind keine Gliederung
     assert L.component_label("sec_II") == "Section II" and L.component_label("rn_4") == "Para. 4"
+
+
+GUIDELINE_TOC = """COMMUNICATION FROM THE COMMISSION
+CONTENTS
+1. Background and objectives ........................................................ 1
+2. Overview of prohibited AI practices ................................................ 2
+2.1. Prohibitions listed in Article 5 AI Act ...................................... 2
+2.2. Material scope: practices related to the ‘placing on the market’, ‘putting into service’ or
+‘use’ of an AI system .............................................................. 4
+1. BACKGROUND AND OBJECTIVES
+(1) Article 5 AI Act prohibits certain practices.
+(2) These guidelines explain them:
+1. Transparency and individual autonomy: providers should inform users.
+2. Compliance with legislation.
+2. OVERVIEW OF PROHIBITED AI PRACTICES
+2.1. Prohibitions listed in Article 5 AI Act
+(3) Article 5(1) reads:
+1. The following AI practices shall be prohibited:
+(4) A study (Smith 2023) shows effects, see also
+(2022) doi:10.1177/1461444822;
+2.2. ‘Placing on the market’, ‘putting into service’ or ‘use’
+(5) The prohibitions apply to all operators.
+2.3. (Reasonably likely to) cause significant harm
+(6) Harm must be significant.
+"""
+
+
+def test_guideline_toc_lists_and_outline_sequence():
+    cs = {c.cid: c for c in L.parse_components(GUIDELINE_TOC, "guideline")}
+    assert [c for c in cs if c.startswith("cl_")] == ["cl_1", "cl_2", "cl_2.1", "cl_2.2", "cl_2.3"]   # kein Inhaltsverzeichnis,
+    assert not any("~" in c for c in cs)                                                           # keine Aufzählungen als Gliederung
+    assert [c for c in cs if c.startswith("rn_")] == [f"rn_{i}" for i in range(1, 7)]               # „(2022) doi:…“ keine Randnummer
+    assert cs["rn_2"].parent == "cl_1" and "Transparency" in cs["rn_2"].text and cs["rn_6"].parent == "cl_2.3"
+    assert "(2022) doi" in cs["rn_4"].text

@@ -8,6 +8,17 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [Unreleased]
 
+## [3.2.2] - 2026-10-29
+
+> **Patch release – the guidelines on prohibited AI practices.** Second legal guideline of the database "EU AI Act": Commission Guidelines on prohibited artificial intelligence practices established by Regulation (EU) 2024/1689, C(2025) 5052 final of 29 July 2025 (134 pages). It has a table of contents, quotes provisions of the AI Act and contains numbered lists – all of which the parser took for headings, so most headings appeared twice. Checked on the real file: 114 headings (down to "10.2.2.5"), all 433 margin numbers without gaps or duplicates, each under its heading; the first guideline and the four AI Act versions are split as before. One new requirement (REQ-47). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest guideline /research/EUAIA/guidelines` (reads both guidelines). Roll back with `git checkout v3.2.1`.
+
+### Requirements
+- **REQ-47 Add a second legal guideline (Commission Guidelines on prohibited AI practices)** – ✅ prepared and checked offline; file in `research/EUAIA/guidelines/`, second entry in its `_legal.yaml`; the ingestion runs in Docker.
+
+### Fixed
+- Tables of contents (lines with dot leaders, also when an entry wraps over two lines) are skipped.
+- Commission guidelines: a heading must continue the outline ("4" after "3", "3.2" after "3.1" or inside "3"), so numbered lists in the text and quoted provisions ("1. The following AI practices shall be prohibited:") stay text; margin numbers must follow each other, so "(2022) doi:…" is no margin number; headings that wrap after a comma or start with a quotation mark or bracket ("‘Social scoring’: …", "(Reasonably likely to) cause significant harm") are recognised.
+
 ## [3.2.1] - 2026-10-29
 
 > **Patch release – Commission guidelines.** First legal guideline of the database "EU AI Act": the Commission Guidelines on the definition of an artificial intelligence system established by Regulation (EU) 2024/1689, C(2025) 5053 final of 29 July 2025 (13 pages). Commission guidelines are structured by sections "I.", "II.", headings "1." and "5.1." and margin numbers "(1)" … "(64)" – the parser expected margin numbers "1." and took the footnotes ("4 For overview …") for headings. Checked on the real file: 3 sections, 9 headings, all 64 margin numbers, no footnotes in the text; 138 text units. One new requirement (REQ-46). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest guideline /research/EUAIA/guidelines`. Roll back with `git checkout v3.2.0`.

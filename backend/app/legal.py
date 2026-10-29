@@ -136,10 +136,11 @@ _FOOTNOTE = re.compile(r"^\(\d{1,3}\)\s")
 _PAGE_OF = re.compile(r"(?:^|\s)\d{1,4}/\d{1,4}(?:\s|$)")              # „15/41“ – nur echte Seitenfußzeilen, kein ELI-Zitat im Text
 _CA = re.compile(r"(?:^|\s)CA\s+(\d{1,3})$")              # Kopfzeile eines Kompromissblocks („Articles 40 to 51 … CA 2“)
 CA_MARK = "\x00CA "
-_CLAUSE = re.compile(r"^(\d{1,2}(?:\.\d{1,3}){0,4})\.?\s+([A-ZÄÖÜ][^\n]{1,110})$")
+_CLAUSE = re.compile(r"^(\d{1,2}(?:\.\d{1,3}){0,4})\.?\s+([A-ZÄÖÜ‘“\"'(][^\n]{1,110})$")
 _MARGIN = re.compile(r"^(\d{1,4})\.\s+(\S.*)$")
 _MARGIN_P = re.compile(r"^\((\d{1,4})\)\s+(\S.*)$")             # Randnummern „(13)“ der Kommissionsleitlinien
 _ROMAN_SEC = re.compile(r"^([IVX]{1,5})\.\s+([A-Z].{1,110})$")   # „II. Objective and main elements …“
+_TOC_LEADER = re.compile(r"(\.\s?){6,}|…{3,}|(\.\s?){3,}\s*\d{1,4}\s*$")   # Inhaltsverzeichnis „2.3. Scope ........ 4“
 _FN_LINE = re.compile(r"^(\d{1,3})\s+(?![\d.])\S")                # Fußnote „4 For overview …“ (Ziffer ohne Punkt)
 
 
@@ -161,6 +162,11 @@ def clean_lines(text: str, numbered_footnotes: bool = False) -> list[str]:
                 j -= 1
             if j < 0 or not raw[j] or _LINE_SKIP.match(raw[j]):   # davor Seitenzahl/Leerzeile: das ist der Kopf
                 drop.update(head)
+    for i, ln in enumerate(raw):                  # Inhaltsverzeichnis: Zeilen mit Punktreihen (+ umbrochener Eintrag davor)
+        if _TOC_LEADER.search(ln):
+            drop.add(i)
+            if i > 0 and raw[i - 1] and re.match(r"^\d+(?:\.\d+)*\.?\s", raw[i - 1]) and not _TOC_LEADER.search(raw[i - 1]):
+                drop.add(i - 1)
     if numbered_footnotes:
         last = 0
         for i, ln in enumerate(raw):
@@ -201,6 +207,21 @@ def _is_reference(ln: str, num: str, current: str) -> bool:
         return True                               # „Article 58. The Board may …“ – Überschriften haben keinen Satz dahinter
     a, b = re.match(r"\d+", num), re.match(r"\d+", current or "")
     return bool(a and b and int(a.group()) < int(b.group()))
+
+
+def _next_in_outline(num: str, stack: list, last_top: int) -> bool:
+    """Passt „num“ fortlaufend in die Gliederung einer Leitlinie? „4“ nach „3“, „3.2“ nach „3.1“ / in „3“, „3.2.1“ in „3.2“."""
+    parts = [int(x) for x in num.split(".")]
+    if len(parts) == 1:
+        return last_top < parts[0] <= last_top + 2
+    parent = ".".join(map(str, parts[:-1]))
+    nums = [c.number for c in stack]
+    if parent not in nums:
+        return False
+    i = nums.index(parent)
+    sib = nums[i + 1] if i + 1 < len(nums) else None          # bisheriges Geschwister auf dieser Ebene
+    prev = int(sib.split(".")[-1]) if sib and sib.count(".") == num.count(".") else 0
+    return prev < parts[-1] <= prev + 2
 
 
 def detect_style(lines: list[str]) -> str:
@@ -247,6 +268,7 @@ def parse_components(text: str, kind: str = "law") -> list[Component]:
 
     ca_seen = in_annexes = False
     roman: Component | None = None                # Hauptabschnitt „II.“ einer Leitlinie
+    last_top = last_rn = 0                        # Leitlinie: zuletzt gesehene Gliederungsnummer / Randnummer
     for ln in lines:
         if ln.startswith(CA_MARK):                # neuer Kompromissblock: Gliederung von vorn, Erwägungsgründe zuerst
             ca_seen = True
@@ -381,9 +403,12 @@ def parse_components(text: str, kind: str = "law") -> list[Component]:
                 roman = cur = add(f"sec_{m.group(1)}", "section", m.group(1), None, m.group(2).strip())
                 continue
             m = _CLAUSE.match(ln)
-            if eu_gl and m and not re.match(r"^\d+(?:\.\d+)*\.\s", ln):
-                m = None                          # Leitlinie: Gliederung immer „5.1.“ mit Punkt
-            if m and not ln.rstrip().endswith((".", ";", ",")) and int(m.group(1).split(".")[0]) <= 30:
+            if m and not eu_gl and m.group(2).startswith("("):
+                m = None                          # Norm: „2 (a) …“ ist eine Aufzählung
+            if eu_gl and m and (not re.match(r"^\d+(?:\.\d+)*\.\s", ln) or ln.rstrip().endswith(":")
+                                or not _next_in_outline(m.group(1), clause_stack, last_top)):
+                m = None                          # Leitlinie: „5.1.“ mit Punkt, fortlaufend – sonst Aufzählung im Text
+            if m and not ln.rstrip().endswith((".", ";") if eu_gl else (".", ";", ",")) and int(m.group(1).split(".")[0]) <= 30:
                 num = m.group(1)
                 prefix = None
                 annex = cur.cid.split("/")[0] if cur.cid.startswith("anx_") else None
@@ -398,12 +423,17 @@ def parse_components(text: str, kind: str = "law") -> list[Component]:
                     prefix = roman.cid
                 cid = (f"{annex}/cl_{num}" if annex and prefix and prefix.startswith("anx_") else f"cl_{num}")
                 c = add(cid, "clause", num, prefix, m.group(2))
+                if "." not in num:
+                    last_top = int(num)
                 clause_stack.append(c)
                 cur = c
                 continue
             if kind == "guideline":
                 mm = (_MARGIN_P if eu_gl else _MARGIN).match(ln)
+                if mm and eu_gl and not (last_rn < int(mm.group(1)) <= last_rn + 3):
+                    mm = None                     # „(2022) doi:…“ – keine Randnummer, Randnummern laufen fort
                 if mm:
+                    last_rn = int(mm.group(1))
                     parent = clause_stack[-1].cid if clause_stack else (roman.cid if roman else None)
                     cur = add(f"rn_{mm.group(1)}", "margin", mm.group(1), parent, "", mm.group(2))
                     continue
