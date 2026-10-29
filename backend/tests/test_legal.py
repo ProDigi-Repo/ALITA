@@ -208,3 +208,101 @@ def test_graph_statements_for_a_norm():
     tops = next(p for c, p in st if c.startswith("UNWIND $rows AS r MATCH (n:Norm"))["rows"]
     assert {"id": "ex#art_1", "order": next(p for c, p in st if "MERGE (x:Component" in c)["cs"][[x["cid"] for x in next(p for c, p in st if "MERGE (x:Component" in c)["cs"]].index("art_1")]["order"]} not in tops   # Artikel hängen am Kapitel
     assert any(r["id"] == "ex#chp_I" for r in tops)
+
+
+COM_PROPOSAL = """EN   EN
+EXPLANATORY MEMORANDUM
+The proposal is about AI.
+EN 1  EN
+Proposal for a
+REGULATION OF THE EUROPEAN PARLIAMENT AND OF THE COUNCIL
+Whereas:
+(1) The purpose of this Regulation is trust.
+HAVE ADOPTED THIS REGULATION:
+TITLE I
+GENERAL PROVISIONS
+Article 1
+Subject matter
+This Regulation lays down rules.
+Article 3
+Definitions
+For the purpose of this Regulation, the following definitions apply:
+(1) 'AI system' means software;
+(14) 'safety component' means a component which either:
+(a) fulfils a safety function, or
+(b) endangers health.
+EN 2  EN
+TITLE III
+HIGH-RISK AI SYSTEMS
+CHAPTER 1
+CLASSIFICATION OF AI SYSTEMS AS HIGH-RISK
+Article 6
+Classification rules
+1. AI systems referred to in Annex III shall be considered high-risk.
+2. Logging shall facilitate the monitoring referred to in
+Article 61.
+CHAPTER 3
+OBLIGATIONS OF PROVIDERS AND USERS OF HIGH-RISK AI SYSTEMS AND
+OTHER PARTIES
+Article 16
+Obligations of providers
+Providers shall comply.
+TITLE VI
+GOVERNANCE
+CHAPTER 1
+EUROPEAN ARTIFICIAL INTELLIGENCE BOARD
+Article 56
+Board
+1. A Board is established.
+Done at Brussels,
+LEGISLATIVE FINANCIAL STATEMENT
+1. FRAMEWORK OF THE PROPOSAL/INITIATIVE
+1.1. Title of the proposal
+ANNEX I
+ARTIFICIAL INTELLIGENCE TECHNIQUES AND APPROACHES
+(a) Machine learning approaches;
+EN 3  EN
+ANNEX III
+HIGH-RISK AI SYSTEMS REFERRED TO IN ARTICLE 6(2)
+1. Biometric identification.
+"""
+
+
+def test_commission_proposal_titles_annexes_and_supplement():
+    cs = {c.cid: c for c in L.parse_components(COM_PROPOSAL, "law")}
+    # TITLE I–XII mit CHAPTER darunter; gleiche Kapitelnummern in verschiedenen Titeln kollidieren nicht
+    assert cs["tit_III/chp_1"].parent == "tit_III" and cs["tit_VI/chp_1"].parent == "tit_VI"
+    assert cs["art_6"].parent == "tit_III/chp_1" and cs["art_1"].parent == "tit_I"
+    assert cs["tit_III/chp_3"].title.endswith("AND OTHER PARTIES")            # zweizeilige Überschrift
+    assert L.component_label("tit_III/chp_1") == "Title III, Chapter 1"
+    # Begriffsbestimmungen als Punkte, Buchstaben darunter
+    assert "art_3/pt_1" in cs and cs["art_3/pt_14/pt_a"].parent == "art_3/pt_14"
+    assert L.component_label("art_3/pt_14/pt_a") == "Art. 3(14)(a)"
+    # „Article 61.“ am Zeilenanfang ist ein umbrochener Verweis
+    assert "art_61" not in cs and "Article 61." in cs["art_6/abs_2"].text
+    # Finanzbogen ist eine Anlage, nicht Teil von Art. 56; danach folgen alle Anhänge
+    assert "FRAMEWORK" not in cs["art_56/abs_1"].text and cs["lfs"].type == "supplement"
+    assert {"anx_I", "anx_III"} <= set(cs) and "Biometric" in cs["anx_III"].text
+    # Seitenfüße „EN 2  EN“ verschwinden
+    assert not any("EN 2" in c.text for c in cs.values())
+
+
+def test_version_from_several_files(tmp_path):
+    from app.legal_ingest import plan_norms
+    a, b = tmp_path / "COM-2021-206.pdf", tmp_path / "COM-2021-206_annexes.pdf"
+    meta = {"norms": [{"id": "ai-act", "title": "AI Act", "versions": [
+        {"file": [a.name, b.name], "stage": "proposal", "date": "2021-04-21"}]}]}
+    norms, support = plan_norms(meta, [a, b], "law", "x", {})
+    v = norms[0]["versions"][0]
+    assert v["path"] == a and v["parts"] == [a, b] and support == []
+
+
+def test_draft_fallback_when_only_a_proposal_exists():
+    from app.legal_time import draft_fallback
+    only_draft = [{"versions": [{"stage": "proposal", "date": "2021-04-21", "in_force": None, "valid_to": None}]}]
+    assert draft_fallback(only_draft, "2026-10-29") == "proposal"
+    assert draft_fallback(only_draft, "2020-01-01") is None                  # vor dem Vorschlag: nichts
+    with_law = [{"versions": only_draft[0]["versions"] + [{"stage": "adopted", "date": "2024-06-13", "in_force": "2024-08-01",
+                                                            "valid_to": None}]}]
+    assert draft_fallback(with_law, "2026-10-29") is None                    # geltende Fassung vorhanden: kein Rückfall
+    assert draft_fallback(with_law, "2023-01-01") == "proposal"              # 2023 galt noch nichts: jüngster Entwurf

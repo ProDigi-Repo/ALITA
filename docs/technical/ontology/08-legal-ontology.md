@@ -43,12 +43,12 @@
 
 | Kind | Recognised |
 |---|---|
-| EU law (EN) | recitals `(1)` before the enacting formula, `CHAPTER I`, `SECTION 1`, `Article 5` + title line, paragraphs `1.`, points `(a)`, sub-points `(i)`, `ANNEX III` |
+| EU law (EN) | recitals `(1)` before the enacting formula, `TITLE III` (Commission proposals) with `CHAPTER 1` below it, `CHAPTER I`, `SECTION 1`, `Article 5` + title line (also over two lines), paragraphs `1.`, points `(a)`, numbered definitions `(1)` with their points `(a)`, sub-points `(i)`, `ANNEX III`; the legislative financial statement of a proposal becomes a supplement (`lfs`), not part of the last article |
 | German law / EU law (DE) | `Artikel 5`, `§ 26`, Absätze `(1)`, Nummern `1.`, Buchstaben `a)`, `ANHANG` |
 | Standards | numbered clauses `6`, `6.1`, `6.1.2` (table-of-contents entries are replaced by the real clause), `Annex A` |
 | Guidelines | numbered clauses plus margin numbers `23.` |
 
-Repeated page headers/footers (e.g. "OJ L, 12.7.2024") and page numbers are removed first; markers on their own line (as in Official Journal PDFs) are supported. IDs: `art_6/abs_1/pt_a`, `par_26/abs_2`, `anx_III`, `rec_12`, `chp_III/sec_2`, `cl_6.1.2`, `rn_23`.
+Repeated page headers/footers (e.g. "OJ L, 12.7.2024", "EN 23 EN" in Commission documents) and page numbers are removed first; a line such as "Article 61." that only ends a wrapped cross-reference is not taken for a heading; markers on their own line (as in Official Journal PDFs) are supported. IDs: `art_6/abs_1/pt_a`, `par_26/abs_2`, `anx_III`, `rec_12`, `chp_III/sec_2`, `cl_6.1.2`, `rn_23`.
 
 ## `_legal.yaml`
 
@@ -61,7 +61,7 @@ norms:
     short: AI Act
     eli: http://data.europa.eu/eli/reg/2024/1689/oj
     versions:
-      - {file: proposal.pdf, stage: proposal, date: 2021-04-21}
+      - {file: [proposal.pdf, proposal_annexes.pdf], stage: proposal, date: 2021-04-21}   # several files = one version
       - {file: regulation.pdf, stage: adopted, date: 2024-06-13, in_force: 2024-08-01, applicable: 2026-08-02,
          applicability: [{components: [chp_I, chp_II], from: 2025-02-02}]}
       - {file: consolidated.pdf, stage: consolidated, date: 2026-07-27, in_force: 2026-07-27,
@@ -69,7 +69,7 @@ norms:
          applicability: [{components: [anx_III], from: 2027-12-02}]}
 ```
 
-A version without `applicable` inherits it from the previous one; `applicability` rules replace earlier rules for the same components. Without `_legal.yaml`, files of a legal project with at least three articles/§ are taken as versions in date order, each valid from its date; guidelines and standards are valid from their date. Stages: `proposal`, `position_parliament`, `position_council`, `general_approach`, `trilogue_agreement`, `adopted`, `published`, `consolidated`, `corrigendum`, `consultation`, `final`, `revised`, `withdrawn`, ISO `wd`, `cd`, `dis`, `fdis`, `is`, `confirmed`, `amendment`.
+A version may consist of several files (`file:` as a list, main document first): their texts are joined into one version and one document. A version without `applicable` inherits it from the previous one; `applicability` rules replace earlier rules for the same components. Without `_legal.yaml`, files of a legal project with at least three articles/§ are taken as versions in date order, each valid from its date; guidelines and standards are valid from their date. Stages: `proposal`, `position_parliament`, `position_council`, `general_approach`, `trilogue_agreement`, `adopted`, `published`, `consolidated`, `corrigendum`, `consultation`, `final`, `revised`, `withdrawn`, ISO `wd`, `cd`, `dis`, `fdis`, `is`, `confirmed`, `amendment`.
 
 ## Temporal planner and policies (paper 4.3/4.4)
 
@@ -116,6 +116,7 @@ MATCH (a:Action)-[:COMMANDED_BY]->(:Norm {eli:'http://data.europa.eu/eli/reg/202
 ## Limits
 
 - Component identity is the number: renumbering is recognised only with ≥ 75 % identical text.
+- If no norm in scope has a version in force at the reference date but drafts exist (only the proposal is ingested), the chats fall back to the latest drafting stage up to that date and disclose it (`legal_time.draft_fallback`, since 3.0.1).
 - Dates come from `_legal.yaml`; without it, the file date is used (disclosed as `date_source`). Wrong dates give systematically wrong point-in-time answers (the paper warns about this as well).
 - Only one language version per file is modelled so far (the language layer exists; parallel EN/DE files are separate versions).
 - Links from research documents to provisions ("Art. 6 AI Act" in a paper) are not created yet.

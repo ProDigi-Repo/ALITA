@@ -8,6 +8,28 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-10-29
+
+> **Patch release – first real law: the Commission proposal of the AI Act.** Tested against COM(2021) 206 final (108 pages) and its "Annexes 1 to 9" (17 pages) as the first legal project of the database "EU AI Act". The segmentation now handles the structure of Commission proposals, one version can consist of several files, and answers no longer come back empty when only drafts of a law are in the collection. One new requirement (REQ-41). **Update:** `docker compose up -d --build backend frontend`, put the proposal files into `research/EUAIA/legal/EU-AI-Act/`, then `docker compose run --rm ingest legal /research/EUAIA/legal/EU-AI-Act`. Roll back with `git checkout v3.0.0`.
+
+### Requirements
+- **REQ-41 Ingest the first legal project (AI Act proposal, main document + annexes)** – ✅ prepared and checked offline: files placed, `_legal.yaml` lists both files as one version, the full model (699 parts, 889 text units) is built from the real PDFs; the ingestion itself runs in Docker on the server.
+
+### Added
+- `_legal.yaml`: `file:` may be a list – a main document and its separately published annexes form one version and one document (`legal.files` in the document details).
+- Chats: if no law in scope has a version in force at the reference date but drafts exist, the answer uses the latest drafting stage up to that date and says so ("no version in force on …, showing the latest draft").
+- Segmentation: `TITLE I`–`XII` of Commission proposals with their `CHAPTER 1`… below (`tit_III/chp_1`, "Title III, Chapter 1"), headings over two lines, numbered definitions `(1)`–`(44)` as points with their own points `(a)` ("Art. 3(14)(a)"), and the legislative financial statement as a supplement (`lfs`) instead of the end of the last article.
+
+### Fixed
+- Only the first annex was recognised; all following annexes ended up in its text (the AI Act proposal: 1 instead of 9 annexes).
+- Page footers of Commission documents ("EN 23 EN") were kept in the text.
+- A wrapped cross-reference at the start of a line ("… referred to in / Article 61.") started a false article and moved the following paragraphs into it.
+- Chapters with the same number in different titles (Chapter 1 of Title III and of Title VI) got numbered duplicates.
+
+### Open points
+- The adopted Regulation (EU) 2024/1689 and the consolidated version are still missing in `research/EUAIA/legal/EU-AI-Act/`; when they are added, ingest the project again with `--force` (a legal project that already exists is skipped by `ingest all`).
+- Two duplicate numbers are in the source PDF itself (two points "(a)" in Art. 1, two definitions "(1)" in Art. 3); ALITA keeps both (`~2`).
+
 ## [3.0.0] - 2026-10-29
 
 > **Major release – legal ontology: laws, guidelines and standards over time.** ALITA now handles legal texts as structured, versioned norms, following the Structure-Aware Temporal Graph RAG (SAT-Graph RAG) of de Martim (2025, arXiv:2505.00039), LRMoo-inspired and aligned with ELI (European Legislation Identifier). Three new kinds of data – legal projects (the versions of a law are their stages), legal guidelines and standards – are split into articles, paragraphs, points, annexes or clauses; every part has dated versions (unchanged parts are reused, not copied), and every change is an action with its own searchable description. Both chats answer with the version valid at the date asked about and disclose the rule they used. New database "EU AI Act" (cornflower). Four new requirements (REQ-37 – REQ-40), all done; see "Requirements", `docs/requirements-status.md` and `docs/requirements-log.xlsx`. **Why major:** the data model gains new document types and fields, and retrieval of legal texts is now time-scoped by default (today's version unless the question names a date or stage). The REST API is extended, existing calls keep working; existing data does not need to be re-ingested. **Update:** `docker compose up -d --build backend frontend`, `POST /api/graph/setup` (constraints, ELI import); if `DATABASES` is set in `.env`, add `EUAIA`. Roll back with `git checkout v2.2.0`.

@@ -89,7 +89,17 @@ def legal_scope(query: str, filters, all_docs: list[dict]):
         lp = {**lp, "policy": "point_in_time", "as_of": filters.as_of, "source": "settings"}
         from .legal_time import describe
         lp["label"] = describe(lp)
-    head, table = context(query, lp, list_models(list(dbs) or None))
+    models = list_models(list(dbs) or None)
+    if not filters.legal_stage and not filters.legal_all_versions and lp.get("policy") != "stage":
+        from .legal_time import describe, draft_fallback
+        as_of = filters.as_of or lp.get("as_of")
+        stage = draft_fallback(models, as_of) if as_of else None
+        if stage:                                 # nur Entwürfe vorhanden: jüngste Entwurfsstufe statt leerer Antwort
+            filters = filters.model_copy(update={"as_of": None, "legal_stage": stage})
+            lp = {**lp, "policy": "stage", "stage": stage, "source": "fallback"}
+            lp["label"] = describe(lp) + f" – no version in force on {as_of}, showing the latest draft"
+            eff = {"as_of": None, "stage": stage, "all_versions": False}
+    head, table = context(query, lp, models)
     temporal = {k: lp.get(k) for k in ("policy", "as_of", "interval", "stage", "history", "term", "refs", "label", "source")} | {"effective": eff}
     return filters, temporal, head, table
 

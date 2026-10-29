@@ -15,7 +15,7 @@ Die Daten, die man nicht sicher aus dem Text lesen kann, stehen in _legal.yaml i
       eli: http://data.europa.eu/eli/reg/2024/1689/oj
       issuer: European Parliament and Council
       versions:
-        - {file: proposal.pdf, stage: proposal, date: 2021-04-21}
+        - {file: [proposal.pdf, proposal_annexes.pdf], stage: proposal, date: 2021-04-21}   # mehrere Dateien = eine Fassung
         - file: regulation_2024_1689.pdf
           stage: adopted
           date: 2024-06-13
@@ -87,12 +87,19 @@ def plan_norms(meta: dict, files: list[Path], kind: str, default_id: str, texts:
     for n in meta.get("norms") or []:
         vs = []
         for v in n.get("versions") or []:
-            p = by_name.get(str(v.get("file"))) or next((q for r, q in by_rel.items() if r.endswith("/" + str(v.get("file")))), None)
-            if p is None:
-                log.warning("_legal.yaml: Datei %s nicht gefunden", v.get("file"))
+            names = v.get("file") or v.get("files") or []
+            names = [str(x) for x in (names if isinstance(names, list) else [names])]
+            paths = []
+            for nm in names:            # Hauptdokument + Anhänge (z. B. COM(2021) 206 final und „ANNEXES 1 to 9“) = eine Fassung
+                p = by_name.get(nm) or next((q for r, q in by_rel.items() if r.endswith("/" + nm)), None)
+                if p is None:
+                    log.warning("_legal.yaml: Datei %s nicht gefunden", nm)
+                    continue
+                paths.append(p)
+            if not paths:
                 continue
-            used.add(p)
-            vs.append({**v, "path": p})
+            used.update(paths)
+            vs.append({**v, "path": paths[0], "parts": paths})
         if vs:
             norms.append({"norm_id": slug(n.get("id") or n.get("short") or n.get("title") or default_id),
                           "title": n.get("title") or n.get("short") or vs[-1]["path"].stem, "short": n.get("short") or n.get("title"),
@@ -151,6 +158,15 @@ async def ingest_legal(path: Path, doc_type: DocType, opts):
         by_path[p] = it
     texts = {str(p): it.extracted.text for p, it in by_path.items()}
     norms, support = plan_norms(meta, files, kind, name if is_project else (files[0].stem if files else name), texts)
+    for n in norms:
+        for v in n["versions"]:
+            for q in v.get("parts", [])[1:]:      # Anhänge in die Fassung übernehmen: ein Dokument, ein Text
+                main, part = by_path[v["path"]], by_path.pop(q)
+                main.extracted.segments.extend(part.extracted.segments)
+                main.extracted.pages = (main.extracted.pages or 0) + (part.extracted.pages or 0)
+                main.record.pages = main.extracted.pages
+                main.record.text_chars = len(main.extracted.text[: s.max_text_chars])
+                items.remove(part)
     dbs = s.normalize_databases(opts.databases) or detect_databases(path)
     if not dbs and is_project:
         dbs = (store.get_project(name) or {}).get("databases") or []
@@ -186,7 +202,10 @@ async def ingest_legal(path: Path, doc_type: DocType, opts):
                 r.project.version, r.project.version_num = str(seq), seq
                 r.project.stage = stage
                 r.project.is_latest = seq == len(vlist)
-            r.title = n["title"] if seq == len(vlist) else f"{n.get('short') or n['title']} – {STAGE_LABEL.get(stage, stage)}"
+            if seq == len(vlist) and stage not in DRAFT_STAGES:
+                r.title = n["title"]                  # geltende Fassung trägt den Titel der Norm
+            else:                                     # Entwurf (auch wenn er die jüngste Fassung ist): „AI Act – Proposal“
+                r.title = f"{n.get('short') or n['title']} – {STAGE_LABEL.get(stage, stage)}"
             version_items.append(it)
         model = build_history({k: n.get(k) for k in ("norm_id", "title", "short", "kind", "eli", "issuer")}, vin)
         model["databases"], model["project"], model["doc_type"] = dbs, name if is_project else None, doc_type.value
@@ -195,7 +214,9 @@ async def ingest_legal(path: Path, doc_type: DocType, opts):
             r.legal = {"norm_id": n["norm_id"], "norm_title": n["title"], "short": n.get("short"), "kind": n["kind"], "eli": n.get("eli"),
                        "seq": vs["seq"], "versions": len(vin), "stage": vs["stage"], "stage_label": vs["stage_label"],
                        "in_force": vs["in_force"], "valid_to": vs["valid_to"], "applicable": vs["applicable"],
-                       "amended_by": vs["amended_by"], "components": vs["components"], "added": vs["added"],
+                       "amended_by": vs["amended_by"], "components": vs["components"],
+                       "files": [q.name for q in (next(v for v in vlist if by_path[v["path"]].record.doc_id == vi.doc_id).get("parts")
+                                                   or [])], "added": vs["added"],
                        "changed": vs["changed"], "removed": vs["removed"], "current": vs["seq"] == len(vin)}
         save_model(model)
         models.append(model)
@@ -263,7 +284,7 @@ async def ingest_legal(path: Path, doc_type: DocType, opts):
         project.indexed_count = sum(1 for it in items if it.record.indexed)
         cur = next((it.record for it in current), None)
         if cur:
-            project.title = cur.legal.get("norm_title") or cur.title
+            project.title = cur.title or cur.legal.get("norm_title")
             if not cur.summary.is_empty():
                 project.summary = cur.summary.model_copy(update={"source_doc_id": cur.doc_id})
         store.upsert_project(project)

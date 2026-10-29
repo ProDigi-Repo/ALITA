@@ -1,4 +1,4 @@
-# ALITA – requirements status (3.0.0, 2026-10-29)
+# ALITA – requirements status (3.0.1, 2026-10-29)
 
 Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wording, the request as a requirement, acceptance criterion).
 
@@ -44,6 +44,7 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 | REQ-38 | Legal ontology; document types legal project, legal guideline, standard | ✅ done | 3.0.0 | `app/legal.py`, `legal_ingest.py`: structure-aware segmentation, norm → component → temporal version (aggregation) → language version → text unit, actions; graph aligned with ELI; `_legal.yaml`; API `/api/legal/*`; map, documents, document details, chats. Not yet run on a real Official Journal PDF. |
 | REQ-39 | Database "EU AI Act" with its flower | ✅ done | 3.0.0 | `EUAIA`, cornflower in EU blue; `research/EUAIA/legal/EU-AI-Act/_legal.yaml` template. Add `EUAIA` to `DATABASES` in `.env` if that variable is set. |
 | REQ-40 | Ontologies that can be cited correctly | ✅ done | 3.0.0 | References given (DoCO/DEO/PO, FaBiO/CiTO, BIBO, ELI); `fabio:Note` (not a FaBiO class) → `fabio:Expression`; C4O removed from the docs. |
+| REQ-41 | Ingest the first legal project: AI Act Commission proposal (main document + annexes) | 🔄 in progress – ingestion in Docker pending | 3.0.1 | Files placed in `research/EUAIA/legal/EU-AI-Act/`; `_legal.yaml` lists both PDFs as one version (`file:` as a list, new). Segmentation of Commission proposals fixed and extended (TITLE/CHAPTER, all 9 annexes, definitions `(1)`, financial statement as supplement, "EN n EN" footers, wrapped "Article 61." references). Checked offline on the real PDFs: 85 articles, 89 recitals, 9 annexes, 699 parts, 889 text units. Drafts-only fallback in the chats. |
 
 ## Open points for the requirement owners
 - REQ-10, REQ-15 – REQ-18: main document chain per project, inferred links between versions and analyses, threshold for "substantive", AI stage texts automatic or on demand, versions without full text.
@@ -52,5 +53,6 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 - REQ-20: implementation later.
 - REQ-35: only works inside the collection are linked; journals, volumes, pages and outside literature would need Crossref/OpenAlex via the DOI – wanted?
 - REQ-36: build the general `relabel` command (DEO rules → payload + graph, no embeddings)?
-- REQ-37/38: put the AI Act files into `research/EUAIA/legal/EU-AI-Act/` and check the segmentation on the Official Journal PDF; temporal model also for manuscript versions? Links from papers/manuscripts to provisions?
+- REQ-41: run `docker compose run --rm ingest legal /research/EUAIA/legal/EU-AI-Act` on the server; add the adopted Regulation (EU) 2024/1689 and the consolidated version, then ingest again with `--force`.
+- REQ-37/38: check the segmentation on the Official Journal PDF of the adopted regulation (the proposal is checked); temporal model also for manuscript versions? Links from papers/manuscripts to provisions?
 - Date quality (seen with REQ-32): many documents only carry the file date (last saved / copied), so they share one day in the time view – better dates (file properties, text, curation) would make the time line more telling.

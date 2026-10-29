@@ -48,8 +48,8 @@ STAGE_LABEL = {
     "fdis": "Approval / FDIS (50)", "prf": "Proof (50.20)", "is": "International Standard published (60.60)",
     "confirmed": "Confirmed (90.93)", "amendment": "Amendment", "edition": "Edition", "version": "Version",
 }
-TYPE_LABEL = {"preamble": "Preamble", "recital": "Recital", "chapter": "Chapter", "section": "Section", "article": "Article",
-              "paragraph": "Paragraph", "point": "Point", "subpoint": "Point", "annex": "Annex", "clause": "Clause",
+TYPE_LABEL = {"preamble": "Preamble", "recital": "Recital", "title": "Title", "chapter": "Chapter", "section": "Section", "article": "Article",
+              "paragraph": "Paragraph", "point": "Point", "subpoint": "Point", "annex": "Annex", "supplement": "Supplement", "clause": "Clause",
               "margin": "Para."}
 FAR_FUTURE = 32503680000            # 3000-01-01 als Zeitstempel: „gilt noch“ (valid_to offen)
 
@@ -95,7 +95,7 @@ def slug(s: str) -> str:
 @dataclass
 class Component:
     cid: str                    # stabile ID innerhalb der Norm, z. B. "art_6/abs_1/pt_a", "cl_6.1.2", "anx_III"
-    type: str                   # preamble | recital | chapter | section | article | paragraph | point | subpoint | annex | clause | margin
+    type: str                   # preamble | recital | title | chapter | section | article | paragraph | point | subpoint | annex | clause | margin
     number: str                 # "6", "1", "a", "III", "6.1.2"
     parent: str | None = None
     title: str = ""
@@ -107,12 +107,16 @@ class Component:
         return component_label(self.cid, self.title)
 
 
-_LINE_SKIP = re.compile(r"^(\d{1,4}|\d+/\d+|[-–—]\s*\d+\s*[-–—]|page \d+( of \d+)?|seite \d+( von \d+)?)$", re.I)
+_LINE_SKIP = re.compile(r"^(\d{1,4}|\d+/\d+|[-–—]\s*\d+\s*[-–—]|page \d+( of \d+)?|seite \d+( von \d+)?"
+                        r"|(?-i:[A-Z]{2}(\s+\d{1,4})?\s+[A-Z]{2}))$", re.I)   # „EN 23 EN“: Seitenfuß der Kommissionsdokumente
+_TITLE = re.compile(r"^(TITLE|TITEL)\s+([IVXLC]+)\b\.?\s*(.*)$")   # Gliederung der Kommissionsvorschläge
 _CHAPTER = re.compile(r"^(CHAPTER|KAPITEL)\s+([IVXLC]+|\d+)\b\.?\s*(.*)$")
 _SECTION = re.compile(r"^(SECTION|ABSCHNITT)\s+(\d+)\b\.?\s*(.*)$")
 _ARTICLE = re.compile(r"^(Article|Artikel|Art\.)\s+(\d+[a-z]?)\s*(?:$|[–—:\-.]\s*(.{0,140})$)")
 _PARA_SIGN = re.compile(r"^§\s*(\d+[a-z]?)\s*(.{0,140})$")
 _ANNEX = re.compile(r"^(ANNEX|ANHANG|Annex|Anhang)\s+([IVXLC]+|[A-Z]|\d+)\b\s*(?:$|[–—:\-.(]\s*(.{0,140})$)")
+_SUPPLEMENT = re.compile(r"^(LEGISLATIVE FINANCIAL STATEMENT|FINANZBOGEN ZU RECHTSAKTEN)\b")   # Anlage der Kommissionsvorschläge
+_DEF_EN = re.compile(r"^\((\d{1,3})\)(?:\s+(\S.*))?$")      # Begriffsbestimmungen „(1) ‘AI system’ means …“
 _ENACTING = re.compile(r"(HAVE|HAS) ADOPTED TH(IS|E FOLLOWING)|HAT FOLGENDE|HABEN FOLGENDE|ERLASSEN:?\s*$", re.I)
 _RECITAL = re.compile(r"^\((\d{1,3})\)(?:\s+(\S.*))?$")
 _PARA_EN = re.compile(r"^(\d{1,3})\.(?:\s+(\S.*))?$")
@@ -136,10 +140,19 @@ def clean_lines(text: str) -> list[str]:
     for ln in raw:
         if not ln or _LINE_SKIP.match(ln):
             continue
-        if freq.get(ln, 0) >= 4 and not (_ARTICLE.match(ln) or _CHAPTER.match(ln) or _ANNEX.match(ln)):
+        if freq.get(ln, 0) >= 4 and not (_ARTICLE.match(ln) or _CHAPTER.match(ln) or _TITLE.match(ln) or _ANNEX.match(ln)):
             continue                              # Kopf-/Fußzeile, die auf vielen Seiten steht
         out.append(ln)
     return out
+
+
+def _is_reference(ln: str, num: str, current: str) -> bool:
+    """Zeile beginnt mit „Article 61“, ist aber ein umbrochener Verweis: endet mit Satzzeichen ohne Überschrift,
+    oder die Nummer ist kleiner als die des laufenden Artikels."""
+    if re.match(r"^\S+\s+\d+[a-z]?\s*[.,;:]\s*$", ln):
+        return True
+    a, b = re.match(r"\d+", num), re.match(r"\d+", current or "")
+    return bool(a and b and int(a.group()) < int(b.group()))
 
 
 def detect_style(lines: list[str]) -> str:
@@ -178,12 +191,17 @@ def parse_components(text: str, kind: str = "law") -> list[Component]:
         return c
 
     cur = add("pre", "preamble", "", None)
-    chapter = section = article = para = point = None
+    title_ = chapter = section = article = para = point = defn = None
     in_recitals = kind == "law"
     expect_title: Component | None = None
     clause_stack: list[Component] = []
 
     for ln in lines:
+        if cur.type in ("title", "chapter", "section") and cur.title and not cur.text and ln.isupper() and len(ln) <= 120 \
+                and len(cur.title) + len(ln) <= 240 and not (_TITLE.match(ln) or _CHAPTER.match(ln) or _SECTION.match(ln)) \
+                and expect_title is None:
+            cur.title = f"{cur.title} {ln}"        # zweizeilige Überschrift („… PROVIDERS AND USERS … AND“ / „OTHER PARTIES“)
+            continue
         if expect_title is not None:              # Titelzeile direkt nach „Article 5“ / „ANNEX III“ / „CHAPTER II“
             if len(ln) <= 160 and not (_PARA_EN.match(ln) or _PARA_DE.match(ln) or _POINT_EN.match(ln) or _ARTICLE.match(ln)) \
                     and not expect_title.title:
@@ -198,22 +216,43 @@ def parse_components(text: str, kind: str = "law") -> list[Component]:
                 pre.text = (pre.text + "\n" + ln).strip()
                 cur = pre
                 continue
+            if _SUPPLEMENT.match(ln) and not in_recitals:
+                if "lfs" not in comps:            # Finanzbogen nach „Done at Brussels“: kein Teil der Norm, nur Anlage
+                    cur = add("lfs", "supplement", "", None, ln.title())
+                else:
+                    cur = comps["lfs"]
+                title_ = chapter = section = article = para = point = defn = None
+                continue
+            if cur.cid == "lfs" and not _ANNEX.match(ln):
+                cur.text = (cur.text + "\n" + ln) if cur.text else ln
+                continue
+            m = _TITLE.match(ln)
+            if m:                                 # TITLE III (Vorschlag) – darin CHAPTER 1 … 5
+                in_recitals = False
+                title_ = add(f"tit_{m.group(2)}", "title", m.group(2), None, m.group(3))
+                chapter = section = article = para = point = defn = None
+                cur = title_
+                expect_title = title_ if not title_.title else None
+                continue
             m = _CHAPTER.match(ln)
             if m:
                 in_recitals = False
-                chapter = add(f"chp_{m.group(2)}", "chapter", m.group(2), None, m.group(3))
-                section = article = para = point = None
+                chapter = add(f"{title_.cid}/chp_{m.group(2)}" if title_ else f"chp_{m.group(2)}", "chapter", m.group(2),
+                              title_.cid if title_ else None, m.group(3))
+                section = article = para = point = defn = None
                 cur = chapter
                 expect_title = chapter if not chapter.title else None
                 continue
             m = _SECTION.match(ln)
             if m and chapter is not None:
                 section = add(f"{chapter.cid}/sec_{m.group(2)}", "section", m.group(2), chapter.cid, m.group(3))
-                article = para = point = None
+                article = para = point = defn = None
                 cur = section
                 expect_title = section if not section.title else None
                 continue
             m = _ARTICLE.match(ln) or (_PARA_SIGN.match(ln) if style == "de" else None)
+            if m and not ln.startswith("§") and article is not None and _is_reference(ln, m.group(2), article.number):
+                m = None                          # „… referred to in\nArticle 61.“ – umbrochener Verweis, keine Überschrift
             if m and (not in_recitals or ln.startswith(("Article", "Artikel", "§"))):
                 in_recitals = False
                 if ln.startswith("§"):
@@ -222,14 +261,14 @@ def parse_components(text: str, kind: str = "law") -> list[Component]:
                 else:
                     num, title = m.group(2), m.group(3) or ""
                     cid = f"art_{num}"
-                article = add(cid, "article", num, (section or chapter).cid if (section or chapter) else None, title)
-                para = point = None
+                article = add(cid, "article", num, (section or chapter or title_).cid if (section or chapter or title_) else None, title)
+                para = point = defn = None
                 cur = article
                 expect_title = article if not article.title else None
                 continue
             m = _ANNEX.match(ln)
-            if m and (article is not None or chapter is not None):
-                chapter = section = article = para = point = None
+            if m and (article is not None or chapter is not None or title_ is not None or cur.type in ("annex", "supplement")):
+                title_ = chapter = section = article = para = point = defn = None
                 cur = add(f"anx_{m.group(2)}", "annex", m.group(2), None, m.group(3) or "")
                 expect_title = cur if not cur.title else None
                 continue
@@ -242,16 +281,22 @@ def parse_components(text: str, kind: str = "law") -> list[Component]:
                 pm = (_PARA_EN if style == "en" else _PARA_DE).match(ln)
                 if pm and (point is None or style == "de" or not _ROMAN.match(ln)):
                     para = add(f"{article.cid}/abs_{pm.group(1)}", "paragraph", pm.group(1), article.cid, "", pm.group(2) or "")
-                    point = None
+                    point = defn = None
                     cur = para
                     continue
                 rm = _ROMAN.match(ln) if style == "en" else None
                 if rm and point is not None and not (rm.group(1) == "i" and point.number == "h"):
                     cur = add(f"{point.cid}/sub_{rm.group(1)}", "subpoint", rm.group(1), point.cid, "", rm.group(2) or "")
                     continue
+                dm = _DEF_EN.match(ln) if style == "en" else None
+                if dm:                            # „(1) ‘AI system’ means …“ -> Art. 3(1)
+                    parent = para or article
+                    point = defn = add(f"{parent.cid}/pt_{dm.group(1)}", "point", dm.group(1), parent.cid, "", dm.group(2) or "")
+                    cur = point
+                    continue
                 qm_ = (_POINT_EN if style == "en" else _POINT_DE).match(ln)
                 if qm_:
-                    parent = para or article
+                    parent = defn or para or article
                     point = add(f"{parent.cid}/pt_{qm_.group(1)}", "point", qm_.group(1), parent.cid, "", qm_.group(2) or "")
                     cur = point
                     continue
@@ -311,6 +356,14 @@ def component_label(cid: str, title: str = "") -> str:
         return f"Recital ({head[4:]})"
     elif head.startswith("anx_"):
         lab = f"Annex {head[4:]}"
+    elif head.startswith("tit_"):
+        lab = f"Title {head[4:]}"
+        for p in parts[1:]:
+            if p.startswith("chp_"):
+                lab += f", Chapter {p[4:]}"
+            elif p.startswith("sec_"):
+                lab += f", Section {p[4:]}"
+        return lab
     elif head.startswith("chp_"):
         lab = f"Chapter {head[4:]}" + (f", Section {parts[1][4:]}" if len(parts) > 1 and parts[1].startswith("sec_") else "")
         return lab
@@ -320,6 +373,8 @@ def component_label(cid: str, title: str = "") -> str:
         return f"Para. {head[3:]}"
     elif head == "pre":
         return "Preamble"
+    elif head == "lfs":
+        return "Legislative financial statement"
     for p in parts[1:]:
         if p.startswith("abs_"):
             lab += f" Abs. {p[4:]}" if head.startswith("par_") else f"({p[4:]})"
@@ -443,7 +498,7 @@ def build_history(norm: dict, versions: list[VersionInput]) -> dict:
                 kind = "applicability_changed"
             else:
                 kind = None                       # nur Unterteile geändert: neue Aggregation ohne eigene Action
-            if kind and (kind != "enacted" or c.type in ("article", "annex", "recital", "clause", "margin", "chapter")):
+            if kind and (kind != "enacted" or c.type in ("article", "annex", "recital", "clause", "margin", "chapter", "title")):
                 act = _action(norm, kind, c, components[cid]["label"], p, ctv, prev_v, v)
                 actions.append(act)
                 ctv["produced_by"] = act["id"]

@@ -1,4 +1,4 @@
-# ALITA – User Manual (front-end, v3.0.0)
+# ALITA – User Manual (front-end, v3.0.1)
 
 ALITA lets you ask questions of your research documents and get answers with numbered, clickable sources.
 The quick visual version is [`ALITA-Cheat-Sheet-Comic.pdf`](ALITA-Cheat-Sheet-Comic.pdf).
@@ -115,7 +115,8 @@ ALITA knows three more kinds of data: **Legal projects** (the versions of a law 
 - Each text is split into its parts (articles, paragraphs, points, annexes; clauses for standards) and every part has dated versions. Answers use the **version valid at the time you ask about**: write the date into the question (*"What applied on 1 September 2026 to Annex III?"*, *"in 2025"*), a stage (*"in the Commission proposal"*) – or set **Legal texts as of** under *Advanced settings → Parameters*. Without a date ALITA uses today's version. The line **⏱ Legal texts** under the answer says which versions were used.
 - Ask about changes (*"What changed in Article 50 since 2024?"*) or origins (*"Since when does the term 'general-purpose AI model' appear?"*): the answer shows a table from the change history (date, part, kind of change, amending act).
 - In the document details of a version: stage, in force from–to, application date, the amending act, all versions of the norm and **Show the changes of this version**.
-- Dates of entry into force and application come from a small file `_legal.yaml` in the folder (template in `research/EUAIA/legal/EU-AI-Act/`). Without it ALITA takes the file dates – then point-in-time answers are only as good as those dates.
+- Dates of entry into force and application come from a small file `_legal.yaml` in the folder (template in `research/EUAIA/legal/EU-AI-Act/`). Without it ALITA takes the file dates – then point-in-time answers are only as good as those dates. A version can consist of several files (e.g. a Commission proposal and its separate annexes): list them together, `file: [proposal.pdf, annexes.pdf]`.
+- If only drafts of a law are in the collection (e.g. just the Commission proposal), answers use the latest draft and say so ("no version in force …, showing the latest draft").
 
 **See who cites whom (⇄ Citations)**
 

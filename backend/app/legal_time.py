@@ -152,6 +152,21 @@ def describe(p: dict) -> str:
     return s
 
 
+def draft_fallback(models: list[dict], as_of: str) -> str | None:
+    """Kein Gesetz im Umfang hat am Stichtag eine geltende Fassung, aber es gibt Entwürfe (z. B. nur der Kommissionsvorschlag
+    ist eingelesen)? -> jüngste Entwurfsstufe bis zum Stichtag, sonst None. Wird in der Antwort offengelegt."""
+    from .legal import DRAFT_STAGES
+    drafts = []
+    for m in models:
+        for v in m.get("versions") or []:
+            if v.get("stage") in DRAFT_STAGES:
+                if (v.get("date") or "") <= as_of:
+                    drafts.append((v.get("date") or "", v["stage"]))
+            elif v.get("in_force") and v["in_force"] <= as_of and (not v.get("valid_to") or as_of < v["valid_to"]):
+                return None
+    return max(drafts)[1] if drafts else None
+
+
 def apply(filters, p: dict):
     """Planer-Ergebnis in SearchFilters übertragen (eine Angabe aus der Oberfläche hat Vorrang)."""
     if filters.as_of or filters.legal_stage or filters.legal_all_versions:
