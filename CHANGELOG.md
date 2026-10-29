@@ -8,6 +8,24 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [Unreleased]
 
+## [3.1.1] - 2026-10-29
+
+> **Patch release – the adopted AI Act from the Official Journal.** Third version of the AI Act legal project: Regulation (EU) 2024/1689 (OJ L, 12.7.2024, 144 pages), in force since 1 August 2024. It was the first Official Journal PDF ALITA read, and three things went wrong: footnotes were read as recitals, section headings disappeared and references in annexes became articles. Fixed and checked on the real file: 180 recitals, 113 articles, 13 chapters with 16 sections, 13 annexes – exactly the structure of the regulation. The application dates of Article 113 are now right for every provision, including the exception for Article 101. One new requirement (REQ-44). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest legal /research/EUAIA/legal/EU-AI-Act` (reads all three versions; unchanged passages keep their vectors). Roll back with `git checkout v3.1.0`.
+
+### Requirements
+- **REQ-44 Add the final law (Regulation (EU) 2024/1689, OJ)** – ✅ prepared and checked offline; file placed under the name `_legal.yaml` expects (version 3 of 4, stage `adopted`, in force 2024-08-01, application dates of Art. 113); the ingestion runs in Docker.
+
+### Fixed
+- Official Journal PDFs: the footnotes of a page ("(1) OJ C 517, 22.12.2021, p. 56.") were read as recitals – 236 recitals instead of 180, with duplicates. They follow the page footer "ELI: … n/144" as one block and are now left out.
+- Section headings ("SECTION 1", "SECTION 2") occur on several pages and were removed as running page headers – 8 instead of 16 sections, and the articles of sections 1 and 2 hung directly under their chapter.
+- After the first annex, a line starting with "Article 49" or "Article 17." (a wrapped annex title or a reference) started a new article – 115 instead of 113 articles.
+- A wrapped reference "… in / Article 58. The Board may …" started a false article in the Commission proposal.
+- Application dates: with two matching rules, the longer component ID won, so "Chapter XII from 2 August 2025" and "Article 101 from 2 August 2026" tied and Article 101 got the wrong date. Now the rule naming the component itself (or its nearest ancestor) wins.
+
+### Open points
+- Between the proposal and the regulation most articles were renumbered (e.g. transparency: Art. 52 → Art. 50). ALITA compares by article number, as SAT-Graph RAG does, so "Article 52 modified" means the provision with that number; 24 renumberings with almost the same text are recognised as such.
+- Still missing: the consolidated version after the Digital Omnibus (version 4 in `_legal.yaml`), the Parliament's plenary position and the Council's general approach.
+
 ## [3.1.0] - 2026-10-29
 
 > **Minor release – partial versions and the committee stage.** Second version of the AI Act legal project: the European Parliament's IMCO/LIBE *draft compromise amendments* of 9 May 2023 (144 pages). The document is a consolidated text of 12 compromise blocks, not a full regulation – Articles 13, 14, 52, 55, 69, Annex IX and many recitals are missing. Read as a normal version, all of them would have counted as deleted; as a *partial* version they are taken unchanged from the proposal. Checked offline on the real PDFs: 104 articles (24 new, e.g. 4a, 28a, 28b, 54a), 129 recitals, nothing reported as deleted; the smallest reported changes are real (fines EUR 250 000 → 750 000, "user" → "deployer"). One new requirement (REQ-43). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest legal /research/EUAIA/legal/EU-AI-Act` – the comparison of texts changed, so the units of the proposal are embedded once more. Roll back with `git checkout v3.0.2`.

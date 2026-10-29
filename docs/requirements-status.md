@@ -1,4 +1,4 @@
-# ALITA – requirements status (3.1.0, 2026-10-29)
+# ALITA – requirements status (3.1.1, 2026-10-29)
 
 Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wording, the request as a requirement, acceptance criterion).
 
@@ -47,6 +47,7 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 | REQ-41 | Ingest the first legal project: AI Act Commission proposal (main document + annexes) | ✅ done – ingested 2026-10-29 | 3.0.1 | Files placed in `research/EUAIA/legal/EU-AI-Act/`; `_legal.yaml` lists both PDFs as one version (`file:` as a list, new). Segmentation of Commission proposals fixed and extended (TITLE/CHAPTER, all 9 annexes, definitions `(1)`, financial statement as supplement, "EN n EN" footers, wrapped "Article 61." references). Checked offline on the real PDFs: 85 articles, 89 recitals, 9 annexes, 699 parts, 889 text units. Drafts-only fallback in the chats. |
 | REQ-42 | Knowledge map correct after an ingestion – other databases keep their clusters | ✅ done | 3.0.2 | Cause: the automatic re-clustering after the ingestion ran over all databases together (k = 3: two CNN_DM clusters, one with all 74 research works and the law). Now only the databases of the ingested data, each on its own, with projects or project files as in their last run; a legal project is one unit; a database with one work gets a cluster; project labels no longer cover papers. Existing clusters must be recomputed once per database. |
 | REQ-43 | Next version of the AI Act: IMCO/LIBE draft compromise amendments (9 May 2023) as a partial version | 🔄 in progress – ingestion in Docker pending | 3.1.0 | `_legal.yaml` version 2 of 4, stage `committee`, `partial: true`; `merge_partial` (missing parts unchanged from the previous version, no deletions), committee stage in the planner, parser for compromise blocks CA 1–12, article numbers "54 a"/"28(a)", recitals "(65a)", comparison by letters and digits only (`cmp_key`). Checked offline: 104 articles (24 new), 129 recitals, 0 removed; smallest changes are real (EUR 250 000 → 750 000, user → deployer). |
+| REQ-44 | Final AI Act: Regulation (EU) 2024/1689 from the Official Journal | 🔄 in progress – ingestion in Docker pending | 3.1.1 | File placed as version 3 of 4 (stage `adopted`, in force 2024-08-01, application dates of Art. 113). Official Journal parsing fixed: footnotes are no recitals (236 → 180), section headings kept (8 → 16), references in annexes are no articles (115 → 113); the rule for Article 101 beats the rule for Chapter XII. Checked offline: structure exactly as the regulation; application dates of Art. 5, 6(1), 50, 53, 78, 99, 101 correct. |
 
 ## Open points for the requirement owners
 - REQ-10, REQ-15 – REQ-18: main document chain per project, inferred links between versions and analyses, threshold for "substantive", AI stage texts automatic or on demand, versions without full text.
@@ -55,6 +56,7 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 - REQ-20: implementation later.
 - REQ-35: only works inside the collection are linked; journals, volumes, pages and outside literature would need Crossref/OpenAlex via the DOI – wanted?
 - REQ-36: build the general `relabel` command (DEO rules → payload + graph, no embeddings)?
+- REQ-44: ingest (one `ingest legal` run reads all three versions); later add the consolidated version (Digital Omnibus).
 - REQ-43: ingest again (`ingest legal /research/EUAIA/legal/EU-AI-Act` with the key); later add the plenary position (14.6.2023), the Council general approach, Regulation (EU) 2024/1689 and the consolidated version.
 - REQ-42: recompute the clusters once per database after deploying 3.0.2 (`ingest cluster --db AL|DL|JSW|LDK|CNN_DM|EUAIA`, `--db ML --files`).
 - REQ-41: add the adopted Regulation (EU) 2024/1689 and the consolidated version, then ingest again with `--force`.

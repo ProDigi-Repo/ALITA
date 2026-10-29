@@ -392,3 +392,47 @@ def test_planner_recognises_committee_stage():
     from app.legal_time import plan
     assert plan("What did the IMCO/LIBE draft compromise amendments say about Article 5?")["stage"] == "committee"
     assert plan("Was stand im Kommissionsvorschlag zu Art. 6?")["stage"] == "proposal"
+
+
+def test_applicability_exception_beats_its_chapter():
+    v = L.VersionInput(seq=1, doc_id="x", stage="adopted", applicable="2026-08-02", applicability=[
+        {"components": ["chp_XII", "chp_III/sec_4"], "from": "2025-08-02"}, {"components": ["art_101"], "from": "2026-08-02"},
+        {"components": ["art_6/abs_1"], "from": "2027-08-02"}])
+    assert L.applicable_for("art_101", ["art_101", "chp_XII"], v) == "2026-08-02"          # Art. 113(b): „except Art. 101“
+    assert L.applicable_for("art_99", ["art_99", "chp_XII"], v) == "2025-08-02"
+    assert L.applicable_for("art_6/abs_1/pt_a", ["art_6/abs_1/pt_a", "art_6/abs_1", "art_6", "chp_III/sec_1", "chp_III"], v) == "2027-08-02"
+    assert L.applicable_for("art_30", ["art_30", "chp_III/sec_4", "chp_III"], v) == "2025-08-02"
+    assert L.applicable_for("art_50", ["art_50", "chp_IV"], v) == "2026-08-02"
+
+
+OJ_FOOTNOTES = """Whereas:
+(1) The purpose of this Regulation is to improve the internal market.
+OJ L, 12.7.2024 EN
+ELI: http://data.europa.eu/eli/reg/2024/1689/oj 1/144
+(1) OJ C 517, 22.12.2021, p. 56.
+(2) Position of the European Parliament of 13 March 2024 (not yet published in the Official Journal) and decision of the
+Council of 21 May 2024.
+
+(2) This Regulation should be applied in accordance with the Charter.
+HAVE ADOPTED THIS REGULATION:
+CHAPTER III
+HIGH-RISK AI SYSTEMS
+SECTION 1
+Classification of AI systems as high-risk
+Article 6
+Classification rules
+1. An AI system shall be high-risk.
+ANNEX VIII
+Information to be submitted upon the registration of high-risk AI systems in accordance with
+Article 49
+Section A — Information to be submitted by providers
+Article 17.
+"""
+
+
+def test_official_journal_footnotes_sections_and_annex_references():
+    cs = {c.cid: c for c in L.parse_components(OJ_FOOTNOTES, "law")}
+    assert [c for c in cs if c.startswith("rec_")] == ["rec_1", "rec_2"]       # Fußnoten (1), (2) sind keine Erwägungsgründe
+    assert not any("OJ C 517" in c.text or "13 March 2024" in c.text for c in cs.values())
+    assert cs["art_6"].parent == "chp_III/sec_1"
+    assert "art_49" not in cs and "art_17" not in cs and "Article 49" in cs["anx_VIII"].text   # Verweise im Anhang

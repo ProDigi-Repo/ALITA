@@ -118,7 +118,7 @@ _LINE_SKIP = re.compile(r"^(\d{1,4}|\d+/\d+|[-–—]\s*\d+\s*[-–—]|page \d+
 _TITLE = re.compile(r"^(TITLE|TITEL)\s+([IVXLC]+)\b\.?\s*(.*)$")   # Gliederung der Kommissionsvorschläge
 _CHAPTER = re.compile(r"^(CHAPTER|KAPITEL)\s+([IVXLC]+|\d+)\b\.?\s*(.*)$")
 _SECTION = re.compile(r"^(SECTION|ABSCHNITT)\s+(\d+)\b\.?\s*(.*)$")
-_ARTICLE = re.compile(r"^(Article|Artikel|Art\.)\s+(\d+(?:\s?[a-z]{1,2}|\([a-z]\))?)\s*(?:$|[–—:\-.]\s*(.{0,140})$)")   # 28a, „54 a“, „28(a)“
+_ARTICLE = re.compile(r"^(Article|Artikel|Art\.)\s+(\d+(?:[a-z]{1,2}|\s[a-z](?![a-z])|\([a-z]\))?)\s*(?:$|[–—:\-.]\s*(.{0,140})$)")   # 28a, „54 a“, „28(a)“
 _PARA_SIGN = re.compile(r"^§\s*(\d+[a-z]?)\s*(.{0,140})$")
 _ANNEX = re.compile(r"^(ANNEX|ANHANG|Annex|Anhang)\s+([IVXLC]+|[A-Z]|\d+)\b\s*(?:$|[–—:\-.(]\s*(.{0,140})$)")
 _SUPPLEMENT = re.compile(r"^(LEGISLATIVE FINANCIAL STATEMENT|FINANZBOGEN ZU RECHTSAKTEN)\b")   # Anlage der Kommissionsvorschläge
@@ -131,6 +131,8 @@ _POINT_EN = re.compile(r"^\(([a-z]{1,2})\)(?:\s+(\S.*))?$")
 _POINT_DE = re.compile(r"^([a-z]{1,2})\)(?:\s+(\S.*))?$")
 _NUM_DE = re.compile(r"^(\d{1,3})\.(?:\s+(\S.*))?$")
 _ROMAN = re.compile(r"^\(((?:i|ii|iii|iv|v|vi|vii|viii|ix|x|xi|xii))\)(?:\s+(\S.*))?$")
+_OJ_FOOTER = re.compile(r"ELI:\s*https?://data\.europa\.eu/eli/\S+")   # Fußzeile jeder Amtsblattseite („ELI: … 2/144“)
+_FOOTNOTE = re.compile(r"^\(\d{1,3}\)\s")
 _CA = re.compile(r"(?:^|\s)CA\s+(\d{1,3})$")              # Kopfzeile eines Kompromissblocks („Articles 40 to 51 … CA 2“)
 CA_MARK = "\x00CA "
 _CLAUSE = re.compile(r"^(\d{1,2}(?:\.\d{1,3}){0,4})\.?\s+([A-ZÄÖÜ][^\n]{1,110})$")
@@ -153,6 +155,12 @@ def clean_lines(text: str) -> list[str]:
                 j -= 1
             if j < 0 or not raw[j] or _LINE_SKIP.match(raw[j]):   # davor Seitenzahl/Leerzeile: das ist der Kopf
                 drop.update(head)
+    for i, ln in enumerate(raw):                  # Amtsblatt: Fußnoten der Seite stehen als Block direkt nach der Fußzeile
+        if _OJ_FOOTER.search(ln) and i + 1 < len(raw) and _FOOTNOTE.match(raw[i + 1]):
+            j = i + 1
+            while j < len(raw) and raw[j]:
+                drop.add(j)
+                j += 1
     out = []
     for i, ln in enumerate(raw):
         if i in drop:
@@ -163,7 +171,8 @@ def clean_lines(text: str) -> list[str]:
             continue
         if not ln or _LINE_SKIP.match(ln):
             continue
-        if freq.get(ln, 0) >= 4 and not (_ARTICLE.match(ln) or _CHAPTER.match(ln) or _TITLE.match(ln) or _ANNEX.match(ln)):
+        if freq.get(ln, 0) >= 4 and not (_ARTICLE.match(ln) or _CHAPTER.match(ln) or _TITLE.match(ln) or _SECTION.match(ln)
+                                           or _ANNEX.match(ln)):
             continue                              # Kopf-/Fußzeile, die auf vielen Seiten steht
         out.append(ln)
     return out
@@ -172,8 +181,8 @@ def clean_lines(text: str) -> list[str]:
 def _is_reference(ln: str, num: str, current: str) -> bool:
     """Zeile beginnt mit „Article 61“, ist aber ein umbrochener Verweis: endet mit Satzzeichen ohne Überschrift,
     oder die Nummer ist kleiner als die des laufenden Artikels."""
-    if re.match(r"^\S+\s+\d+[a-z]?\s*[.,;:]\s*$", ln):
-        return True
+    if re.match(r"^\S+\s+\d+[a-z]?\s*[.,;:]\s*$", ln) or re.match(r"^Article\s+\d+[a-z]?\.\s+\S", ln):
+        return True                               # „Article 58. The Board may …“ – Überschriften haben keinen Satz dahinter
     a, b = re.match(r"\d+", num), re.match(r"\d+", current or "")
     return bool(a and b and int(a.group()) < int(b.group()))
 
@@ -219,12 +228,12 @@ def parse_components(text: str, kind: str = "law") -> list[Component]:
     expect_title: Component | None = None
     clause_stack: list[Component] = []
 
-    ca_seen = False
+    ca_seen = in_annexes = False
     for ln in lines:
         if ln.startswith(CA_MARK):                # neuer Kompromissblock: Gliederung von vorn, Erwägungsgründe zuerst
             ca_seen = True
             title_ = chapter = section = article = para = point = defn = None
-            in_recitals, expect_title, cur = True, None, comps["pre"]
+            in_recitals, in_annexes, expect_title, cur = True, False, None, comps["pre"]
             clause_stack = []
             continue
         if cur.type in ("title", "chapter", "section") and cur.title and not cur.text and ln.isupper() and len(ln) <= 120 \
@@ -280,7 +289,7 @@ def parse_components(text: str, kind: str = "law") -> list[Component]:
                 cur = section
                 expect_title = section if not section.title else None
                 continue
-            m = _ARTICLE.match(ln) or (_PARA_SIGN.match(ln) if style == "de" else None)
+            m = None if in_annexes else (_ARTICLE.match(ln) or (_PARA_SIGN.match(ln) if style == "de" else None))
             if m and not ln.startswith("§") and article is not None and _is_reference(ln, m.group(2), article.number):
                 m = None                          # „… referred to in\nArticle 61.“ – umbrochener Verweis, keine Überschrift
             if m and (not in_recitals or ln.startswith(("Article", "Artikel", "§"))):
@@ -300,6 +309,7 @@ def parse_components(text: str, kind: str = "law") -> list[Component]:
             if m and (article is not None or chapter is not None or title_ is not None or ca_seen
                       or cur.type in ("annex", "supplement")):
                 title_ = chapter = section = article = para = point = defn = None
+                in_annexes = True                 # ab hier sind „Article 49“-Zeilen Verweise (umbrochene Anhangtitel)
                 cur = add(f"anx_{m.group(2)}", "annex", m.group(2), None, m.group(3) or "")
                 expect_title = cur if not cur.title else None
                 continue
@@ -534,13 +544,19 @@ class VersionInput:
 
 
 def applicable_for(cid: str, path: list[str], v: VersionInput) -> str | None:
-    """Anwendungsbeginn eines Bestandteils in dieser Fassung: spezifischste Regel (längstes Präfix) gewinnt."""
-    best, best_len = iso(v.applicable), -1
+    """Anwendungsbeginn eines Bestandteils in dieser Fassung: spezifischste Regel gewinnt – die Regel, die den Bestandteil
+    selbst (oder seinen nächsten Vorfahren) nennt, vor der Regel für sein Kapitel; bei Gleichstand das längere Präfix.
+    Beispiel Art. 113 AI Act: Kapitel XII ab 2.8.2025, „mit Ausnahme von Artikel 101“ (ab 2.8.2026)."""
+    best, best_score = iso(v.applicable), None
     for rule in v.applicability or []:
         for pref in rule.get("components") or []:
             pref = str(pref).strip("/")
-            if any(p == pref or p.startswith(pref + "/") for p in path) and len(pref) > best_len:
-                best, best_len = iso(rule.get("from")), len(pref)
+            hit = next((i for i, p in enumerate(path) if p == pref or p.startswith(pref + "/")), None)
+            if hit is None:
+                continue
+            score = (-hit, len(pref))
+            if best_score is None or score > best_score:
+                best, best_score = iso(rule.get("from")), score
     return best
 
 
