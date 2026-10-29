@@ -107,7 +107,9 @@ def plan_norms(meta: dict, files: list[Path], kind: str, default_id: str, texts:
                           "kind": n.get("kind") or kind, "eli": n.get("eli"), "issuer": n.get("issuer"),
                           "language": n.get("language") or "en", "no_longer_in_force": n.get("no_longer_in_force"),
                           "versions": vs})
-    rest = [p for p in files if p not in used]
+    named = {str(d.get("file")) for d in meta.get("documents") or []}   # REQ-51: Begleitdokumente aus _legal.yaml
+    rest = [p for p in files if p not in used and p.name not in named]
+    pre_support = [p for p in files if p not in used and p.name in named]
     support: list[Path] = []
     if kind == "law":
         guessed = []
@@ -125,7 +127,7 @@ def plan_norms(meta: dict, files: list[Path], kind: str, default_id: str, texts:
         for p in rest:
             norms.append({"norm_id": slug(p.stem), "title": p.stem, "short": p.stem, "kind": kind, "eli": None, "issuer": None,
                           "language": "en", "versions": [{"path": p, "stage": "version"}], "guessed": True})
-    return norms, support
+    return norms, pre_support + support
 
 
 async def ingest_legal(path: Path, doc_type: DocType, opts):
@@ -168,6 +170,23 @@ async def ingest_legal(path: Path, doc_type: DocType, opts):
                 main.record.pages = main.extracted.pages
                 main.record.text_chars = len(main.extracted.text[: s.max_text_chars])
                 items.remove(part)
+    for d in meta.get("documents") or []:       # REQ-51: Rolle, Datum, Titel von Begleitdokumenten (z. B. Weißbuch)
+        it = next((by_path[p] for p in support if p.name == str(d.get("file"))), None)
+        if it is None:
+            log.warning("_legal.yaml: Begleitdokument %s nicht gefunden", d.get("file"))
+            continue
+        r = it.record
+        if d.get("role") and r.project is not None:
+            try:
+                r.project.role = ProjectRole(str(d["role"]))
+            except ValueError:
+                log.warning("_legal.yaml: unbekannte Rolle %s", d["role"])
+        if d.get("date"):
+            from datetime import datetime, timezone
+            dd = datetime.fromisoformat(iso(d["date"])).replace(tzinfo=timezone.utc)
+            r.date, r.date_source, r.year = dd, "legal_meta", dd.year
+        if d.get("title"):
+            r.title = str(d["title"])
     dbs = s.normalize_databases(opts.databases) or detect_databases(path)
     if not dbs and is_project:
         dbs = (store.get_project(name) or {}).get("databases") or []

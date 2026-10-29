@@ -61,6 +61,7 @@ SUMMARY_ROLES = {
     ProjectRole.manuscript, ProjectRole.abstract, ProjectRole.notes, ProjectRole.reviewer_response,
     ProjectRole.questionnaire, ProjectRole.submission_pdf, ProjectRole.appendix, ProjectRole.highlights,
     ProjectRole.legal_text,       # REQ-38: die aktuelle Fassung eines Gesetzes / einer Leitlinie / eines Standards
+    ProjectRole.white_paper,      # REQ-51: Weißbuch eines Legal project
 }
 MIN_TEXT_FOR_SUMMARY = 400
 

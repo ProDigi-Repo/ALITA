@@ -659,3 +659,15 @@ def test_nist_appendices_and_references():
     assert cs["anx_A"].title.startswith("RMF Task Outputs") and cs["anx_C"].title == "Glossary"
     assert cs["bib"].type == "supplement" and "SP 800-37" in cs["bib"].text and "SP 800-37" not in cs["cl_4.7"].text
     assert L.component_label("bib") == "References" and "cl_1~2" not in cs
+
+
+def test_accompanying_documents_from_legal_yaml(tmp_path):
+    from app.legal_ingest import plan_norms
+    a, w = tmp_path / "proposal.pdf", tmp_path / "white-paper.pdf"
+    meta = {"norms": [{"id": "ai-act", "versions": [{"file": a.name, "stage": "proposal", "date": "2021-04-21"}]}],
+            "documents": [{"file": w.name, "role": "white_paper", "date": "2020-02-19"}]}
+    article_like = "Article 1\\nx\\nArticle 2\\ny\\nArticle 3\\nz"          # auch mit Artikel-Zeilen: bleibt Begleitdokument
+    norms, support = plan_norms(meta, [a, w], "law", "x", {str(w): article_like})
+    assert [v["path"] for v in norms[0]["versions"]] == [a] and support == [w]
+    from app.schemas import ProjectRole
+    assert ProjectRole("white_paper") == ProjectRole.white_paper

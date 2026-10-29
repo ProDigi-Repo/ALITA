@@ -8,6 +8,17 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-10-30
+
+> **Minor release – the White Paper as an accompanying document.** The Commission's White Paper on Artificial Intelligence – A European approach to excellence and trust (COM(2020) 65 final, 19 February 2020, 27 pages) is the policy precursor of the AI Act: the proposal of 2021 builds on its "ecosystem of trust". It has no articles and is not a version of the law, so it goes into the legal project EU-AI-Act as an accompanying document with the new role "White paper", dated 19 February 2020 – before the proposal in the project's timeline. Accompanying documents can now be described in `_legal.yaml`. One new requirement (REQ-51). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest legal /research/EUAIA/legal/EU-AI-Act`. Roll back with `git checkout v3.3.2`.
+
+### Requirements
+- **REQ-51 Add the White Paper on AI** – ✅ prepared and checked offline; file in `research/EUAIA/legal/EU-AI-Act/`, entry under `documents:` in its `_legal.yaml`; the ingestion runs in Docker.
+
+### Added
+- Project role `white_paper` ("White paper"), summarised like a manuscript.
+- `_legal.yaml`: section `documents:` with `{file, role, date, title}` for accompanying documents of a legal project (white papers, impact assessments, opinions …); listed files are never taken as versions of the norm, even if they contain lines starting with "Article".
+
 ## [3.3.2] - 2026-10-30
 
 > **Patch release – NIST SP 800-18 Rev. 2.** Second standard of the database "EU AI Act": NIST Special Publication 800-18 Revision 2, "Developing Security, Privacy, and Cybersecurity Supply Chain Risk Management Plans for Systems" (June 2026, 70 pages, free of charge). NIST documents have "Appendix A." instead of "Annex A" and an unnumbered "References" section; the appendices were not found and the reference list ended up in section 4.7. Checked on the real file: sections 1–4.7 (28 clauses), References, Appendices A–D; DIN SPEC 92005 and all other documents are split as before. One new requirement (REQ-50). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest standard /research/EUAIA/standards` (reads both standards – check the DIN licence first, see 3.3.1). Roll back with `git checkout v3.3.1`.

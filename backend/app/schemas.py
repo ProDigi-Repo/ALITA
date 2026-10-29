@@ -41,6 +41,7 @@ class ProjectRole(str, Enum):
     image = "image"
     reference = "reference"                # zitierte Fremdliteratur im Projekt
     legal_text = "legal_text"              # REQ-38: eine Fassung des Gesetzes / der Leitlinie / des Standards selbst
+    white_paper = "white_paper"            # REQ-51: Weißbuch o. Ä. – politisches Vorläuferdokument eines Legal project
     other = "other"
 
 
