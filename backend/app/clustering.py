@@ -394,7 +394,7 @@ SUMMARY_FIELDS = [
     ("research_limitations_implications", "Research limitations/implications"),
     ("originality_value", "Originality/value"),
 ]
-UNIT_TYPES = ("research_paper", "research_notes")
+UNIT_TYPES = ("research_paper", "research_notes", "legal_guideline", "standard")   # + aktuelle Gesetzesfassungen (REQ-38)
 
 
 def summary_text(title: str | None, summary: dict | None) -> str:
@@ -420,9 +420,14 @@ def select_units(docs: list[dict], projects: list[dict], project_files: bool = F
     for d in docs:
         if d.get("duplicate_of"):
             continue
+        lg = d.get("legal") or {}
+        if lg and not lg.get("current"):
+            continue                              # REQ-38: nur die aktuelle Fassung einer Norm ist eine Einheit
         if d.get("doc_type") == "research_project":
             if not project_files or d.get("is_latest") is False or d.get("archived"):
                 continue
+        elif d.get("doc_type") == "legal_project" and lg.get("current"):
+            pass                                  # das Gesetz selbst (aktuelle Fassung) liegt als Punkt in der Karte
         elif d.get("doc_type") not in UNIT_TYPES:
             continue
         t = summary_text(d.get("title"), d.get("summary"))

@@ -100,10 +100,43 @@ def to_qdrant(f: SearchFilters):
     any_of("venue", f.venue)
     any_of("deo", f.deo)
     any_of("doc_id", f.doc_ids)
+    # Rechtstext-Stellen (REQ-37) wählt der Stichtag, nicht Dateijahr, „neueste Version“ oder Archiv
+    legal_unit = [qm.Filter(must_not=[qm.IsEmptyCondition(is_empty=qm.PayloadField(key="ctv_id"))]),
+                  qm.Filter(must_not=[qm.IsEmptyCondition(is_empty=qm.PayloadField(key="action_id"))])]
     if f.year_from or f.year_to:
-        must.append(qm.FieldCondition(key="year", range=qm.Range(gte=f.year_from, lte=f.year_to)))
+        must.append(qm.Filter(should=[qm.FieldCondition(key="year", range=qm.Range(gte=f.year_from, lte=f.year_to)), *legal_unit]))
     if f.latest_only:
-        must.append(qm.FieldCondition(key="is_latest", match=qm.MatchValue(value=True)))
+        must.append(qm.Filter(should=[qm.FieldCondition(key="is_latest", match=qm.MatchValue(value=True)), *legal_unit]))
     if not f.include_archived:
-        must.append(qm.FieldCondition(key="archived", match=qm.MatchValue(value=False)))
+        must.append(qm.Filter(should=[qm.FieldCondition(key="archived", match=qm.MatchValue(value=False)), *legal_unit]))
+    lc = legal_condition(f)
+    if lc is not None:
+        must.append(lc)
     return qm.Filter(must=must) if must else None
+
+
+def legal_condition(f: SearchFilters):
+    """REQ-37: Stichtag für Rechtstexte. Andere Textstellen passieren unverändert; Bestandteil-Fassungen (ctv_id) nur, wenn sie
+    am Stichtag galten (valid_from ≤ t < valid_to) bzw. zur gewählten Stufe gehören; Änderungs-Texte (action_id) bis zum
+    Stichtag, bei Fragen nach Änderungen ab legal_from. legal_all_versions: keine Einschränkung."""
+    from datetime import date
+
+    from qdrant_client import models as qm
+
+    from .legal import ts
+    if f.legal_all_versions:
+        return None
+    empty = lambda k: qm.IsEmptyCondition(is_empty=qm.PayloadField(key=k))  # noqa: E731
+    plain = qm.Filter(must=[empty("ctv_id"), empty("action_id")])
+    if f.legal_stage:
+        content = qm.Filter(must=[qm.FieldCondition(key="stages", match=qm.MatchAny(any=[f.legal_stage]))],
+                            must_not=[empty("ctv_id")])
+        action = qm.Filter(must=[qm.FieldCondition(key="stages", match=qm.MatchAny(any=[f.legal_stage]))],
+                           must_not=[empty("action_id")])
+        return qm.Filter(should=[plain, content, action])
+    t = ts(f.as_of or date.today().isoformat())
+    content = qm.Filter(must=[qm.FieldCondition(key="valid_from_ts", range=qm.Range(lte=t)),
+                              qm.FieldCondition(key="valid_to_ts", range=qm.Range(gt=t))])
+    action = qm.Filter(must=[qm.FieldCondition(key="action_ts", range=qm.Range(gte=ts(f.legal_from) if f.legal_from else None, lte=t))],
+                       must_not=[empty("action_id")])
+    return qm.Filter(should=[plain, content, action])

@@ -12,6 +12,10 @@ class DocType(str, Enum):
     research_project = "research_project"
     research_paper = "research_paper"
     research_notes = "research_notes"
+    # REQ-38: Rechtstexte (Legal-Ontologie, app/legal.py)
+    legal_project = "legal_project"       # Ordner wie ein research project; die Gesetzesfassungen sind die Stufen
+    legal_guideline = "legal_guideline"   # Leitlinien, FAQ, Auslegungshilfen von Behörden (soft law)
+    standard = "standard"                 # Normen/Standards (ISO, IEC, CEN, DIN …)
 
 
 class ProjectRole(str, Enum):
@@ -35,6 +39,7 @@ class ProjectRole(str, Enum):
     presentation = "presentation"
     image = "image"
     reference = "reference"                # zitierte Fremdliteratur im Projekt
+    legal_text = "legal_text"              # REQ-38: eine Fassung des Gesetzes / der Leitlinie / des Standards selbst
     other = "other"
 
 
@@ -107,6 +112,7 @@ class DocumentRecord(BaseModel):
     indexed: bool = False             # Chunks im Vektorindex?
     index_note: str | None = None     # warum nicht indexiert
     project: ProjectContext | None = None
+    legal: dict | None = None         # REQ-38: {norm_id, norm_title, kind, eli, seq, stage, in_force, valid_to, applicable, …}
     summary: StructuredSummary = Field(default_factory=StructuredSummary)
     methods: list[MethodTag] = []
     keywords: list[str] = []
@@ -185,6 +191,11 @@ class SearchFilters(BaseModel):
     year_to: int | None = None
     latest_only: bool = False
     include_archived: bool = True
+    # REQ-37: Stand von Rechtstexten (Gesetze, Leitlinien, Standards). Leer = heute gültige Fassung.
+    as_of: str | None = None          # Stichtag YYYY-MM-DD: Fassungen, die an diesem Tag galten
+    legal_stage: str | None = None    # Stufe im Verfahren, z. B. proposal (Entwürfe haben keine Geltung)
+    legal_from: str | None = None     # Zeitraum für Änderungen (Actions), z. B. „seit 2024“
+    legal_all_versions: bool = False  # alle Fassungen durchsuchen (kein Stichtag)
 
 
 class ChatTurn(BaseModel):
@@ -222,6 +233,7 @@ class SourceRef(BaseModel):
     databases: list[str] = []
     cluster_id: int | None = None
     cluster_label: str | None = None
+    legal: dict | None = None         # REQ-38: Bestandteil, Fassung, Geltung, Anwendungsbeginn einer Rechtstext-Stelle
 
 
 class ChatResponse(BaseModel):
@@ -239,6 +251,8 @@ class ChatResponse(BaseModel):
     scope: str | None = None                # REQ-12: "map", wenn ohne Auswahl über die ganze Landkarte gefragt wurde
     usage: dict | None = None               # Tokens und Kosten (EUR) von Frage und Antwort
     progress: dict | None = None            # REQ-16/18: Erkenntnisstufen des Projekts (Tabelle unter der Antwort)
+    temporal: dict | None = None            # REQ-37: Stichtag/Stufe und Regel, nach der Rechtstext-Fassungen gewählt wurden
+    legal: dict | None = None               # REQ-37: Änderungen/Herkunft aus den Actions (Tabelle unter der Antwort)
 
 
 # ----------------------------------------------------------------- IDs

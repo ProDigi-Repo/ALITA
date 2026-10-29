@@ -14,6 +14,8 @@ from qdrant_client import models as qm
 from .config import get_settings
 from .schemas import Chunk, DocumentRecord, ProjectRecord, make_project_id
 
+LEGAL_KEYWORD_FIELDS = ["norm_id", "component_path", "unit_kind", "ctv_id", "action_id", "stages"]   # REQ-37/38
+LEGAL_INT_FIELDS = ["valid_from_ts", "valid_to_ts", "action_ts"]
 KEYWORD_FIELDS = ["doc_id", "content_hash", "cluster_label", "databases", "deo", "section", "doc_type", "project_name", "filetype", "role", "method_ids", "venue", "stage", "language"]
 BOOL_FIELDS = ["is_latest", "archived", "indexed"]
 INT_FIELDS = ["year", "date_ts", "cluster_id"]
@@ -102,6 +104,63 @@ def upsert_document(d: DocumentRecord, summary_vector: list[float] | None = None
         get_settings().col_documents,
         [qm.PointStruct(id=d.doc_id, vector={"summary": summary_vector} if summary_vector else {}, payload=d.payload())],
     )
+
+
+_LEGAL_IDX = False
+
+
+def ensure_legal_indexes() -> None:
+    """Indizes für die Stichtag-Filter (REQ-37) – auch in bestehenden Installationen nachrüsten (idempotent)."""
+    global _LEGAL_IDX
+    if _LEGAL_IDX:
+        return
+    s, c = get_settings(), client()
+    for f in LEGAL_KEYWORD_FIELDS:
+        try:
+            c.create_payload_index(s.col_chunks, f, qm.PayloadSchemaType.KEYWORD)
+        except Exception:
+            pass
+    for f in LEGAL_INT_FIELDS:
+        try:
+            c.create_payload_index(s.col_chunks, f, qm.PayloadSchemaType.INTEGER)
+        except Exception:
+            pass
+    _LEGAL_IDX = True
+
+
+def existing_vectors(ids: list[str]) -> dict[str, list[float]]:
+    """Vektoren bereits gespeicherter Text Units (unveränderte Fassungen werden nicht neu eingebettet)."""
+    s, c = get_settings(), client()
+    out: dict[str, list[float]] = {}
+    for i in range(0, len(ids), 256):
+        for p in c.retrieve(s.col_chunks, ids[i:i + 256], with_payload=False, with_vectors=["text"]):
+            v = p.vector.get("text") if isinstance(p.vector, dict) else p.vector
+            if v:
+                out[str(p.id)] = list(v)
+    return out
+
+
+def replace_legal_units(norm_id: str, units: list[dict], vectors: list[list[float]]) -> None:
+    """Alle Text Units einer Norm ersetzen (Bestandteil-Fassungen und Änderungs-Texte, REQ-38)."""
+    s, c = get_settings(), client()
+    ensure_legal_indexes()
+    c.delete(s.col_chunks, qm.FilterSelector(filter=qm.Filter(must=[qm.FieldCondition(key="norm_id", match=qm.MatchValue(value=norm_id))])))
+    points = [qm.PointStruct(id=u["id"], vector={"text": v}, payload=u["payload"]) for u, v in zip(units, vectors)]
+    for i in range(0, len(points), 256):
+        c.upsert(s.col_chunks, points[i:i + 256])
+
+
+def scroll_legal_units(norm_id: str, unit_kind: str | None = None) -> list[dict]:
+    s, c = get_settings(), client()
+    must = [qm.FieldCondition(key="norm_id", match=qm.MatchValue(value=norm_id))]
+    if unit_kind:
+        must.append(qm.FieldCondition(key="unit_kind", match=qm.MatchValue(value=unit_kind)))
+    out, offset = [], None
+    while True:
+        pts, offset = c.scroll(s.col_chunks, scroll_filter=qm.Filter(must=must), limit=512, offset=offset, with_payload=True, with_vectors=False)
+        out += [{**p.payload, "chunk_id": str(p.id)} for p in pts]
+        if offset is None:
+            return out
 
 
 def replace_chunks(d: DocumentRecord, chunks: list[Chunk], vectors: list[list[float]]) -> None:

@@ -60,6 +60,7 @@ _MIN = datetime(1900, 1, 1, tzinfo=timezone.utc)
 SUMMARY_ROLES = {
     ProjectRole.manuscript, ProjectRole.abstract, ProjectRole.notes, ProjectRole.reviewer_response,
     ProjectRole.questionnaire, ProjectRole.submission_pdf, ProjectRole.appendix, ProjectRole.highlights,
+    ProjectRole.legal_text,       # REQ-38: die aktuelle Fassung eines Gesetzes / einer Leitlinie / eines Standards
 }
 MIN_TEXT_FOR_SUMMARY = 400
 
@@ -612,9 +613,19 @@ async def ingest_all(root: Path, opts: IngestOptions, force: bool = False) -> No
     folders: list[Path] = []
     singles: list[tuple[Path, DocType]] = []
 
+    from .legal_ingest import FOLDERS as LEGAL_FOLDERS
+    legal: list[tuple[Path, DocType]] = []
+
     def collect(base: Path) -> None:
         for q in sorted(base.iterdir()):
             if not q.is_dir() or q.name.startswith("."):
+                continue
+            lk = LEGAL_FOLDERS.get(q.name.lower())
+            if lk == DocType.legal_project:       # research/<DB>/legal/<Projekt>/ (REQ-38)
+                legal.extend((sub, lk) for sub in sorted(q.iterdir()) if sub.is_dir() and not sub.name.startswith("."))
+                continue
+            if lk:                                # research/<DB>/guidelines/, research/<DB>/standards/
+                legal.append((q, lk))
                 continue
             kind = FILE_FOLDERS.get(q.name.lower())
             if kind:   # research/<DB>/papers/*.pdf bzw. research/<DB>/notes/*
@@ -627,13 +638,17 @@ async def ingest_all(root: Path, opts: IngestOptions, force: bool = False) -> No
             continue
         if p.name.lower() in known:   # research/<DB>/<Projekt>
             collect(p)
+        elif p.name.lower() in LEGAL_FOLDERS:   # research/legal/…, research/guidelines/, research/standards/ (ohne Datenbank)
+            lk = LEGAL_FOLDERS[p.name.lower()]
+            legal.extend([(sub, lk) for sub in sorted(p.iterdir()) if sub.is_dir() and not sub.name.startswith(".")]
+                         if lk == DocType.legal_project else [(p, lk)])
         elif p.name.lower() in FILE_FOLDERS:
             singles.extend((f, FILE_FOLDERS[p.name.lower()]) for f in sorted(p.rglob("*")) if f.is_file() and not f.name.startswith((".", "~$", "_")))
         else:
             folders.append(p)
     from dataclasses import replace
     single = replace(opts, recluster=False)
-    if not folders and not singles:
+    if not folders and not singles and not legal:
         print(f"No project folders or papers/notes in {root}")
     for path, kind in singles:
         doc_id = make_doc_id(kind.value, kind.value, f"{path.parent.name}/{path.name}")
@@ -648,6 +663,20 @@ async def ingest_all(root: Path, opts: IngestOptions, force: bool = False) -> No
             continue
         p = await ingest_project(folder, single)
         print(f"Project {p.name}: {p.file_count} files, {p.indexed_count} indexed with full text")
+    from .legal_ingest import ingest_legal, list_models
+    known_norms = {m.get("project") or "" for m in list_models()}
+    for folder, kind in legal:
+        if not force and kind == DocType.legal_project and (store.get_project(folder.name) or folder.name in known_norms):
+            print(f"skipped (already ingested): {folder.name}")
+            continue
+        if not force and kind != DocType.legal_project:
+            from .legal_ingest import _files
+            fs = _files(folder, get_settings().project_exclude)
+            if fs and all(store.get_document(make_doc_id(kind.value, kind.value, f"{folder.name}/{f.name}")) for f in fs):
+                print(f"skipped (already ingested): {folder.name}")
+                continue
+        r = await ingest_legal(folder, kind, single)
+        print(f"{kind.value}: {getattr(r, 'name', None) or getattr(r, 'filename', '')} ingested")
     res = await maybe_recluster(opts)   # einmal am Ende statt nach jeder Datei
     if res:
         print(f"Clustering: {res['documents']} documents in {res['k']} clusters")
@@ -667,9 +696,11 @@ def _dump(project: ProjectRecord | None, items: list[Item], out: Path) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Load documents into the RAG index")
-    ap.add_argument("kind", choices=["project", "paper", "notes", "all", "cluster", "graph", "citations", "delete"],
+    ap.add_argument("kind", choices=["project", "paper", "notes", "all", "cluster", "graph", "citations", "delete",
+                                     "legal", "guideline", "standard"],
                     help="all = ingest every subfolder of PATH; cluster = recompute clusters only (--db X: only database X, other clusters stay); graph = (re)build the Neo4j graph; "
                          "citations = recompute the citation network from the reference lists already in the index (no LLM, no embeddings); "
+                         "legal / guideline / standard = ingest a legal project folder, guidelines or standards (folder or file, see _legal.yaml); "
                          "delete --db X = remove all data of database X from the index")
     ap.add_argument("path", type=Path, nargs="?")
     ap.add_argument("--k", type=int, default=0, help="cluster: fixed number of clusters (0 = automatic)")
@@ -738,6 +769,12 @@ def main() -> None:
 
     if a.kind == "all":
         asyncio.run(ingest_all(a.path, opts, force=a.force))
+        return
+    if a.kind in ("legal", "guideline", "standard"):
+        from .legal_ingest import ingest_legal
+        dt = {"legal": DocType.legal_project, "guideline": DocType.legal_guideline, "standard": DocType.standard}[a.kind]
+        r = asyncio.run(ingest_legal(a.path, dt, opts))
+        print(f"{dt.value}: {getattr(r, 'name', None) or getattr(r, 'filename', '')} ingested")
         return
 
     if a.kind == "project":

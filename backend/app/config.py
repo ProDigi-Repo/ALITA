@@ -42,15 +42,15 @@ class Settings(BaseSettings):
 
     # --- Datenbanken ------------------------------------------------------
     # Feste Liste der Datenbanken, denen Dateien zugeordnet werden (Metadatum "databases").
-    # In der .env: DATABASES=AL,CNN_DM,DL,JSW,LDK,ML,UM,OTH  (OTH = „Others“ für alles, was nirgends sonst hingehört)
-    databases: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["AL", "CNN_DM", "DL", "JSW", "LDK", "ML", "UM", "OTH"])
+    # In der .env: DATABASES=AL,CNN_DM,DL,JSW,LDK,ML,UM,EUAIA,OTH  (EUAIA = „EU AI Act“, Kornblume, seit 3.0.0; OTH = „Others“ für alles, was nirgends sonst hingehört)
+    databases: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["AL", "CNN_DM", "DL", "JSW", "LDK", "ML", "UM", "EUAIA", "OTH"])
     # Anzeigenamen (Blumen) der Datenbanken. Die Kürzel oben bleiben die internen Schlüssel
     # (Ordner research/<ID>/, Qdrant-Payload "databases", API-Filter); Namen erscheinen in Oberfläche,
     # Cluster-Labels und LLM-Kontext, und Fragen dürfen beide Schreibweisen nutzen.
     # In der .env als JSON: DATABASE_NAMES={"LDK":"Peony",...}
     database_names: dict[str, str] = Field(default_factory=lambda: {
         "AL": "Aster", "CNN_DM": "Camellia", "DL": "Dahlia", "JSW": "Jasmine",
-        "LDK": "Peony", "ML": "Magnolia", "UM": "Orchid", "OTH": "Others"})
+        "LDK": "Peony", "ML": "Magnolia", "UM": "Orchid", "EUAIA": "EU AI Act", "OTH": "Others"})
 
     # --- Clustering -------------------------------------------------------
     memory_max_turns: int = 20      # Gesprächsgedächtnis: so viele frühere Wechsel gehen mit jeder Frage mit

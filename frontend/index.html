@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="css/outside.css">
 <link rel="stylesheet" href="css/progress.css">
 <link rel="stylesheet" href="css/citations.css">
+<link rel="stylesheet" href="css/legal.css">
 <link rel="stylesheet" href="css/pages.css">
 </head>
 <body><!--BODY-->
@@ -22,7 +23,7 @@
   <header class="top">
     <div class="brand">
       <h1>ALITA PROTOTYPE</h1>
-      <button class="ver" id="appVersion" type="button" title="Open release notes">v2.2.0</button>
+      <button class="ver" id="appVersion" type="button" title="Open release notes">v3.0.0</button>
       <span class="mode" id="mode" title="">Demo</span>
     </div>
     <nav class="nav" role="tablist" aria-label="Sections">
@@ -185,6 +186,14 @@
           <button class="chip" aria-pressed="true" data-v="research_project">Project</button>
           <button class="chip" aria-pressed="true" data-v="research_paper">Paper</button>
           <button class="chip" aria-pressed="true" data-v="research_notes">Notes</button>
+          <button class="chip" aria-pressed="true" data-v="legal_project" title="Laws and other legal texts (legal projects)">Law</button>
+          <button class="chip" aria-pressed="true" data-v="legal_guideline">Guideline</button>
+          <button class="chip" aria-pressed="true" data-v="standard">Standard</button>
+        </div>
+        <div class="frow">
+          <span class="flabel">Legal texts as of</span>
+          <input type="date" id="rAsOf" aria-label="Legal texts as of (date)" title="Laws, guidelines and standards in the version valid on this day. Empty: from the question (e.g. 'on 1 September 2026'), otherwise today.">
+          <span class="srcnote">empty = date in the question, else today</span>
         </div>
         <div class="frow">
           <span class="flabel">Narrow</span>
@@ -249,6 +258,11 @@
           <span class="flabel">Relation</span>
           <select id="gRel" aria-label="Relation"><option value="">All relations</option><option>authored</option><option>uses_method</option><option>cites</option><option value="contains">contains (discourse element)</option><option>in_cluster</option></select>
           <select id="gYear" aria-label="Period"><option value="">Any period</option><option>2021</option><option>2020</option><option>2019</option></select>
+        </div>
+        <div class="frow">
+          <span class="flabel">Legal texts as of</span>
+          <input type="date" id="gAsOf" aria-label="Legal texts as of (date)" title="Laws, guidelines and standards in the version valid on this day. Empty: from the question, otherwise today.">
+          <span class="srcnote">empty = date in the question, else today</span>
         </div>
         <div class="frow">
           <span class="flabel">Discourse</span>
@@ -428,6 +442,7 @@
       <button class="dtab" role="tab" aria-selected="false" data-t="research_project"><b id="cProject">0</b><span><i class="sw" style="background:var(--t-project)"></i>Research Projects · <span id="cProjN">0</span> project(s)</span></button>
       <button class="dtab" role="tab" aria-selected="false" data-t="research_paper"><b id="cPaper">0</b><span><i class="sw" style="background:var(--t-paper)"></i>Research Papers</span></button>
       <button class="dtab" role="tab" aria-selected="false" data-t="research_notes"><b id="cNotes">0</b><span><i class="sw" style="background:var(--t-notes)"></i>Research Notes</span></button>
+      <button class="dtab" role="tab" aria-selected="false" data-t="legal"><b id="cLegal">0</b><span><i class="sw" style="background:var(--t-legal);border-radius:0;clip-path:polygon(50% 0,100% 100%,0 100%)"></i>Laws, Guidelines &amp; Standards</span></button>
       <button class="dtab dstat" type="button" id="cClustersBtn" title="Read about all clusters from all databases"><b id="cClusters">0</b><span><i class="sw" style="background:linear-gradient(135deg,var(--c1),var(--c2))"></i>Clusters · all databases <u>read more</u></span></button>
       <span class="spacer"></span>
       <button class="btn primary" id="openUpload">+ Upload</button>
@@ -492,6 +507,9 @@
       <label><input type="radio" name="utype" value="research_project" checked> Research Project</label>
       <label><input type="radio" name="utype" value="research_paper"> Research Paper</label>
       <label><input type="radio" name="utype" value="research_notes"> Research Notes</label>
+      <label><input type="radio" name="utype" value="legal_project"> Legal Project</label>
+      <label><input type="radio" name="utype" value="legal_guideline"> Guideline</label>
+      <label><input type="radio" name="utype" value="standard"> Standard</label>
     </div>
     <p id="uHint">Upload the project folder as a ZIP. The folder name becomes the project name, and every file inside is linked to the project. The "Literatur" folder is skipped.</p>
     <label id="uProjWrap" hidden>Link to project (optional)<input type="text" id="uProject" list="projList" placeholder="e.g. 11-MentalModelProcesses"></label>
@@ -513,6 +531,9 @@
         <label class="ad-type"><input type="radio" name="adtype" value="research_project"><i aria-hidden="true">◆</i><b>Research project</b><span>a project folder as ZIP – manuscripts, data, analyses, submissions</span></label>
         <label class="ad-type"><input type="radio" name="adtype" value="research_paper"><i aria-hidden="true">■</i><b>Research papers</b><span>published or own papers, one or more files</span></label>
         <label class="ad-type"><input type="radio" name="adtype" value="research_notes"><i aria-hidden="true">●</i><b>Research notes</b><span>notes, minutes, idea collections, web articles</span></label>
+        <label class="ad-type"><input type="radio" name="adtype" value="legal_project"><i aria-hidden="true" style="color:var(--t-legal)">▲</i><b>Legal project</b><span>a ZIP with the versions of a law (proposal, adopted, consolidated) – add _legal.yaml for dates</span></label>
+        <label class="ad-type"><input type="radio" name="adtype" value="legal_guideline"><i aria-hidden="true" style="color:var(--t-guideline)">▲</i><b>Legal guidelines</b><span>guidelines, FAQ, interpretation aids of authorities</span></label>
+        <label class="ad-type"><input type="radio" name="adtype" value="standard"><i aria-hidden="true" style="color:var(--t-standard)">▲</i><b>Standards</b><span>ISO, IEC, CEN, DIN … one file per standard</span></label>
       </div></fieldset>
     <fieldset class="ad-step"><legend><b>3</b> <span id="adDateQ">Which overall date should the data get?</span></legend>
       <div class="ad-date"><input type="date" id="adDate" aria-describedby="adDateHint"><button type="button" class="mini" id="adDateClear">no date</button></div>
@@ -571,6 +592,7 @@
 <script src="js/people.js"></script>
 <script src="js/progress.js"></script>
 <script src="js/citations.js"></script>
+<script src="js/legal.js"></script>
 <script src="js/space3d-time.js"></script>
 <script src="js/space3d.js"></script>
 <script src="js/sealife.js"></script>

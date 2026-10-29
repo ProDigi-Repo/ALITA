@@ -20,9 +20,9 @@ One block can carry several DEO classes. A section "Materials and Methods" is bo
 
 | Ontology | Use in ALITA |
 |---|---|
-| FaBiO | document types: `fabio:JournalArticle` (research paper), `fabio:Note` (research notes), `fabio:WorkPackage` (research project material) |
+| FaBiO | document types: `fabio:JournalArticle` (research paper), `fabio:WorkPackage` (research project material), `fabio:Expression` (research notes, legal texts). Until 2.2.0 notes were typed `fabio:Note`, a class FaBiO does not define. |
 | CiTO | citations between documents: `(:Document)-[:CITES]->(:Work)` |
-| C4O / Collections Ontology | text content and order: chunk text in Qdrant, `order` on `CONTAINS` relationships |
+| ELI (European Legislation Identifier, since 3.0.0) | legal texts: `eli:LegalResource` (norm), `eli:LegalResourceSubdivision` (article, paragraph, annex, clause), `eli:LegalExpression` (language version); versions and changes follow the SAT-Graph RAG model of de Martim (2025, LRMoo-inspired) – see *Legal ontology* |
 | BIBO (Bibliographic Ontology, since 2.2.0) | bibliographic description: `bibo_type` (`bibo:AcademicArticle` paper, `bibo:Note` notes, `bibo:Manuscript` project file), `author_list` (`bibo:authorList`, ordered; `AUTHORED {position}`), and citations between documents of the collection: `(:Document)-[:CITES {via, confidence}]->(:Document)` (`bibo:cites` / `cito:cites`), found in the reference lists (see *Ingestion*, step 7) |
 
 ## Where the ontology lives

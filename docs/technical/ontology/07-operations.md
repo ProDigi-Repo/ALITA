@@ -20,6 +20,7 @@
 | DEO rules or classification changed | re-ingest: `docker compose run --rm ingest all /research --force`. Note: this re-embeds everything although the vectors do not depend on DEO roles (only chunk text plus a header with type, project, file and role is embedded); a payload-only relabel command is not built yet – only the reference-list labels are corrected that way (`citations.rebuild`). Changes to extraction or chunking always need the re-ingest |
 | Ontology import failed (no internet) | later `POST /api/graph/setup`; ALITA works with its built-in DEO classes meanwhile |
 | Clusters recomputed | graph is updated automatically |
+| Update to 3.0.0 (legal ontology) | `docker compose up -d --build backend frontend`, `POST /api/graph/setup` (constraints, ELI import); put laws/guidelines/standards into `research/<DB>/legal/<Project>/`, `guidelines/`, `standards/` with `_legal.yaml`, then `docker compose run --rm ingest all /research` – existing data is not re-ingested |
 | Update to 2.2.0 (citations, BIBO) | `POST /api/graph/setup` (imports BIBO), then `POST /api/citations/rebuild` – nothing is re-embedded |
 
 ## Quality check

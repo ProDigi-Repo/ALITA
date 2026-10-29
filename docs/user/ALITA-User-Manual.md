@@ -1,4 +1,4 @@
-# ALITA – User Manual (front-end, v2.2.0)
+# ALITA – User Manual (front-end, v3.0.0)
 
 ALITA lets you ask questions of your research documents and get answers with numbered, clickable sources.
 The quick visual version is [`ALITA-Cheat-Sheet-Comic.pdf`](ALITA-Cheat-Sheet-Comic.pdf).
@@ -108,6 +108,15 @@ Use it for who-did-what questions: people, organizations, projects, methods. Fil
 - **Compare databases** overlays the clusters of the selected databases; **⟲ Reset view** restores the start view; **⤢ Enlarge** fills the screen.
 - **3D · time** walks through the clusters with years as depth: W/S or wheel = forward/back, A/D = sideways, Q/E = down/up, Shift = faster, drag = look, Esc = close. **▶ Fly through time** animates it.
 
+**Laws, guidelines and standards (since 3.0.0)**
+
+ALITA knows three more kinds of data: **Legal projects** (the versions of a law – proposal, adopted text, consolidated versions – plus accompanying documents, uploaded as one ZIP like a research project), **Legal guidelines** and **Standards**. They appear as ▲ in the map and under *Documents → Laws, Guidelines & Standards*.
+
+- Each text is split into its parts (articles, paragraphs, points, annexes; clauses for standards) and every part has dated versions. Answers use the **version valid at the time you ask about**: write the date into the question (*"What applied on 1 September 2026 to Annex III?"*, *"in 2025"*), a stage (*"in the Commission proposal"*) – or set **Legal texts as of** under *Advanced settings → Parameters*. Without a date ALITA uses today's version. The line **⏱ Legal texts** under the answer says which versions were used.
+- Ask about changes (*"What changed in Article 50 since 2024?"*) or origins (*"Since when does the term 'general-purpose AI model' appear?"*): the answer shows a table from the change history (date, part, kind of change, amending act).
+- In the document details of a version: stage, in force from–to, application date, the amending act, all versions of the norm and **Show the changes of this version**.
+- Dates of entry into force and application come from a small file `_legal.yaml` in the folder (template in `research/EUAIA/legal/EU-AI-Act/`). Without it ALITA takes the file dates – then point-in-time answers are only as good as those dates.
+
 **See who cites whom (⇄ Citations)**
 
 **⇄ Citations** in the header of the knowledge map switches the map to the citation network of the collection; click it again to go back.
@@ -121,7 +130,7 @@ Use it for who-did-what questions: people, organizations, projects, methods. Fil
 
 **Add documents**
 
-Click **+ Add new data** in the database bar (or **Documents → + Upload**). Choose the database, the kind of data (Research project as ZIP, Research papers, Research notes), optionally a date and a project to link, and tick *Generate summary and methods with the LLM* if wanted. Check the summary screen and click **Upload**.
+Click **+ Add new data** in the database bar (or **Documents → + Upload**). Choose the database, the kind of data (Research project as ZIP, Research papers, Research notes, Legal project as ZIP, Legal guidelines, Standards), optionally a date and a project to link, and tick *Generate summary and methods with the LLM* if wanted. Check the summary screen and click **Upload**.
 
 Uploading uses your OpenRouter key and credits (see [Get an OpenRouter API key](#get-an-openrouter-api-key)). **Cost:** about €0.003 per 10-page paper with the LLM summary (100 papers ≈ €0.30); without it, only embeddings, below €0.001. ALITA shows the actual cost after each upload. *Estimate: 10 pages ≈ 8,000 tokens of text; summary, section labelling and embeddings ≈ 25,000 tokens; GPT-6 Luna at $0.10 / $0.50 per 1M input / output tokens ([OpenRouter](https://openrouter.ai/openai/gpt-6-luna), Oct 2026).*
 
@@ -177,9 +186,10 @@ ALITA describes every document with the SPAR ontologies for scholarly publishing
 | DEO – Discourse Elements Ontology | rhetorical role of a text part (31 classes) | every passage, section and summary element gets one or more roles, from headings (EN/DE) or by the language model | Introduction, Methods, Results, Discussion, FutureWork |
 | DoCO – Document Components Ontology | document structure; imports DEO and the Pattern Ontology | documents split into sections and passages in reading order | Section, Paragraph, Bibliography |
 | Pattern Ontology | pure containment structure | the "contains" links document → section → passage | Container, Block |
-| FaBiO | type of a publication | each document typed by its kind of data | JournalArticle, Note, WorkPackage |
+| FaBiO | type of a publication | each document typed by its kind of data | JournalArticle (paper), WorkPackage (project material), Expression (notes, legal texts) |
 | CiTO – Citation Typing Ontology | citations between works | DOIs in a bibliography become "cites" links | Document cites Work |
 | ALITA's own | research context not covered by SPAR | people, projects and teams, databases, methods glossary, semantic clusters | Person, Project, Database, Method, Cluster |
+| ELI – European Legislation Identifier, with the versioning model of de Martim (2025) | laws, guidelines and standards and their versions | every law, guideline and standard is split into its articles, paragraphs, points, annexes or clauses; each part has dated versions (unchanged parts are reused), every change is an *action* with its own searchable description – since 3.0.0 | LegalResource (norm), LegalResourceSubdivision (Art. 6(1)), LegalExpression (wording) |
 | BIBO – Bibliographic Ontology | bibliographic description and citations between documents | every document gets its BIBO type and ordered author list; the reference lists are matched with the papers of the collection (DOI or title), giving "cites" links between documents and citation counts – the **⇄ Citations** view (since 2.2.0). Journals and impact metrics are not looked up | AcademicArticle, authorList, cites |
 
 ![Ontologies and knowledge graph](ALITA-Ontologies.png)

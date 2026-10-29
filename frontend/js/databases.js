@@ -1,7 +1,7 @@
 /* ---------- Databases ---------- */
-let DATABASES=['AL','CNN_DM','DL','JSW','LDK','ML','UM','OTH'];
+let DATABASES=['AL','CNN_DM','DL','JSW','LDK','ML','UM','EUAIA','OTH'];
 /* Display names (flowers). The IDs above stay the internal keys: folders research/<ID>/, Qdrant payload, API filters, CSS colors. */
-const DB_NAME={AL:'Aster',CNN_DM:'Camellia',DL:'Dahlia',JSW:'Jasmine',LDK:'Peony',ML:'Magnolia',UM:'Orchid',OTH:'Others'};
+const DB_NAME={AL:'Aster',CNN_DM:'Camellia',DL:'Dahlia',JSW:'Jasmine',LDK:'Peony',ML:'Magnolia',UM:'Orchid',EUAIA:'EU AI Act',OTH:'Others'};
 const dbName=n=>DB_NAME[n]||n;
 const dbNames=l=>(l||[]).map(dbName);
 /* Database IDs inside texts that come from the server (cluster labels "JSW · …", cluster titles and
@@ -38,6 +38,10 @@ const DB_FLOWER=(()=>{
     ML:svg('<path d="M12 18C8.4 16.6 6.8 12.4 7.6 6.8C10 8 11.6 11 12 14C12.4 11 14 8 16.4 6.8C17.2 12.4 15.6 16.6 12 18Z" fill="currentColor" fill-opacity=".25"/><path d="M12 15.5C10.4 12.2 10.6 6.8 12 2.8C13.4 6.8 13.6 12.2 12 15.5Z" fill="currentColor" fill-opacity=".45"/><path d="M12 18V22M12 20.5L15.5 19.4"/>'),
     // Orchid: three sepals, two wide petals and a lip
     UM:svg('<path d="M12 11C10.8 8 11 4.6 12 2.6C13 4.6 13.2 8 12 11Z" fill="currentColor" fill-opacity=".25"/><path d="M12 12C9 13.2 5.6 16 4.6 19C7.6 18.6 10.6 15.6 12 12ZM12 12C15 13.2 18.4 16 19.4 19C16.4 18.6 13.4 15.6 12 12Z" fill="currentColor" fill-opacity=".25"/><path d="M12 11.5C9.4 7.8 5.4 7 3 8.4C3.8 11.6 8.4 13.2 12 11.5ZM12 11.5C14.6 7.8 18.6 7 21 8.4C20.2 11.6 15.6 13.2 12 11.5Z" fill="currentColor" fill-opacity=".35"/><path d="M10.2 12.6C10 15.4 10.8 17.6 12 18.4C13.2 17.6 14 15.4 13.8 12.6C12.8 13.4 11.2 13.4 10.2 12.6Z" fill="currentColor" fill-opacity=".7"/>'),
+    // EU AI Act: a cornflower (Kornblume) – blue like the EU flag; a ring of fringed, funnel-shaped florets around a dark disc
+    EUAIA:svg(Array.from({length:8},(_,i)=>`<path d="M12 9.6L10.6 4.2L11.3 4.9L12 3.4L12.7 4.9L13.4 4.2Z" transform="rotate(${i*45} 12 12)" fill="currentColor" fill-opacity=".35"/>`).join('')
+      +Array.from({length:8},(_,i)=>`<path d="M12 10.6L11.2 7.4L12 8L12.8 7.4Z" transform="rotate(${22.5+i*45} 12 12)" fill="currentColor" fill-opacity=".55"/>`).join('')
+      +'<circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r=".7" fill="#fff" fill-opacity=".8" stroke="none"/>'),
     // Others: a snapping flytrap – two toothed jaws on a curved stem, ready to catch whatever does not fit elsewhere
     OTH:svg('<path d="M12 22.4C12.6 19.6 11.4 17.2 12 14.6" fill="none"/><path d="M11.9 19.4C9.6 19.6 8 18.4 7.4 16.6C9.4 16.2 11 17.2 11.9 19.4Z" fill="currentColor" fill-opacity=".3"/>'
       +'<path d="M12 14.6C8 14.2 5 10.8 5.4 6.2C8.6 7 11.2 10.2 12 14.6Z" fill="currentColor" fill-opacity=".3"/><path d="M12 14.6C16 14.2 19 10.8 18.6 6.2C15.4 7 12.8 10.2 12 14.6Z" fill="currentColor" fill-opacity=".3"/>'

@@ -8,6 +8,46 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-10-29
+
+> **Major release – legal ontology: laws, guidelines and standards over time.** ALITA now handles legal texts as structured, versioned norms, following the Structure-Aware Temporal Graph RAG (SAT-Graph RAG) of de Martim (2025, arXiv:2505.00039), LRMoo-inspired and aligned with ELI (European Legislation Identifier). Three new kinds of data – legal projects (the versions of a law are their stages), legal guidelines and standards – are split into articles, paragraphs, points, annexes or clauses; every part has dated versions (unchanged parts are reused, not copied), and every change is an action with its own searchable description. Both chats answer with the version valid at the date asked about and disclose the rule they used. New database "EU AI Act" (cornflower). Four new requirements (REQ-37 – REQ-40), all done; see "Requirements", `docs/requirements-status.md` and `docs/requirements-log.xlsx`. **Why major:** the data model gains new document types and fields, and retrieval of legal texts is now time-scoped by default (today's version unless the question names a date or stage). The REST API is extended, existing calls keep working; existing data does not need to be re-ingested. **Update:** `docker compose up -d --build backend frontend`, `POST /api/graph/setup` (constraints, ELI import); if `DATABASES` is set in `.env`, add `EUAIA`. Roll back with `git checkout v2.2.0`.
+
+### Requirements
+- **REQ-37 Temporal extension after the SAT-Graph RAG paper** – ✅ done for legal texts: point-in-time retrieval, impact analysis and provenance (the paper's three query patterns) with a rule-based temporal planner and disclosed policies (current, point in time, SnapshotLast, stage, all versions); action nodes with embedded change texts as described in the paper.
+- **REQ-38 Legal ontology and new document types** – ✅ done: legal projects, legal guidelines and standards; norm → component → temporal version → language version → text unit, actions; ELI classes in the graph; `_legal.yaml` for dates; upload, ingestion, API, map, documents, chats.
+- **REQ-39 Database "EU AI Act" with its flower** – ✅ done: `EUAIA`, shown as "EU AI Act" with a cornflower in EU blue; folder `research/EUAIA/` with `legal/EU-AI-Act/_legal.yaml` (AI Act: proposal, adopted text, consolidated version after the AI Omnibus) as template.
+- **REQ-40 Ontologies that can be cited correctly** – ✅ done: documents of type notes were typed `fabio:Note`, a class FaBiO does not define – now `fabio:Expression`; the documentation no longer lists C4O, which ALITA never used.
+
+### Added
+- Document types `legal_project`, `legal_guideline`, `standard` and project role `legal_text`; folders `research/<DB>/legal/<Project>/`, `guidelines/`, `standards/`; upload of legal projects as one ZIP each, guidelines and standards as files ("Add new data" and "Documents → Upload").
+- Structure-aware segmentation (`app/legal.py`): EU law in English (recitals, chapters, sections, articles, paragraphs, points, sub-points, annexes), German statutes and EU law in German (§/Artikel, Absätze, Nummern, Buchstaben), standards (clauses 6 / 6.1 / 6.1.2, annexes; table-of-contents entries replaced) and guidelines (clauses, margin numbers); repeated page headers and markers on their own line (Official Journal PDFs) are handled.
+- Versioning after the paper: temporal versions per component with validity (`valid_from`, `valid_to`), application date per component (`applicable_from`, inherited between versions) and drafting stages without validity; parent versions aggregate the versions of their parts; actions `enacted`, `added`, `modified`, `removed`, `applicability_changed`, `renumbered` with a descriptive text (source, effective date, before/after). Unchanged temporal versions are embedded only once, also across re-ingestion.
+- `_legal.yaml` per folder: norm id, title, ELI, versions with stage, dates, entry into force, application dates per component, amending act.
+- Temporal planner (`app/legal_time.py`): reads dates (ISO, German, English), periods, "since/before/between", drafting stages, named components (Art. 6(1), § 26 Abs. 2, Annex III, recital 12, clause 6.1.2) and quoted terms; the chosen policy is shown under every answer ("⏱ Legal texts …"). New field "Legal texts as of" in the parameters of both chats overrides the question.
+- Chat context from the legal ontology (`app/legal_chat.py`): the complete text of a named component at the date (reconstructed from the aggregation), the changes in a period grouped by component, and the origin of a term – shown as tables under the answer; sources of legal passages show component, validity and application date.
+- Knowledge graph: `Norm` (`eli:LegalResource`), `Component` (`eli:LegalResourceSubdivision`), `TemporalVersion` (LRMoo F2 Expression), `LanguageVersion` (`eli:LegalExpression`), `Action`; relations `HAS_PART`, `HAS_VERSION`, `AGGREGATES`, `HAS_LANGUAGE`, `REALIZES`, `TERMINATES`, `PRODUCES`, `COMMANDED_BY`, `DESCRIBES`, `IS_VERSION_OF`; BIBO types `bibo:Legislation`, `bibo:Bill` (drafts), `bibo:LegalDocument`; ELI ontology import via neosemantics; `GET /api/graph/status` lists the norms.
+- REST API: `GET /api/legal/norms`, `GET /api/legal/norms/{id}` (structure at `as_of` / `stage` / `seq`, optionally full text), `GET /api/legal/norms/{id}/actions`, `GET /api/legal/plan`; search filters `as_of`, `legal_stage`, `legal_from`, `legal_all_versions`; Graph Chat request field `as_of`; CLI `ingest legal|guideline|standard`.
+- Interface: new types as ▲ in the knowledge map (law, guideline, standard in their own colours) and as a tab "Laws, Guidelines & Standards" in Documents; document details of a version with stage, validity, application date, amending act, all versions and "Show the changes of this version"; legal projects show their versions as stages in the project card.
+- Database "EU AI Act" (`EUAIA`) with a cornflower in EU blue.
+- Technical documentation "Legal ontology" (`docs/technical/ontology/08-legal-ontology.md`); tests `tests/test_legal.py` and – run inside the backend container – `tests/test_legal_qdrant.py` (time filters against an in-memory Qdrant).
+
+### Changed
+- Retrieval: legal passages are chosen by validity at the reference date (default today); year, "latest version" and archive filters do not apply to them. Other documents are unaffected.
+- Clustering: guidelines, standards and the current version of each law are clustering units (one point each).
+- Diversification of sources: legal passages are limited per article/clause instead of per file.
+- Documentation: ontology overview, graph model, ingestion, Graph RAG, operations, user manual, Quick Reference (page 6), README, AI system description.
+
+### Fixed
+- FaBiO type of research notes: `fabio:Note` does not exist in FaBiO – now `fabio:Expression` (REQ-40).
+- Ontology overview listed "C4O / Collections Ontology", which ALITA does not use (and C4O is the Citation Counting and Context Characterization Ontology) – removed.
+
+### Open points
+- No real law has been ingested in this release: please put the AI Act files into `research/EUAIA/legal/EU-AI-Act/` (file names as in `_legal.yaml`) and run `ingest all /research`; the segmentation is tested on structured samples, not yet on the Official Journal PDF.
+- The time filter in Qdrant is covered by `tests/test_legal_qdrant.py`, which needs the backend container (`docker compose run --rm backend pytest tests/test_legal_qdrant.py`).
+- Links from research documents to provisions ("Art. 6 AI Act" in a paper or manuscript) and the temporal model for manuscript versions (REQ-37 for research projects) are not built yet.
+- Standards: check the licence before storing full texts of ISO/DIN standards.
+- Quick Reference: the ontology page (6) now lists ELI and the corrected FaBiO types and all pages are re-rendered for 3.0.0; the interface screenshots on pages 3 and 4 do not show the new types yet.
+
 ## [2.2.0] - 2026-10-29
 
 > **Minor release – citation network and BIBO:** ALITA now sees which papers of the collection cite each other. The reference lists that are already in the index are matched with the research papers of the collection (by DOI, or by title confirmed with first author and year) – rule-based, without a language model and without new embeddings. "⇄ Citations" in the knowledge map shows the network over time, the document details list "Cites" and "Cited by", and the Graph Chat answers citation questions. The knowledge graph describes documents with the Bibliographic Ontology (BIBO). Two new requirements: REQ-35 done, REQ-36 answered and open; see "Requirements" below, `docs/requirements-status.md` and `docs/requirements-log.xlsx`. **Backend and frontend changed:** rebuild with `docker compose up -d --build backend frontend`, then `POST /api/graph/setup` (loads BIBO) and `docker compose run --rm ingest citations` (or "⟳ Recompute" in the view) – nothing is re-ingested or re-embedded. The REST API is extended, not changed. Roll back with `git checkout v2.1.0`.
@@ -639,6 +679,7 @@ First stable release. From here on, incompatible changes to the REST API, the CL
 - Chat history per tile, metadata backup (`GET /api/export`), Docker Compose setup.
 
 [Unreleased]: #unreleased
+[3.0.0]: #300---2026-10-29
 [2.2.0]: #220---2026-10-29
 [2.1.0]: #210---2026-10-17
 [2.0.0]: #200---2026-10-11

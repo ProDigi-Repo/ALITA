@@ -190,6 +190,18 @@ Erstautor:in und Jahr) – regelbasiert, ohne LLM und ohne neue Embeddings. Erge
 (`bibo:authorList`). Anzeige: „⇄ Citations“ in der Wissenslandkarte. Neu berechnen: `docker compose run --rm ingest citations`
 oder `POST /api/citations/rebuild`; abrufen: `GET /api/citations?databases=JSW`. Abschalten: `AUTO_CITATIONS=false`.
 
+**Gesetze, Leitlinien und Standards (seit 3.0.0, REQ-37/38):** Neue Dokumenttypen `legal_project` (Ordner
+`research/<DB>/legal/<Projekt>/`, Upload als ZIP – die Gesetzesfassungen sind die Stufen), `legal_guideline`
+(`research/<DB>/guidelines/`) und `standard` (`research/<DB>/standards/`). `app/legal.py` zerlegt die Texte in
+Bestandteile (Artikel/§, Absatz, Nummer, Erwägungsgrund, Anhang, Clause) und baut nach dem SAT-Graph RAG von
+de Martim (2025) datierte Fassungen mit Aggregation sowie Actions (Änderungen mit eingebettetem Beschreibungstext);
+im Graphen an ELI ausgerichtet (`Norm`, `Component`, `TemporalVersion`, `LanguageVersion`, `Action`). Daten zu
+Inkrafttreten und Anwendungsbeginn stehen in `_legal.yaml`. Beide Chats wählen per Stichtag die damals gültige
+Fassung (aus der Frage oder „Legal texts as of“; sonst heute) und legen die Regel offen. Einlesen:
+`docker compose run --rm ingest legal <Ordner>` bzw. `ingest guideline|standard <Ordner/Datei>` oder `ingest all /research`;
+API: `GET /api/legal/norms`, `/api/legal/norms/{id}?as_of=…`, `/api/legal/norms/{id}/actions`, `/api/legal/plan?q=…`.
+Ausführlich: `docs/technical/ontology/08-legal-ontology.md`.
+
 ## Sprachmodelle
 
 | Aufgabe | Modell (Standard) | Einstellung |
@@ -238,7 +250,8 @@ und `APP_VERSION` im Frontend angleichen. Der Test `test_changelog_follows_keepa
 
 | Version | Datum | Inhalt | früher |
 |---|---|---|---|
-| **2.2.0** | 2026-10-29 | **Minor Release – Zitationsnetz und BIBO (REQ-35):** Literaturverzeichnisse werden mit den Papers der Sammlung abgeglichen (DOI oder Titel mit Erstautor:in und Jahr, ohne LLM, ohne neue Embeddings); „⇄ Citations“ in der Wissenslandkarte zeigt, wer wen zitiert; „Cites / Cited by“ in den Dokumentdetails; Graph Chat beantwortet Zitationsfragen; BIBO im Graphen (`bibo_type`, `author_list`, `(:Document)-[:CITES]->(:Document)`); Literaturverzeichnisse, die durch Seitenkopfzeilen getrennt waren, werden wieder vollständig als `deo:BibliographicReference` erkannt. Backend-Update nötig, kein Neu-Einlesen | |
+| **3.0.0** | 2026-10-29 | **Major Release – Legal-Ontologie (REQ-37/38/39):** Gesetze, Leitlinien und Standards als neue Dokumenttypen (`legal_project`, `legal_guideline`, `standard`), strukturbewusst in Artikel/Absätze/Anhänge bzw. Clauses zerlegt, mit datierten Fassungen (unveränderte Teile wiederverwendet), Änderungen als eigene, eingebettete Actions und Stichtag-Suche mit offengelegter Regel – nach dem SAT-Graph RAG von de Martim (2025), an ELI ausgerichtet; neue Datenbank „EU AI Act“ (Kornblume); `fabio:Note` korrigiert. Major, weil sich Datenmodell (neue Typen und Felder) und Suchverhalten (Stichtag für Rechtstexte) ändern; bestehende Daten müssen nicht neu eingelesen werden | |
+| 2.2.0 | 2026-10-29 | Minor Release – Zitationsnetz und BIBO (REQ-35): Literaturverzeichnisse werden mit den Papers der Sammlung abgeglichen (DOI oder Titel mit Erstautor:in und Jahr, ohne LLM, ohne neue Embeddings); „⇄ Citations“ in der Wissenslandkarte zeigt, wer wen zitiert; „Cites / Cited by“ in den Dokumentdetails; Graph Chat beantwortet Zitationsfragen; BIBO im Graphen (`bibo_type`, `author_list`, `(:Document)-[:CITES]->(:Document)`); Literaturverzeichnisse, die durch Seitenkopfzeilen getrennt waren, werden wieder vollständig als `deo:BibliographicReference` erkannt. Backend-Update nötig, kein Neu-Einlesen | |
 | 2.1.0 | 2026-10-17 | Minor Release – Arbeitsfläche und Zeitstrahl: B-Seite über die volle Bildschirmbreite (Karte links in voller Höhe, rechts „Projects & clusters“ und Graph Chat), Karte füllt ihre Kachel und lässt sich vergrößern, 3D-Zeitansicht mit genauen Dokumentdaten und Zeit-Zoom bis auf Tage; Anforderungen REQ-22 – REQ-34 (inkl. Feedback von Dustin) in `docs/requirements-status.md` und `docs/requirements-log.xlsx`; nur Frontend | |
 | 2.0.0 | 2026-10-11 | Major Release – Meilenstein Anforderungen: alle 21 Anforderungen (REQ-01 – REQ-21) adressiert, Übersicht mit Status, Release und Umsetzung in `docs/requirements-status.md` und in den Release Notes; API bleibt kompatibel | |
 | 1.16.2 | 2026-10-11 | Code-Aufräumen vor dem Major Release, ohne sichtbare Änderungen (Module für Personen/Erkenntnisstufen, Lint sauber, CSS-Überschreibungen zusammengeführt) | |
@@ -301,7 +314,7 @@ Backend (`app/query_meta.py`); im Live-Betrieb ergänzt das LLM beides in dersel
 
 ## Datenbanken (AL, DL, JSW, LDK, ML, UM)
 
-Jede Datei trägt das Metadatum `databases` (eine oder mehrere). Die Liste ist in `.env` konfigurierbar: `DATABASES=AL,DL,JSW,LDK,ML,UM,OTH`. `OTH` („Others“) nimmt alles auf, was in keine andere Datenbank gehört.
+Jede Datei trägt das Metadatum `databases` (eine oder mehrere). Die Liste ist in `.env` konfigurierbar: `DATABASES=AL,DL,JSW,LDK,ML,UM,EUAIA,OTH`. `OTH` („Others“) nimmt alles auf, was in keine andere Datenbank gehört. Seit 3.0.0 gibt es `EUAIA` („EU AI Act“, Kornblume) für Gesetzestexte, Leitlinien und Standards rund um die KI-Verordnung. **Wer `DATABASES` in der `.env` gesetzt hat, muss `EUAIA` dort ergänzen**, sonst erscheint die Datenbank nicht.
 
 Zuordnung (Priorität von oben nach unten):
 

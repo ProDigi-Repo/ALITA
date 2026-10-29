@@ -29,6 +29,7 @@ import re
 from functools import lru_cache
 
 from .deo import DEO_CLASSES, DEO_NS, SUMMARY_DEO
+from .legal import DRAFT_STAGES
 
 log = logging.getLogger("graph")
 
@@ -40,10 +41,15 @@ ONTOLOGIES = {
     "po": "http://www.essepuntato.it/2008/12/pattern",
     # BIBO: purl.org per Content Negotiation, sonst die von der DCMI gepflegte RDF/XML-Datei
     "bibo": ["http://purl.org/ontology/bibo/", "https://www.dublincore.org/specifications/bibo/bibo/bibo.rdf.xml"],
+    # ELI (European Legislation Identifier) – Legal-Ontologie (REQ-38)
+    "eli": ["http://data.europa.eu/eli/ontology"],
 }
-FABIO_TYPE = {"research_paper": "fabio:JournalArticle", "research_notes": "fabio:Note",
-              "research_project": "fabio:WorkPackage"}
-BIBO_TYPE = {"research_paper": "bibo:AcademicArticle", "research_notes": "bibo:Note", "research_project": "bibo:Manuscript"}
+# FaBiO kennt keine Klasse „Note“ (bis 2.2.0 fälschlich fabio:Note) – Notes und Rechtstexte: allgemeines fabio:Expression
+FABIO_TYPE = {"research_paper": "fabio:JournalArticle", "research_notes": "fabio:Expression",
+              "research_project": "fabio:WorkPackage", "legal_project": "fabio:Expression",
+              "legal_guideline": "fabio:Expression", "standard": "fabio:Expression"}
+BIBO_TYPE = {"research_paper": "bibo:AcademicArticle", "research_notes": "bibo:Note", "research_project": "bibo:Manuscript",
+             "legal_project": "bibo:Legislation", "legal_guideline": "bibo:LegalDocument", "standard": "bibo:Document"}
 DOI_RX = re.compile(r"\b10\.\d{4,9}/[^\s\"<>,;]+", re.I)
 
 
@@ -97,6 +103,11 @@ SCHEMA = [
     "CREATE CONSTRAINT method_id IF NOT EXISTS FOR (m:Method) REQUIRE m.id IS UNIQUE",
     "CREATE CONSTRAINT cluster_id IF NOT EXISTS FOR (c:Cluster) REQUIRE c.id IS UNIQUE",
     "CREATE CONSTRAINT work_doi IF NOT EXISTS FOR (w:Work) REQUIRE w.doi IS UNIQUE",
+    "CREATE CONSTRAINT norm_id IF NOT EXISTS FOR (n:Norm) REQUIRE n.norm_id IS UNIQUE",
+    "CREATE CONSTRAINT component_id IF NOT EXISTS FOR (c:Component) REQUIRE c.id IS UNIQUE",
+    "CREATE CONSTRAINT tversion_id IF NOT EXISTS FOR (v:TemporalVersion) REQUIRE v.id IS UNIQUE",
+    "CREATE CONSTRAINT lversion_id IF NOT EXISTS FOR (v:LanguageVersion) REQUIRE v.id IS UNIQUE",
+    "CREATE CONSTRAINT action_id IF NOT EXISTS FOR (a:Action) REQUIRE a.id IS UNIQUE",
 ]
 
 
@@ -190,6 +201,12 @@ def build_document_statements(p: dict, chunks: list[dict]) -> list[tuple[str, di
     props["fabio_type"] = FABIO_TYPE.get(p.get("doc_type"), "fabio:Expression")
     authors = [a for a in (p.get("authors") or []) if a and a.strip()]
     props["bibo_type"] = BIBO_TYPE.get(p.get("doc_type"), "bibo:Document")
+    lg = p.get("legal") or {}
+    if lg:                                                          # REQ-38: Fassung einer Norm
+        if p.get("doc_type") == "legal_project" and lg.get("stage") in DRAFT_STAGES:
+            props["bibo_type"] = "bibo:Bill"                        # Entwurf (Gesetzgebungsverfahren)
+        props.update(norm_id=lg.get("norm_id"), legal_seq=lg.get("seq"), legal_stage=lg.get("stage"),
+                     in_force=lg.get("in_force"), valid_to=lg.get("valid_to"), eli=lg.get("eli"))
     props["author_list"] = authors                                  # bibo:authorList (Reihenfolge wie im Paper)
     props["cited_by_count"] = len(p.get("cited_by") or [])
     st.append(("MERGE (d:Document {doc_id: $id}) SET d += $props", {"id": doc_id, "props": props}))
@@ -311,6 +328,86 @@ def sync_citations(cites: dict[str, list[dict]]) -> None:
     run_all([("MATCH (:Document)-[r:CITES]->(:Document) DELETE r", {}),
              build_cites_statement(cites),
              ("MATCH (d:Document) SET d.cited_by_count = coalesce($n[d.doc_id], 0)", {"n": counts})])
+
+
+def build_legal_statements(model: dict) -> list[tuple[str, dict]]:
+    """REQ-38: Legal-Ontologie nach de Martim (2025), an ELI ausgerichtet – Cypher zum (Neu-)Schreiben einer Norm:
+
+      (:Norm {eli: LegalResource})-[:HAS_PART]->(:Component {eli: LegalResourceSubdivision})-[:HAS_PART]->(:Component)
+      (:Component)-[:HAS_VERSION]->(:TemporalVersion {valid_from, valid_to, applicable_from, stages})
+      (:TemporalVersion)-[:AGGREGATES]->(:TemporalVersion)          unveränderte Unterteile werden wiederverwendet
+      (:TemporalVersion)-[:HAS_LANGUAGE]->(:LanguageVersion {eli: LegalExpression})<-[:REALIZES]-(:Chunk)  Text Units
+      (:Action {kind, date})-[:TERMINATES]->(:TemporalVersion), -[:PRODUCES]->(:TemporalVersion), -[:COMMANDED_BY]->(:Norm)
+      (:Document)-[:IS_VERSION_OF {seq, stage}]->(:Norm)             die Datei einer Fassung (Manifestation)
+    """
+    from .legal import _uuid
+
+    norm = model["norm"]
+    nid = norm["norm_id"]
+    comps = model["components"]
+    st: list[tuple[str, dict]] = [
+        ("MATCH (l:LanguageVersion {norm_id: $id}) DETACH DELETE l", {"id": nid}),
+        ("MATCH (v:TemporalVersion {norm_id: $id}) DETACH DELETE v", {"id": nid}),
+        ("MATCH (c:Component {norm_id: $id}) DETACH DELETE c", {"id": nid}),
+        ("MATCH (a:Action {norm_id: $id}) DETACH DELETE a", {"id": nid}),
+        ("MATCH (k:Chunk {norm_id: $id}) DETACH DELETE k", {"id": nid}),
+        ("MERGE (n:Norm {norm_id: $id}) SET n += $props", {"id": nid, "props": {
+            "title": norm.get("title"), "short": norm.get("short"), "kind": norm.get("kind"), "eli": norm.get("eli"),
+            "issuer": norm.get("issuer"), "eli_class": "eli:LegalResource", "lrmoo_class": "F1 Work",
+            "doc_type": model.get("doc_type"), "databases": model.get("databases") or [], "project": model.get("project")}}),
+        ("UNWIND $cs AS c MERGE (x:Component {id: c.id}) SET x.cid = c.cid, x.type = c.type, x.number = c.number, x.label = c.label, "
+         "x.title = c.title, x.order = c.order, x.norm_id = $id, x.eli_class = 'eli:LegalResourceSubdivision'",
+         {"id": nid, "cs": [{"id": f"{nid}#{k}", "cid": k, "type": v["type"], "number": v["number"], "label": v["label"],
+                             "title": v["title"], "order": v["order"]} for k, v in comps.items()]}),
+        ("UNWIND $rows AS r MATCH (n:Norm {norm_id: $id}), (c:Component {id: r.id}) MERGE (n)-[:HAS_PART {order: r.order}]->(c)",
+         {"id": nid, "rows": [{"id": f"{nid}#{k}", "order": v["order"]} for k, v in comps.items()
+                              if not (v.get("parent") and v["parent"] in comps)]}),
+        ("UNWIND $rows AS r MATCH (p:Component {id: r.parent}), (c:Component {id: r.id}) MERGE (p)-[:HAS_PART {order: r.order}]->(c)",
+         {"rows": [{"id": f"{nid}#{k}", "parent": f"{nid}#{v['parent']}", "order": v["order"]} for k, v in comps.items()
+                   if v.get("parent") and v["parent"] in comps]}),
+    ]
+    vs = [{"id": c["id"], "comp": f"{nid}#{c['cid']}", "valid_from": c.get("valid_from"), "valid_to": c.get("valid_to"),
+           "applicable_from": c.get("applicable_from"), "stages": c["stages"], "seq_from": c["seq_from"], "seq_to": c["seq_to"],
+           "in_force": c.get("in_force", False), "lang": c["language"], "lv": f"{c['id']}@{c['language']}",
+           "chunk": _uuid(f"{c['id']}#0") if c["text"].strip() else None} for c in model["ctvs"].values()]
+    st.append(("UNWIND $vs AS v MATCH (c:Component {id: v.comp}) MERGE (t:TemporalVersion {id: v.id}) "
+               "SET t.valid_from = v.valid_from, t.valid_to = v.valid_to, t.applicable_from = v.applicable_from, t.stages = v.stages, "
+               "t.seq_from = v.seq_from, t.seq_to = v.seq_to, t.in_force = v.in_force, t.norm_id = $id, t.lrmoo_class = 'F2 Expression' "
+               "MERGE (c)-[:HAS_VERSION]->(t) MERGE (l:LanguageVersion {id: v.lv}) SET l.language = v.lang, l.norm_id = $id, "
+               "l.eli_class = 'eli:LegalExpression' MERGE (t)-[:HAS_LANGUAGE]->(l) "
+               "WITH v, l WHERE v.chunk IS NOT NULL MERGE (k:Chunk {chunk_id: v.chunk}) SET k.norm_id = $id MERGE (k)-[:REALIZES]->(l)",
+               {"id": nid, "vs": vs}))
+    agg = [{"p": c["id"], "c": k} for c in model["ctvs"].values() for k in c["aggregates"]]
+    if agg:
+        st.append(("UNWIND $rows AS r MATCH (p:TemporalVersion {id: r.p}), (c:TemporalVersion {id: r.c}) MERGE (p)-[:AGGREGATES]->(c)",
+                   {"rows": agg}))
+    acts = [{"id": a["id"], "kind": a["kind"], "date": a.get("date"), "stage": a["stage"], "seq": a["seq"], "text": a["text"],
+             "label": a["component_label"], "term": a.get("terminates"), "prod": a.get("produces"),
+             "src_title": (a.get("source") or {}).get("title"), "src_eli": (a.get("source") or {}).get("eli"),
+             "chunk": _uuid(a["id"])} for a in model["actions"]]
+    if acts:
+        st.append(("UNWIND $rows AS r MERGE (a:Action {id: r.id}) SET a.kind = r.kind, a.date = r.date, a.stage = r.stage, a.seq = r.seq, "
+                   "a.text = r.text, a.component_label = r.label, a.source_title = r.src_title, a.source_eli = r.src_eli, a.norm_id = $id "
+                   "WITH a, r OPTIONAL MATCH (t:TemporalVersion {id: r.term}) FOREACH (_ IN CASE WHEN t IS NULL THEN [] ELSE [1] END | "
+                   "MERGE (a)-[:TERMINATES]->(t)) WITH a, r OPTIONAL MATCH (p:TemporalVersion {id: r.prod}) "
+                   "FOREACH (_ IN CASE WHEN p IS NULL THEN [] ELSE [1] END | MERGE (a)-[:PRODUCES]->(p)) "
+                   "WITH a, r MERGE (k:Chunk {chunk_id: r.chunk}) SET k.norm_id = $id MERGE (k)-[:DESCRIBES]->(a)",
+                   {"id": nid, "rows": acts}))
+        cmd = [{"id": a["id"], "eli": (a.get("source") or {}).get("eli"), "title": (a.get("source") or {}).get("title")}
+               for a in model["actions"] if (a.get("source") or {}).get("eli")]
+        if cmd:
+            st.append(("UNWIND $rows AS r MATCH (a:Action {id: r.id}) MERGE (s:Norm {norm_id: r.eli}) "
+                       "ON CREATE SET s.eli = r.eli, s.title = r.title, s.eli_class = 'eli:LegalResource' MERGE (a)-[:COMMANDED_BY]->(s)",
+                       {"rows": cmd}))
+    docs = [{"doc": v["doc_id"], "seq": v["seq"], "stage": v["stage"], "in_force": v.get("in_force")} for v in model["versions"]]
+    st.append(("UNWIND $rows AS r MATCH (d:Document {doc_id: r.doc}), (n:Norm {norm_id: $id}) "
+               "MERGE (d)-[x:IS_VERSION_OF]->(n) SET x.seq = r.seq, x.stage = r.stage, x.in_force = r.in_force", {"id": nid, "rows": docs}))
+    return st
+
+
+def sync_legal(model: dict) -> None:
+    ensure_setup()
+    run_all(build_legal_statements(model))
 
 
 def build_cluster_statements(doc_meta: dict[str, dict], proj_meta: dict[str, dict], info: dict[int, dict],
@@ -439,4 +536,6 @@ def stats() -> dict:
     roles = run("MATCH (x)-[:HAS_ROLE]->(c:DEOClass) RETURN c.name AS deo, labels(x)[0] AS kind, count(*) AS n ORDER BY n DESC")
     onto = run("MATCH (c:Class) RETURN count(c) AS n")[0]["n"] if nodes else 0
     cites = run("MATCH (:Document)-[r:CITES]->(:Document) RETURN count(r) AS n")[0]["n"] if nodes else 0
-    return {"nodes": nodes, "roles": roles, "ontology_classes": onto, "document_citations": cites}
+    legal = run("MATCH (n:Norm) WHERE n.title IS NOT NULL OPTIONAL MATCH (n)-[:HAS_PART*]->(c:Component) "
+                "RETURN n.norm_id AS norm, n.short AS short, count(DISTINCT c) AS components") if nodes else []
+    return {"nodes": nodes, "roles": roles, "ontology_classes": onto, "document_citations": cites, "norms": legal}

@@ -179,6 +179,54 @@ def citations_rebuild():
     return rebuild()
 
 
+# ------------------------------------------------------------- Legal-Ontologie (REQ-37/38)
+@app.get("/api/legal/norms")
+def legal_norms(databases: Annotated[list[str] | None, Query()] = None):
+    """Gesetze, Leitlinien und Standards mit ihren Fassungen (Stufe, Inkrafttreten, Änderungen je Fassung)."""
+    from .legal_ingest import list_models, summary_of
+    dbs = _dbs(",".join(databases)) if databases else None
+    return [summary_of(m) for m in list_models(dbs)]
+
+
+@app.get("/api/legal/norms/{norm_id}")
+def legal_norm(norm_id: str, as_of: str | None = None, stage: str | None = None, seq: int | None = None, text: bool = False):
+    """Gliederung einer Norm zu einem Stand (Stichtag as_of, Stufe stage oder Fassung seq; ohne Angabe: heute).
+    text=true: vollständiger Wortlaut je Bestandteil (über die Aggregation der Fassungen)."""
+    from .legal import valid_at
+    from .legal_ingest import load_model, summary_of
+    m = load_model(norm_id)
+    if not m:
+        raise HTTPException(404, "Unknown norm")
+    cur = valid_at(m, t=as_of, stage=stage, seq=seq)
+    comps = [{**m["components"][cid], "ctv": c["id"], "valid_from": c.get("valid_from"), "valid_to": c.get("valid_to"),
+              "applicable_from": c.get("applicable_from"), "stages": c["stages"], "since_seq": c["seq_from"],
+              **({"text": c["text"]} if text else {"snippet": c["text"][:240]})}
+             for cid, c in sorted(cur.items(), key=lambda kv: m["components"][kv[0]]["order"])]
+    return {**summary_of(m), "as_of": as_of, "stage": stage, "seq": seq, "items": comps}
+
+
+@app.get("/api/legal/norms/{norm_id}/actions")
+def legal_actions(norm_id: str, frm: Annotated[str | None, Query(alias="from")] = None, to: str | None = None,
+                  component: str | None = None, seq: int | None = None):
+    """Änderungen (Actions) einer Norm: Zeitraum, Bestandteil (mit Unterteilen) oder Fassung."""
+    from .legal import actions_in
+    from .legal_ingest import load_model
+    m = load_model(norm_id)
+    if not m:
+        raise HTTPException(404, "Unknown norm")
+    acts = actions_in(m, frm=frm, to=to, scope=[component] if component else None)
+    if seq is not None:
+        acts = [a for a in acts if a["seq"] == seq]
+    return {"norm": m["norm"], "actions": acts}
+
+
+@app.get("/api/legal/plan")
+def legal_plan(q: str):
+    """Wie der zeitliche Planer eine Frage einordnet (Regel, Stichtag, Stufe, Bestandteile) – zum Nachvollziehen."""
+    from .legal_time import plan
+    return plan(q)
+
+
 @app.get("/api/deo")
 def deo_classes():
     """Die 31 Klassen der Discourse Elements Ontology und die Zuordnung der Structured Summary."""
@@ -211,7 +259,7 @@ def _filters(database, doc_type, project, filetype, role, method, year_from, yea
 LIST_FIELDS = ["doc_id", "databases", "cluster_id", "cluster_label", "cluster_score", "cluster_basis",
                "cluster_x", "cluster_y", "cluster_alt_id", "cluster_alt_score", "cluster_title", "cluster_description", "cluster_contribution", "cluster_anchor", "doc_type", "title", "filename", "filetype", "date", "date_source", "year", "size_bytes",
                "project_name", "role", "venue", "stage", "is_latest", "archived", "indexed", "index_note",
-               "method_ids", "language", "pages", "doi", "authors", "editors"]
+               "method_ids", "language", "pages", "doi", "authors", "editors", "legal"]
 
 
 @app.get("/api/documents")
@@ -567,12 +615,13 @@ async def ingest(
             raise HTTPException(400, "date must be YYYY-MM-DD") from e
     opts = IngestOptions(use_llm=use_llm, api_key=x_key, databases=_dbs(databases), date=when)
     job_ids = []
-    if doc_type == DocType.research_project:
+    from .legal_ingest import ingest_legal
+    if doc_type in (DocType.research_project, DocType.legal_project):
         # jedes Projekt = eine ZIP-Datei; mehrere ZIPs = mehrere Projekte
         bad = [u.filename for u in files if not (u.filename or "").lower().endswith(".zip")]
         if bad:
-            raise HTTPException(400, "Each research project must be uploaded as one ZIP of its project folder: " + ", ".join(bad))
-        target = s.data_dir / "projects"
+            raise HTTPException(400, "Each project must be uploaded as one ZIP of its project folder: " + ", ".join(bad))
+        target = s.data_dir / ("projects" if doc_type == DocType.research_project else "legal")
         target.mkdir(parents=True, exist_ok=True)
         for up in files:
             with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
@@ -589,8 +638,9 @@ async def ingest(
                     z.extractall(folder, members=names)
             Path(tmp.name).unlink(missing_ok=True)
             jid = str(uuid.uuid4())
-            JOBS[jid] = {"status": "queued", "kind": "project", "name": folder.name}
-            background.add_task(_run_job, jid, ingest_project(folder, opts))
+            JOBS[jid] = {"status": "queued", "kind": "project" if doc_type == DocType.research_project else "legal_project", "name": folder.name}
+            background.add_task(_run_job, jid, ingest_project(folder, opts) if doc_type == DocType.research_project
+                                else ingest_legal(folder, doc_type, opts))
             job_ids.append(jid)
     else:
         target = s.data_dir / doc_type.value
@@ -601,7 +651,8 @@ async def ingest(
                 shutil.copyfileobj(up.file, f)
             jid = str(uuid.uuid4())
             JOBS[jid] = {"status": "queued", "kind": doc_type.value, "name": path.name}
-            background.add_task(_run_job, jid, ingest_file(path, doc_type, opts, project_name))
+            background.add_task(_run_job, jid, ingest_legal(path, doc_type, opts) if doc_type in (DocType.legal_guideline, DocType.standard)
+                                else ingest_file(path, doc_type, opts, project_name))
             job_ids.append(jid)
     return {"jobs": job_ids}
 

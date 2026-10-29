@@ -15,6 +15,10 @@
    - *Matching* on a compact form (letters and digits only, no accents), so hyphenation at line ends and broken DOIs ("https://doi. org/10.…") do not matter: DOI, or the start of the title (up to 70 characters, also the main title before ":"), confirmed by the first author's surname before it and the year nearby. A shorter title (e.g. a conference version) counts only with author and year (`title-start+author+year`). An older document cannot cite a newer one; versions of the same work (same DOI/title) count once.
    - *Result:* payload `cites`, `cited_by`, `refs_chars`, `citations_run` on each document; graph `(:Document)-[:CITES]->(:Document)` and `cited_by_count`. Checked on the 21 papers of AL, JSW and LDK: 7 of 7 citations between them found, no false link.
 
+## Laws, guidelines and standards (since 3.0.0)
+
+Legal texts take their own path (`legal_ingest.py`): structure-aware segmentation into articles/paragraphs/points/annexes or clauses instead of 1,200-character chunks, versions with aggregation, actions with embedded change texts, validity dates from `_legal.yaml`. Only the current version gets an LLM summary; unchanged temporal versions are embedded once. Details: *Legal ontology*.
+
 ## Commands
 
 | Task | Command |
@@ -23,6 +27,7 @@
 | Rebuild the graph from Qdrant | `POST /api/graph/rebuild` or `docker compose run --rm ingest graph` |
 | Recompute the citation network (no LLM, no embeddings) | `POST /api/citations/rebuild`, `docker compose run --rm ingest citations` or "⟳ Recompute" in the ⇄ Citations view |
 | Citation network (nodes, edges) | `GET /api/citations?databases=JSW,LDK&min_confidence=0.6` |
+| Legal project / guidelines / standards | `docker compose run --rm ingest legal <folder>` · `ingest guideline <folder or file>` · `ingest standard <folder or file>` |
 | Status and DEO statistics | `GET /api/graph/status` |
 | Re-ingest everything (new DEO labels) | `docker compose run --rm ingest all /research --force` |
 

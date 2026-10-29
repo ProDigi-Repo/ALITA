@@ -35,6 +35,7 @@ class GraphRequest(BaseModel):
     year_from: int | None = None
     year_to: int | None = None
     hops: int = Field(2, ge=1, le=4)
+    as_of: str | None = None                  # REQ-37: Stichtag für Rechtstexte (YYYY-MM-DD); leer = aus der Frage, sonst heute
     top_k: int = Field(6, ge=1, le=20)
 
 
@@ -120,8 +121,11 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
         except Exception as e:
             log.warning("Graph-Abfrage fehlgeschlagen, nur Vektorsuche: %s", e)
     doc_ids = [d["doc_id"] for d in graph_docs] + [n["doc_id"] for n in neighbours]
+    from .rag import legal_note, legal_scope
+    lf, temporal, legal_head, legal_table = legal_scope(req.message, SearchFilters(database=plan["databases"], as_of=req.as_of), all_docs)  # REQ-37
     filters = SearchFilters(database=plan["databases"], cluster=plan["clusters"], project=list(req.projects), person=list(req.persons), deo=plan["deo"] if graph_docs or not graph_ok else [],
-                            doc_ids=doc_ids, year_from=plan["year_from"], year_to=plan["year_to"])
+                            doc_ids=doc_ids, year_from=plan["year_from"], year_to=plan["year_to"], as_of=lf.as_of,
+                            legal_stage=lf.legal_stage, legal_from=lf.legal_from, legal_all_versions=lf.legal_all_versions)
     creq = ChatRequest(message=search_q, filters=filters, top_k=req.top_k, model=model_name)
     hits = await retrieve(search_q, creq, key)
     if not hits and filters.deo:                       # DEO-Filter zu eng: ohne Rolle erneut
@@ -140,6 +144,12 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
             "graph": {"available": graph_ok, "documents": len(graph_docs), "neighbours": len(neighbours)},
             "model": model_name, "memory_turns": len(memory), "retrieval_query": search_q,
             "system_prompt_source": sp_source, "system_prompt_id": sp_id}
+    if temporal:
+        meta["temporal"] = temporal
+    if legal_table:
+        meta["legal"] = legal_table
+    if temporal and not legal_head and any(h.payload.get("ctv_id") or h.payload.get("action_id") for h in hits):
+        legal_head = f"Legal texts – temporal scope: {temporal['label']}. Say which version/date your answer refers to.\n\n"
     prog_head = ""
     if plan["intent"] == "progress":                 # REQ-15/16: Erkenntnisstufen als Tabelle unter der Antwort
         prog, prog_head = progress_chat_context(req.message, SearchFilters(project=list(req.projects) or plan["projects"][:1]),
@@ -151,7 +161,7 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
     if req.overview:
         from .rag import scope_overview
         overview = scope_overview(plan["databases"])
-    if not sources and not graph_docs and not overview and not prog_head:
+    if not sources and not graph_docs and not overview and not prog_head and not legal_head:
         text = "I found nothing in the knowledge graph or the documents that answers this question with the current settings."
         yield "delta", {"t": text}
         yield "done", {**meta, "answer": text, "sources": [], "intent": plan["intent"], "entities": plan["entities"], "usage": await usage.summary_async(meter)}
@@ -161,12 +171,12 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
         f"DEO roles found: {', '.join(d.get('roles') or []) or '–'}; sections: {', '.join(h for h in d.get('headings') or [] if h) or '–'}"
         + "".join(f"\n    {x['field']}: {x['text'][:400]}" for x in (d.get("summary") or [])[:2])
         for d in graph_docs[:6])
-    ctx = "\n\n".join(f"[{r.n}] {r.title} ({r.doc_type}{', ' + r.locator if r.locator else ''}; DEO: {', '.join(h.payload.get('deo') or []) or '–'})\n{h.payload['text']}"
+    ctx = "\n\n".join(f"[{r.n}] {r.title} ({r.doc_type}{', ' + r.locator if r.locator else ''}{legal_note(h.payload)}; DEO: {', '.join(h.payload.get('deo') or []) or '–'})\n{h.payload['text']}"
                       for r, h in zip(sources, hits))
     cite_ctx = citation_context(req.message if req.relation != "cites" else req.message + " cites", all_docs,
                                 [d["doc_id"] for d in graph_docs], plan["databases"])
     who = people_context([r.project_name for r in sources] + list(req.projects), plan["persons"] if req.persons else None)
-    prompt = (f"Overview of the whole knowledge map (all projects and clusters in scope):\n{overview}\n\n" if overview else "") + who + prog_head + cite_ctx + (f"Graph path: {' '.join(x if isinstance(x, str) else f'{x[0]} [{x[1]}]' for x in path) or '–'}\n"
+    prompt = (f"Overview of the whole knowledge map (all projects and clusters in scope):\n{overview}\n\n" if overview else "") + who + prog_head + cite_ctx + legal_head + (f"Graph path: {' '.join(x if isinstance(x, str) else f'{x[0]} [{x[1]}]' for x in path) or '–'}\n"
               f"Discourse elements asked for: {', '.join(plan['deo']) or 'any'}\n\n"
               f"Knowledge graph context:\n{graph_ctx or '–'}\n\nSources for this question:\n{ctx or '–'}\n\nQuestion: {req.message}")
     from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
