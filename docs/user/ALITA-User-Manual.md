@@ -1,4 +1,4 @@
-# ALITA – User Manual (front-end, v3.3.0)
+# ALITA – User Manual (front-end, v3.3.1)
 
 ALITA lets you ask questions of your research documents and get answers with numbered, clickable sources.
 The quick visual version is [`ALITA-Cheat-Sheet-Comic.pdf`](ALITA-Cheat-Sheet-Comic.pdf).

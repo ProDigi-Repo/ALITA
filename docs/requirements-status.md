@@ -1,4 +1,4 @@
-# ALITA – requirements status (3.3.0, 2026-10-29)
+# ALITA – requirements status (3.3.1, 2026-10-30)
 
 Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wording, the request as a requirement, acceptance criterion).
 
@@ -52,6 +52,7 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 | REQ-46 | Legal guideline: Commission Guidelines on the AI system definition, C(2025) 5053 (29.7.2025) | 🔄 in progress – ingestion in Docker pending | 3.2.1 | File + `_legal.yaml` in `research/EUAIA/guidelines/` (stage `published`, valid from 2025-07-29). Parser for Commission guidelines: sections I.–III., headings 1./5.1., margin numbers (1)–(64) as `rn_n` ("Para. 13"), footnotes left out. Checked offline: 3 sections, 9 headings, 64 margin numbers, 138 text units. |
 | REQ-47 | Second legal guideline: Commission Guidelines on prohibited AI practices, C(2025) 5052 (29.7.2025) | 🔄 in progress – ingestion in Docker pending | 3.2.2 | Second entry in `research/EUAIA/guidelines/_legal.yaml`. Parser: table of contents skipped, outline and margin numbers must continue (lists, quoted provisions, "(2022) doi:…" stay text), headings wrapped after a comma or starting with a quote/bracket. Checked offline: 114 headings, 433 margin numbers without gaps or duplicates. |
 | REQ-48 | New document class "Guidance & FAQ" for the EU AI Act database (first: AI Literacy – Questions & Answers) | 🔄 in progress – ingestion in Docker pending | 3.3.0 | Type `guidance`: Q&A pages, FAQs, factsheets of authorities (not binding, no reference number), separate from formal legal guidelines; folder `research/<DB>/guidance/`, CLI `ingest guidance`, upload, chip "FAQ", ▲ olive, `fabio:WebPage`/`bibo:Webpage`; parser for topics and questions ("Q 2.1"); stage `snapshot`. First page: 5 topics, 34 questions. |
+| REQ-49 | First standard: DIN SPEC 92005:2024-03 (uncertainty quantification in ML) | 🔄 in progress – check the licence, then ingest in Docker | 3.3.1 | File + `_legal.yaml` in `research/EUAIA/standards/`. Personal licence stamps (name, customer number, download ID, time) removed from every PDF's text. Standards: terms as parts (28), annex status, annex clauses C.1.2.1, table rows in annexes stay text. Checked offline: no stamp, sections 1–7, 28 terms, Annexes A–C, 174 text units. |
 
 ## Open points for the requirement owners
 - REQ-10, REQ-15 – REQ-18: main document chain per project, inferred links between versions and analyses, threshold for "substantive", AI stage texts automatic or on demand, versions without full text.

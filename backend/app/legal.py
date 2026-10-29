@@ -49,7 +49,7 @@ STAGE_LABEL = {
     "confirmed": "Confirmed (90.93)", "amendment": "Amendment", "edition": "Edition", "version": "Version",
 }
 TYPE_LABEL = {"preamble": "Preamble", "recital": "Recital", "title": "Title", "chapter": "Chapter", "section": "Section", "article": "Article",
-              "paragraph": "Paragraph", "point": "Point", "subpoint": "Point", "annex": "Annex", "supplement": "Supplement", "clause": "Clause", "topic": "Topic", "question": "Question",
+              "paragraph": "Paragraph", "point": "Point", "subpoint": "Point", "annex": "Annex", "supplement": "Supplement", "clause": "Clause", "topic": "Topic", "question": "Question", "term": "Term",
               "margin": "Para."}
 FAR_FUTURE = 32503680000            # 3000-01-01 als Zeitstempel: „gilt noch“ (valid_to offen)
 
@@ -138,6 +138,9 @@ _CA = re.compile(r"(?:^|\s)CA\s+(\d{1,3})$")              # Kopfzeile eines Komp
 CA_MARK = "\x00CA "
 _CLAUSE = re.compile(r"^(\d{1,2}(?:\.\d{1,3}){0,4})\.?\s+([A-ZÄÖÜ‘“\"'(][^\n]{1,110})$")
 _MARGIN = re.compile(r"^(\d{1,4})\.\s+(\S.*)$")
+_ANNEX_CLAUSE = re.compile(r"^([A-Z](?:\.\d{1,3}){1,4})\.?\s+([A-ZÄÖÜ‘“\"'(][^\n]{1,110})$")   # „C.1.2 Solution …“ in Anhängen
+_BARE_NUM = re.compile(r"^(\d{1,2}(?:\.\d{1,3}){1,4})\.?$")                                   # „3.1“ allein: Begriff folgt
+_ANNEX_STATUS = re.compile(r"^\((informative|normative|informativ|normativ)\)$", re.I)
 _MARGIN_P = re.compile(r"^\((\d{1,4})\)\s+(\S.*)$")             # Randnummern „(13)“ der Kommissionsleitlinien
 _ROMAN_SEC = re.compile(r"^([IVX]{1,5})\.\s+([A-Z].{1,110})$")   # „II. Objective and main elements …“
 _TOC_LEADER = re.compile(r"(\.\s?){6,}|…{3,}|(\.\s?){3,}\s*\d{1,4}\s*$")   # Inhaltsverzeichnis „2.3. Scope ........ 4“
@@ -334,6 +337,7 @@ def parse_components(text: str, kind: str = "law") -> list[Component]:
     ca_seen = in_annexes = False
     roman: Component | None = None                # Hauptabschnitt „II.“ einer Leitlinie
     last_top = last_rn = 0                        # Leitlinie: zuletzt gesehene Gliederungsnummer / Randnummer
+    annex_status = ""                             # Norm: „(informative)“ zwischen „Annex A“ und Titel
     for ln in lines:
         if ln.startswith(CA_MARK):                # neuer Kompromissblock: Gliederung von vorn, Erwägungsgründe zuerst
             ca_seen = True
@@ -346,10 +350,16 @@ def parse_components(text: str, kind: str = "law") -> list[Component]:
                 and expect_title is None:
             cur.title = f"{cur.title} {ln}"        # zweizeilige Überschrift („… PROVIDERS AND USERS … AND“ / „OTHER PARTIES“)
             continue
+        if expect_title is not None and expect_title.type == "annex" and _ANNEX_STATUS.match(ln.strip()):
+            annex_status = ln.strip()             # „Annex A“ / „(informative)“ / Titel
+            continue
         if expect_title is not None:              # Titelzeile direkt nach „Article 5“ / „ANNEX III“ / „CHAPTER II“
             if len(ln) <= 160 and not (_PARA_EN.match(ln) or _PARA_DE.match(ln) or _POINT_EN.match(ln) or _ARTICLE.match(ln)) \
                     and not expect_title.title:
-                expect_title.title = ln
+                expect_title.title = ln + (f" {annex_status}" if expect_title.type == "annex" and annex_status else "")
+                if expect_title.type == "term":
+                    expect_title.title = ln.strip()
+                annex_status = ""
                 expect_title = None
                 continue
             expect_title = None
@@ -457,10 +467,43 @@ def parse_components(text: str, kind: str = "law") -> list[Component]:
             cur.text = (cur.text + "\n" + ln) if cur.text else ln
         else:                                     # Standards / Leitlinien
             m = _ANNEX.match(ln)
-            if m:
+            if m and not (m.group(3) or "").rstrip().endswith((".", ";", ",")):
                 clause_stack = []
-                cur = add(f"anx_{m.group(2)}", "annex", m.group(2), None, m.group(3) or "")
+                ttl = (m.group(3) or "").strip()
+                if re.match(r"^(informative|normative)\)", ttl, re.I):
+                    ttl = "(" + ttl                   # „Annex C (informative) Use cases“: „(“ war das Trennzeichen
+                st = _ANNEX_STATUS.match(ttl)
+                if st:                            # „Annex A (informative)“ – Titel folgt in der nächsten Zeile
+                    annex_status, ttl = ttl, ""
+                elif re.match(r"^\((informative|normative)\)\s+", ttl, re.I):
+                    ttl = re.sub(r"^\((informative|normative)\)\s+(.*)$", r"\2 (\1)", ttl, flags=re.I)
+                cur = add(f"anx_{m.group(2)}", "annex", m.group(2), None, ttl)
                 expect_title = cur if not cur.title else None
+                continue
+            annex_ctx = cur.cid.split("/")[0] if cur.cid.startswith("anx_") else None
+            m = _ANNEX_CLAUSE.match(ln) if annex_ctx and kind == "standard" else None
+            if m and m.group(1)[0] == annex_ctx[4:5] and not ln.rstrip().endswith((".", ";", ",")):
+                num = m.group(1)
+                while clause_stack and not num.startswith(clause_stack[-1].number + "."):
+                    clause_stack.pop()
+                parent = clause_stack[-1].cid if clause_stack else annex_ctx
+                c = add(f"{annex_ctx}/cl_{num}", "clause", num, parent, m.group(2))
+                clause_stack.append(c)
+                cur = c
+                continue
+            if annex_ctx and kind == "standard" and (_CLAUSE.match(ln) or _BARE_NUM.match(ln)):
+                cur.text = (cur.text + "\n" + ln) if cur.text else ln      # „3 GPS Outage“ in einer Anhang-Tabelle
+                continue
+            m = _BARE_NUM.match(ln) if kind == "standard" else None
+            if m and _next_in_outline(m.group(1), clause_stack, 99):
+                num = m.group(1)                  # Begriff „3.1“ / „AI system“ / Definition
+                while clause_stack and not num.startswith(clause_stack[-1].number + "."):
+                    clause_stack.pop()
+                parent = clause_stack[-1] if clause_stack else None
+                is_term = parent is not None and re.search(r"terms|definitions|begriffe", parent.title, re.I)
+                c = add(f"cl_{num}", "term" if is_term else "clause", num, parent.cid if parent else None, "")
+                clause_stack.append(c)            # auch Begriffe: „3.3“ muss auf „3.2“ folgen
+                cur, expect_title = c, c
                 continue
             m = _ROMAN_SEC.match(ln) if eu_gl else None
             if m and not ln.rstrip().endswith((".", ";", ",")):

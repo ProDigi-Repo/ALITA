@@ -8,6 +8,21 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [Unreleased]
 
+## [3.3.1] - 2026-10-30
+
+> **Patch release – the first standard.** DIN SPEC 92005:2024-03 "Artificial Intelligence – Uncertainty quantification in machine learning" (46 pages, text in English) as the first standard of the database "EU AI Act". The file is a personal DIN Media download: every page carries a stamp with the buyer's name, customer number, download ID and time. ALITA now removes such licence stamps when reading a PDF, so they reach neither the index nor the language model. Checked on the real file: no stamp left; sections 1–7 with all subclauses, 28 terms, Annexes A–C with clauses C.1 … C.2.x – 92 parts, 174 text units. One new requirement (REQ-49). **Licence:** a standard bought from DIN Media is usually licensed to one person; storing its full text in a shared ALITA instance and sending it to an external AI service (summaries, embeddings) may not be covered – check before ingesting. **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest standard /research/EUAIA/standards`. Roll back with `git checkout v3.3.0`.
+
+### Requirements
+- **REQ-49 Add a standard (DIN SPEC 92005:2024-03)** – ✅ prepared and checked offline; file and `_legal.yaml` in `research/EUAIA/standards/`; ingestion runs in Docker after the licence is checked.
+
+### Added
+- Licence stamps of standards downloads ("Normen-Download-DIN Media-<name>-KdNr.<n>-ID.<id>-<date time>") are removed from the text of every PDF (`extract.strip_licence_stamps`).
+- Standards: terms in "Terms and definitions" are parts of their own (`3.1` on its own line followed by the term; type `term`, cited as "Clause 3.1", title = the term).
+
+### Fixed
+- Standards: the annex status "(informative)" / "(normative)" was taken as the annex title; now the real title follows ("Use cases (informative)").
+- Standards: clauses inside annexes ("C.1.2 Solution via uncertainty quantification") are recognised, and numbered table rows inside annexes ("3 GPS Outage") no longer become clause 3 again.
+
 ## [3.3.0] - 2026-10-29
 
 > **Minor release – new document class "Guidance & FAQ".** Authorities explain the AI Act not only in formally adopted guidelines (Communications with a reference number such as C(2025) 5052) but also on Q&A pages, in FAQs and factsheets – not binding, without reference number, and changing over time. These now have their own document type `guidance` ("Guidance & FAQ"), next to legal guidelines. First document: "AI Literacy – Questions & Answers" of the European Commission / AI Office (digital-strategy.ec.europa.eu, printed 29 October 2026, 15 pages, already reflecting the Digital Omnibus): 5 topics, 34 questions. One new requirement (REQ-48). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest guidance /research/EUAIA/guidance`. Roll back with `git checkout v3.2.2`.

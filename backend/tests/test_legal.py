@@ -594,3 +594,42 @@ def test_guidance_faq_topics_and_questions():
     assert cs["q_2.2"].title.endswith("rubric?") and "q_2.3" not in cs        # zwei Sätze, eine Frage
     assert not any("Source URL" in c.text or "©" in c.text for c in cs.values())
     assert L.component_label("q_2.1") == "Q 2.1" and L.KIND_OF_TYPE["guidance"] == "faq"
+
+
+ISO_STYLE = """DIN SPEC 92005:2024-03
+Contents
+1 Scope . . . . . . . . . . . . . . . . . . . . . . . 7
+1 Scope
+This document gives requirements.
+3 Terms and definitions
+3.1
+AI system
+engineered system that generates outputs
+3.2
+algorithmic transparency
+property of the model
+4 Uncertainties in machine learning
+4.1 Elements of an ML system
+Text.
+Annex A
+(informative)
+Types of uncertainty: aleatoric and epistemic
+Table A.1 lists the types.
+Annex C (informative) Use cases
+C.1 Uncertainty quantification for sensor fusion
+C.1.1 Use case definition
+3 GPS Outage
+4 POD Fusion
+"""
+
+
+def test_standard_terms_annex_status_and_annex_clauses():
+    from app.extract import strip_licence_stamps
+    stamp = "Normen-Download-DIN Media-Erika Muster-KdNr.1234567-ID.AbC123xyz-2026-10-29 23:53:33"
+    assert strip_licence_stamps(f"text\n{stamp}\nmore") == "text\n\nmore"
+    cs = {c.cid: c for c in L.parse_components(ISO_STYLE, "standard")}
+    assert cs["cl_3.1"].type == "term" and cs["cl_3.1"].title == "AI system" and cs["cl_3.2"].title == "algorithmic transparency"
+    assert cs["cl_4.1"].parent == "cl_4" and cs["cl_3.2"].parent == "cl_3"
+    assert cs["anx_A"].title == "Types of uncertainty: aleatoric and epistemic (informative)"
+    assert cs["anx_C"].title == "Use cases (informative)" and cs["anx_C/cl_C.1.1"].parent == "anx_C/cl_C.1"
+    assert "cl_3~2" not in cs and "GPS Outage" in cs["anx_C/cl_C.1.1"].text      # Tabellenzeilen im Anhang sind Text
