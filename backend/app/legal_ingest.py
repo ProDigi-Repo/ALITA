@@ -291,7 +291,7 @@ async def ingest_legal(path: Path, doc_type: DocType, opts):
         result = project
     else:
         result = current[-1].record if current else (items[-1].record if items else None)
-    await maybe_recluster(opts)
+    await maybe_recluster(opts, dbs)
     maybe_citations(opts)
     return result
 

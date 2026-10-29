@@ -489,25 +489,40 @@ async def ingest_project(folder: Path, opts: IngestOptions) -> ProjectRecord:
         await enrich_items(items, opts, project)
     project.indexed_count = await index_items(items, opts)
     store.upsert_project(project)
-    await maybe_recluster(opts)
+    await maybe_recluster(opts, dbs)
     maybe_citations(opts)
     return project
 
 
-async def maybe_recluster(opts: IngestOptions) -> dict | None:
-    """Clustert alle eingebetteten Dokumente neu, wenn aktiviert und Embeddings erzeugt wurden."""
+def _uses_project_files(db: str) -> bool:
+    """Wurde diese Datenbank zuletzt mit Projektdateien als Einheiten geclustert (`ingest cluster --files`)?"""
+    from . import store
+    return any(d.get("doc_type") == "research_project" and d.get("cluster_basis") == "summary"
+               and db in (d.get("databases") or []) for d in store.scroll_documents())
+
+
+async def maybe_recluster(opts: IngestOptions, databases: list[str] | None = None) -> dict | None:
+    """Clustert nach einer Ingestion neu, wenn aktiviert und Embeddings erzeugt wurden – nur die betroffenen Datenbanken,
+    jede für sich und mit ihrer bisherigen Einheit (Projekte oder Projektdateien). Die Cluster aller anderen Datenbanken
+    bleiben unverändert. Ohne bekannte Datenbank (Dokumente ohne Zuordnung) wie bisher über alles."""
     s = get_settings()
     if not (opts.recluster and opts.embed and s.auto_cluster):
         return None
     from .clustering import recompute
 
+    dbs = sorted(set(s.normalize_databases(databases or []) or []))
+    out = None
     try:
-        res = await recompute(s.cluster_k or None, opts.api_key)
-        log.info("Clustering: %s", res)
-        return res
+        for db in dbs or [None]:
+            res = await recompute(s.cluster_k or None, opts.api_key, databases=[db] if db else None,
+                                  project_files=bool(db) and _uses_project_files(db))
+            log.info("Clustering %s: %s", db or "all", {k: res.get(k) for k in ("k", "units", "documents", "unit")})
+            out = res if out is None else {**res, "k": out["k"] + res["k"],
+                                           "documents": out.get("documents", 0) + res.get("documents", 0)}
+        return out
     except Exception as e:  # Clustering darf die Ingestion nicht scheitern lassen
         log.warning("Clustering fehlgeschlagen: %s", e)
-        return None
+        return out
 
 
 def maybe_citations(opts: IngestOptions) -> dict | None:
@@ -582,7 +597,7 @@ async def ingest_file(path: Path, doc_type: DocType, opts: IngestOptions, projec
     if opts.use_llm and not it.record.duplicate_of:
         await enrich_items([it], opts)
     await index_items([it], opts)
-    await maybe_recluster(opts)
+    await maybe_recluster(opts, it.record.databases)
     maybe_citations(opts)
     return it.record
 
@@ -650,18 +665,21 @@ async def ingest_all(root: Path, opts: IngestOptions, force: bool = False) -> No
     single = replace(opts, recluster=False)
     if not folders and not singles and not legal:
         print(f"No project folders or papers/notes in {root}")
+    touched: set[str] = set()                     # nur diese Datenbanken am Ende neu clustern
     for path, kind in singles:
         doc_id = make_doc_id(kind.value, kind.value, f"{path.parent.name}/{path.name}")
         if not force and store.get_document(doc_id):
             print(f"skipped (already ingested): {path.name}")
             continue
         r = await ingest_file(path, kind, single)
+        touched.update(r.databases or [])
         print(f"{kind.value}: {r.filename} [{', '.join(r.databases) or 'no database'}] indexed={r.indexed}")
     for folder in folders:
         if not force and store.get_project(folder.name):
             print(f"skipped (already ingested): {folder.name}")
             continue
         p = await ingest_project(folder, single)
+        touched.update(p.databases or [])
         print(f"Project {p.name}: {p.file_count} files, {p.indexed_count} indexed with full text")
     from .legal_ingest import ingest_legal, list_models
     known_norms = {m.get("project") or "" for m in list_models()}
@@ -676,8 +694,9 @@ async def ingest_all(root: Path, opts: IngestOptions, force: bool = False) -> No
                 print(f"skipped (already ingested): {folder.name}")
                 continue
         r = await ingest_legal(folder, kind, single)
+        touched.update(getattr(r, "databases", None) or [])
         print(f"{kind.value}: {getattr(r, 'name', None) or getattr(r, 'filename', '')} ingested")
-    res = await maybe_recluster(opts)   # einmal am Ende statt nach jeder Datei
+    res = await maybe_recluster(opts, sorted(touched)) if touched else None   # einmal am Ende, nur betroffene DBs
     if res:
         print(f"Clustering: {res['documents']} documents in {res['k']} clusters")
     cit = maybe_citations(opts)

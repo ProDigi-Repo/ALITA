@@ -8,6 +8,19 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [Unreleased]
 
+## [3.0.2] - 2026-10-29
+
+> **Patch release – clustering after an ingestion.** After the AI Act proposal was ingested, the automatic re-clustering ran over *all* databases together: with the CNN/DailyMail news in the collection the silhouette chose three clusters (two of news, one with all 74 research works and the law), and the clusters of AL, DL, JSW, LDK and ML (by project file) were overwritten. Now only the databases that received data are re-clustered, each on its own and with its previous unit. One new requirement (REQ-42). **Update:** `docker compose up -d --build backend frontend`, then restore the clusters once per database: `docker compose run --rm -e OPENROUTER_API_KEY=… ingest cluster --db <DB>` for AL, DL, JSW, LDK, CNN_DM and EUAIA, and `… ingest cluster --db ML --files` (or `POST /api/clusters/recompute?database=<DB>`, for ML with `&project_files=true`). Roll back with `git checkout v3.0.1`.
+
+### Requirements
+- **REQ-42 Knowledge map after ingesting the AI Act looked wrong** – ✅ fixed: cause was the global re-clustering after the ingestion (see Fixed); the clusters of the existing databases have to be computed again once (see Update).
+
+### Fixed
+- Automatic clustering after an ingestion (`AUTO_CLUSTER=true`) clustered all databases together and replaced the per-database clusters (`ingest cluster --db …`, `--files`). It now re-clusters only the databases of the ingested data, one after the other, with projects or project files as units as in their last run; `ingest all` collects the databases it touched and clusters them once at the end.
+- A legal project counted twice in clustering (as project and as its current version); now the law is the unit and the project takes its cluster.
+- A database with a single work (e.g. "EU AI Act" with only the proposal) got no cluster ("Too few documents"); it now gets one cluster of its own.
+- Knowledge map (B page): the name and "n docs · m clusters" of a project ran over the next paper in the "Projects & papers" row; the name is now shortened up to the next node and the second line is left out when it does not fit.
+
 ## [3.0.1] - 2026-10-29
 
 > **Patch release – first real law: the Commission proposal of the AI Act.** Tested against COM(2021) 206 final (108 pages) and its "Annexes 1 to 9" (17 pages) as the first legal project of the database "EU AI Act". The segmentation now handles the structure of Commission proposals, one version can consist of several files, and answers no longer come back empty when only drafts of a law are in the collection. One new requirement (REQ-41). **Update:** `docker compose up -d --build backend frontend`, put the proposal files into `research/EUAIA/legal/EU-AI-Act/`, then `docker compose run --rm ingest legal /research/EUAIA/legal/EU-AI-Act`. Roll back with `git checkout v3.0.0`.

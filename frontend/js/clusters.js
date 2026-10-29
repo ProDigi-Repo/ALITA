@@ -293,8 +293,8 @@ function mountGraph3D(units,cls,box=$('#cvGraph'),key='graph',GH=350){ // key/GH
       PJ.forEach(p=>{const a=P(p);if(!a)return;p.to.forEach(t=>{const b=P(t.d);if(!b)return;g.globalAlpha=anyS&&!cvHas(t.d.c.id)?.1:.5;g.strokeStyle=pc;g.lineWidth=1+5*t.cnt/mxp;g.beginPath();g.moveTo(a.x,a.y);g.lineTo(b.x,b.y);g.stroke()});g.globalAlpha=1});
       PJ.forEach(p=>{const a=P(p);if(!a)return;const r=Math.max(8,11*a.s);g.fillStyle=pc;g.beginPath();g.arc(a.x,a.y,r,0,Math.PI*2);g.fill();g.strokeStyle='rgba(255,255,255,.9)';g.lineWidth=2;g.stroke();
         g.fillStyle='#fff';g.beginPath();g.moveTo(a.x,a.y-r*.45);g.lineTo(a.x+r*.45,a.y);g.lineTo(a.x,a.y+r*.45);g.lineTo(a.x-r*.45,a.y);g.closePath();g.fill();
-        const nx=PJ.map(q=>P(q)).filter(q=>q&&q.x>a.x+1).reduce((m,q)=>Math.min(m,q.x),W),room=nx-a.x-r-14;   // name fits up to the next project
-        g.fillStyle=fg;g.font='600 12px "IBM Plex Sans",sans-serif';let nm=p.pn;while(nm.length>4&&g.measureText(nm).width>room)nm=nm.slice(0,-2)+'…';if(nm!==p.pn&&!nm.endsWith('…'))nm+='…';g.fillText(nm,a.x+r+5,a.y-1);g.fillStyle=muted;g.font='10.5px "IBM Plex Sans",sans-serif';g.fillText(`${p.n} docs · ${p.by.size} clusters`,a.x+r+5,a.y+12);
+        const nx=[...PJ,...PA].map(q=>P(q)).filter(q=>q&&q.x>a.x+1).reduce((m,q)=>Math.min(m,q.x-8),W),room=nx-a.x-r-14;   // name fits up to the next project or paper
+        g.fillStyle=fg;g.font='600 12px "IBM Plex Sans",sans-serif';let nm=p.pn;while(nm.length>4&&g.measureText(nm).width>room)nm=nm.slice(0,-2)+'…';if(nm!==p.pn&&!nm.endsWith('…'))nm+='…';g.fillText(nm,a.x+r+5,a.y-1);g.fillStyle=muted;g.font='10.5px "IBM Plex Sans",sans-serif';const sub=`${p.n} docs · ${p.by.size} clusters`;if(g.measureText(sub).width<=room)g.fillText(sub,a.x+r+5,a.y+12);
         const pr=PROJECTS.find(x=>x.name===p.pn);((pr&&pr.db)||[]).filter(n=>DB_FLOWER[n]).forEach((n,k)=>cvFlowerBadge(g,n,a.x-r*.8-k*11,a.y-r*.8,5.5));
         st.hits.push({kind:'project',p,x:a.x,y:a.y,r:r+3})})}
     nodes.map(d=>({d,p:P(d)})).filter(x=>x.p).sort((a,b)=>b.p.z-a.p.z).forEach(({d,p})=>{const dim=cvOff(d.c.id),r=Math.max(6,rad(d)*p.s*1.1);

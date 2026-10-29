@@ -115,8 +115,8 @@ Mit W/A/S/D, Q/E, Mausrad oder Steuerkreuz durchlaufen, mit Ziehen umsehen; „F
 Ringe mit Linie zeigen den Cluster-Schwerpunkt je Jahr, Balken die Laufzeit von Projekten.
 
 
-Qdrant speichert die Vektoren, clustert aber nicht selbst. Nach jeder Ingestion (abschaltbar mit `AUTO_CLUSTER=false`)
-clustert das Backend die **Structured Summaries** – eine Einheit je Werk, nicht je Datei:
+Qdrant speichert die Vektoren, clustert aber nicht selbst. Nach jeder Ingestion (abschaltbar mit `AUTO_CLUSTER=false`; seit 3.0.2 nur die Datenbanken, in die eingelesen wurde – jede für sich,
+mit ihrer bisherigen Einheit: Projekte oder Projektdateien; die übrigen Datenbanken behalten ihre Cluster) clustert das Backend die **Structured Summaries** – eine Einheit je Werk, nicht je Datei:
 
 | Datenpunkt | Vektor |
 |---|---|
@@ -250,7 +250,8 @@ und `APP_VERSION` im Frontend angleichen. Der Test `test_changelog_follows_keepa
 
 | Version | Datum | Inhalt | früher |
 |---|---|---|---|
-| **3.0.1** | 2026-10-29 | **Patch Release – erstes echtes Gesetz (REQ-41):** Kommissionsvorschlag des AI Act (COM(2021) 206, Hauptdokument + Anhänge) als erstes Legal project in „EU AI Act“; Segmentierung von Kommissionsvorschlägen (TITLE/CHAPTER, alle Anhänge, Begriffsbestimmungen, Finanzbogen als Anlage, Seitenfüße, umbrochene Verweise), `file:` als Liste in `_legal.yaml`, Rückfall auf den jüngsten Entwurf, wenn kein Gesetz gilt. | 3.0.0 |
+| **3.0.2** | 2026-10-29 | **Patch Release – Clustering nach dem Einlesen (REQ-42):** Das automatische Neu-Clustern nach einer Ingestion betrifft nur noch die eingelesenen Datenbanken (jede für sich, mit Projekten bzw. Projektdateien wie zuvor) statt alle gemeinsam; ein Legal project ist eine Einheit statt zwei; eine Datenbank mit nur einem Werk bekommt einen eigenen Cluster; Projektnamen in der Wissenskarte überdecken keine Paper mehr. | 3.0.1 |
+| 3.0.1 | 2026-10-29 | **Patch Release – erstes echtes Gesetz (REQ-41):** Kommissionsvorschlag des AI Act (COM(2021) 206, Hauptdokument + Anhänge) als erstes Legal project in „EU AI Act“; Segmentierung von Kommissionsvorschlägen (TITLE/CHAPTER, alle Anhänge, Begriffsbestimmungen, Finanzbogen als Anlage, Seitenfüße, umbrochene Verweise), `file:` als Liste in `_legal.yaml`, Rückfall auf den jüngsten Entwurf, wenn kein Gesetz gilt. | 3.0.0 |
 | 3.0.0 | 2026-10-29 | **Major Release – Legal-Ontologie (REQ-37/38/39):** Gesetze, Leitlinien und Standards als neue Dokumenttypen (`legal_project`, `legal_guideline`, `standard`), strukturbewusst in Artikel/Absätze/Anhänge bzw. Clauses zerlegt, mit datierten Fassungen (unveränderte Teile wiederverwendet), Änderungen als eigene, eingebettete Actions und Stichtag-Suche mit offengelegter Regel – nach dem SAT-Graph RAG von de Martim (2025), an ELI ausgerichtet; neue Datenbank „EU AI Act“ (Kornblume); `fabio:Note` korrigiert. Major, weil sich Datenmodell (neue Typen und Felder) und Suchverhalten (Stichtag für Rechtstexte) ändern; bestehende Daten müssen nicht neu eingelesen werden | |
 | 2.2.0 | 2026-10-29 | Minor Release – Zitationsnetz und BIBO (REQ-35): Literaturverzeichnisse werden mit den Papers der Sammlung abgeglichen (DOI oder Titel mit Erstautor:in und Jahr, ohne LLM, ohne neue Embeddings); „⇄ Citations“ in der Wissenslandkarte zeigt, wer wen zitiert; „Cites / Cited by“ in den Dokumentdetails; Graph Chat beantwortet Zitationsfragen; BIBO im Graphen (`bibo_type`, `author_list`, `(:Document)-[:CITES]->(:Document)`); Literaturverzeichnisse, die durch Seitenkopfzeilen getrennt waren, werden wieder vollständig als `deo:BibliographicReference` erkannt. Backend-Update nötig, kein Neu-Einlesen | |
 | 2.1.0 | 2026-10-17 | Minor Release – Arbeitsfläche und Zeitstrahl: B-Seite über die volle Bildschirmbreite (Karte links in voller Höhe, rechts „Projects & clusters“ und Graph Chat), Karte füllt ihre Kachel und lässt sich vergrößern, 3D-Zeitansicht mit genauen Dokumentdaten und Zeit-Zoom bis auf Tage; Anforderungen REQ-22 – REQ-34 (inkl. Feedback von Dustin) in `docs/requirements-status.md` und `docs/requirements-log.xlsx`; nur Frontend | |

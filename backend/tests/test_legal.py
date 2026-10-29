@@ -306,3 +306,30 @@ def test_draft_fallback_when_only_a_proposal_exists():
                                                             "valid_to": None}]}]
     assert draft_fallback(with_law, "2026-10-29") is None                    # geltende Fassung vorhanden: kein Rückfall
     assert draft_fallback(with_law, "2023-01-01") == "proposal"              # 2023 galt noch nichts: jüngster Entwurf
+
+
+def test_legal_project_is_one_clustering_unit():
+    from app.clustering import select_units
+    summ = {"purpose": "Rules for AI systems in the Union."}
+    docs = [{"doc_id": "d1", "doc_type": "legal_project", "project_name": "EU-AI-Act", "title": "AI Act – Proposal",
+             "summary": summ, "legal": {"current": True}},
+            {"doc_id": "p1", "doc_type": "research_paper", "title": "A paper", "summary": summ}]
+    projects = [{"project_id": "x", "name": "EU-AI-Act", "title": "AI Act – Proposal", "summary": summ},
+                {"project_id": "y", "name": "Lean-Agile", "title": "Lean", "summary": summ}]
+    ids = [u["id"] for u in select_units(docs, projects)]
+    assert ids == ["d1", "p1", "y"]                      # das Gesetz einmal, das Legal project nicht zusätzlich
+
+
+def test_auto_recluster_only_touches_ingested_databases(monkeypatch):
+    import asyncio
+    from app import clustering, ingest
+    calls = []
+
+    async def fake(k=None, api_key=None, databases=None, project_files=False):
+        calls.append((databases, project_files))
+        return {"k": 1, "documents": 1, "units": 1}
+    monkeypatch.setattr(clustering, "recompute", fake)
+    monkeypatch.setattr(ingest, "_uses_project_files", lambda db: db == "ML")
+    opts = ingest.IngestOptions(use_llm=False, embed=True)
+    res = asyncio.run(ingest.maybe_recluster(opts, ["EUAIA", "ML"]))
+    assert calls == [(["EUAIA"], False), (["ML"], True)] and res["k"] == 2
