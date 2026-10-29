@@ -42,7 +42,7 @@ import re
 from pathlib import Path
 
 from .config import get_settings
-from .legal import (DRAFT_STAGES, KIND_OF_TYPE, STAGE_LABEL, VersionInput, build_history, iso, parse_components, slug,
+from .legal import (DRAFT_STAGES, KIND_OF_TYPE, STAGE_LABEL, VersionInput, build_history, iso, merge_partial, parse_components, slug,
                     text_units)
 from .schemas import DocType, ProjectContext, ProjectRole, make_project_id
 
@@ -191,11 +191,15 @@ async def ingest_legal(path: Path, doc_type: DocType, opts):
             in_force = iso(v.get("in_force"))
             if not in_force and n.get("guessed") and stage not in DRAFT_STAGES and r.date:
                 in_force = r.date.date().isoformat()          # ohne Metadaten: gilt ab ihrem Datum (offengelegt in date_source)
+            comps = parse_components(it.extracted.text, n["kind"])
+            partial = bool(v.get("partial")) and bool(vin)
+            if partial:                           # nur geänderte Teile im Dokument: Rest aus der Vorfassung
+                comps = merge_partial(vin[-1].components, comps)
             vin.append(VersionInput(seq=seq, doc_id=r.doc_id, stage=stage, date=iso(v.get("date")) or (r.date.date().isoformat() if r.date else None),
                                     in_force=in_force, applicable=iso(v.get("applicable")), applicability=v.get("applicability") or [],
                                     no_longer_in_force=iso(n.get("no_longer_in_force")) if seq == len(vlist) else None,
                                     language=v.get("language") or n.get("language") or "en", amended_by=v.get("amended_by"),
-                                    title=v.get("title") or r.title, components=parse_components(it.extracted.text, n["kind"])))
+                                    title=v.get("title") or r.title, components=comps, partial=partial))
             if r.project is not None:
                 r.project.role = ProjectRole.legal_text
                 r.project.version_group = n["norm_id"]
@@ -217,7 +221,7 @@ async def ingest_legal(path: Path, doc_type: DocType, opts):
                        "amended_by": vs["amended_by"], "components": vs["components"],
                        "files": [q.name for q in (next(v for v in vlist if by_path[v["path"]].record.doc_id == vi.doc_id).get("parts")
                                                    or [])], "added": vs["added"],
-                       "changed": vs["changed"], "removed": vs["removed"], "current": vs["seq"] == len(vin)}
+                       "changed": vs["changed"], "removed": vs["removed"], "current": vs["seq"] == len(vin), "partial": vs.get("partial", False)}
         save_model(model)
         models.append(model)
     # 3. LLM-Zusammenfassung: nur die aktuelle Fassung jeder Norm und die Begleitdokumente (Kosten)

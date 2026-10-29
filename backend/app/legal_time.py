@@ -37,7 +37,9 @@ RX_BEFORE = re.compile(rf"\b(before|prior to|vor|bis)\s+(?:dem\s+|the\s+)?(.{{0,
 RX_BETWEEN = re.compile(rf"\b(between|zwischen)\s+{_YEAR}\s+(and|und)\s+{_YEAR}", re.I)
 RX_YEAR_CTX = re.compile(rf"\b(in|im|during|während|stand|as of|as at|zum|am|on|jahr|year|fassung|version)\s+(?:dem\s+|the\s+|jahr\s+|year\s+)?{_YEAR}", re.I)
 
-STAGE_WORDS = [
+STAGE_WORDS = [                                # erste Fundstelle gewinnt – „draft compromise amendments“ ist Ausschuss, kein Vorschlag
+    ("committee", r"\b(imco|libe|committee (?:text|amendments?|report|vote|stage|version)|compromise amendments?|"
+                  r"ausschuss\w*|kompromissänderung\w*|kompromisstext\w*)\b"),
     ("proposal", r"\b(commission proposal|kommissionsvorschlag|proposal|vorschlag|gesetzentwurf|referentenentwurf|entwurf|draft)\b"),
     ("position_parliament", r"\b(parliament(?:'s)? position|position des parlaments|parlamentsposition|ep position)\b"),
     ("general_approach", r"\b(general approach|allgemeine ausrichtung|council position|position des rates)\b"),

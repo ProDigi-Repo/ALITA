@@ -36,6 +36,7 @@ function legalDocHtml(full){
     <dt>Norm</dt><dd>${esc(lg.norm_title||'')}${lg.eli?` <a class="mono" href="${esc(lg.eli)}" target="_blank" rel="noopener">ELI</a>`:''}</dd>
     <dt>Version</dt><dd>${lg.seq} of ${lg.versions} · ${esc(lg.stage_label||STAGE_LABEL[lg.stage]||lg.stage)}${lg.current?' <span class="latest">current</span>':''}</dd>
     ${(lg.files||[]).length>1?`<dt>Files</dt><dd>${lg.files.map(esc).join(' + ')}</dd>`:''}
+    ${lg.partial?`<dt>Scope</dt><dd>only the amended parts <span class="srcnote">(all other parts are taken unchanged from the previous version)</span></dd>`:''}
     <dt>In force</dt><dd>${lg.in_force?esc(lg.in_force)+' – '+esc(lg.valid_to||'today'):'<span class="srcnote">not in force (drafting stage)</span>'}</dd>
     ${lg.applicable?`<dt>Applies from</dt><dd>${esc(lg.applicable)} <span class="srcnote">(some provisions may differ)</span></dd>`:''}
     ${lg.amended_by?`<dt>Amended by</dt><dd>${esc(lg.amended_by.title||lg.amended_by.eli||'')}</dd>`:''}

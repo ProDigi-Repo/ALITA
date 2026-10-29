@@ -333,3 +333,62 @@ def test_auto_recluster_only_touches_ingested_databases(monkeypatch):
     opts = ingest.IngestOptions(use_llm=False, embed=True)
     res = asyncio.run(ingest.maybe_recluster(opts, ["EUAIA", "ML"]))
     assert calls == [(["EUAIA"], False), (["ML"], True)] and res["k"] == 2
+
+
+EP_CA = """Committee on the Internal Market and Consumer Protection
+DRAFT Compromise Amendments
+1
+Title III, Chapter 4 and recitals 65 and 65a CA 1
+(65) Notified bodies should be designated by the national authorities.
+(65a) Test results should be accepted internationally.
+CHAPTER 4
+NOTIFYING AUTHORITIES
+Article 30
+Notifying authorities
+1. Each Member State shall designate a notifying authority.
+2
+Articles 1 and 2, citations 5 a and 5 b, recitals 1-
+5a and 10-13
+CA 2
+(1) The purpose of this Regulation is human-centric AI.
+(65a) Test results should be accepted internationally.
+TITLE I
+GENERAL PROVISIONS
+Article 1
+Subject matter
+This Regulation lays down rules.
+Article 4 a
+General principles
+1. All operators shall make their best efforts.
+"""
+
+
+def test_committee_compromise_amendments_as_partial_version():
+    ep = {c.cid: c for c in L.parse_components(EP_CA, "law")}
+    assert {"rec_65", "rec_65a", "rec_1", "chp_4", "art_30", "art_1", "art_4a", "tit_I"} <= set(ep)
+    assert "rec_65a~2" not in ep                                   # wortgleich in zwei Blöcken: einmal
+    assert not any("Articles 1 and 2" in c.text or "5a and 10-13" in c.text for c in ep.values())   # Blockkopf weg
+    assert "art_30/abs_1" in ep and ep["rec_1"].type == "recital"   # Block beginnt wieder mit Erwägungsgründen
+    prev = L.parse_components(COM_PROPOSAL.replace("CHAPTER 3", "CHAPTER 4").replace("Article 16", "Article 30"), "law")
+    merged = {c.cid: c for c in L.merge_partial(prev, list(ep.values()))}
+    assert merged["tit_III/chp_4"].parent == "tit_III" and merged["art_30"].parent == "tit_III/chp_4"   # Kapitel ausgerichtet
+    assert "chp_4" not in merged and "art_56" in merged and "anx_III" in merged                         # Rest übernommen
+    assert merged["art_4a"].parent == "tit_I"                                                           # neuer Artikel
+    order = [c.cid for c in sorted(merged.values(), key=lambda c: c.order) if c.type == "article"]
+    assert order.index("art_3") < order.index("art_4a") < order.index("art_6") < order.index("art_30")
+    vin = [L.VersionInput(seq=1, doc_id="p", stage="proposal", date="2021-04-21", components=prev),
+           L.VersionInput(seq=2, doc_id="e", stage="committee", date="2023-05-09", components=list(merged.values()), partial=True)]
+    m = L.build_history({"norm_id": "ai", "title": "AI Act"}, vin)
+    v2 = m["versions"][1]
+    assert v2["removed"] == 0 and v2["partial"] and v2["added"] >= 3      # nichts gestrichen, nur ergänzt/geändert
+
+
+def test_comparison_ignores_pdf_spacing_and_hyphens():
+    assert L.cmp_key("third-party c onformity assess-\nments, high -risk") == L.cmp_key("third party conformity assessments high‑risk")
+    assert L.cmp_key("fines of up to 250 000 EUR") != L.cmp_key("fines of up to 750 000 EUR")
+
+
+def test_planner_recognises_committee_stage():
+    from app.legal_time import plan
+    assert plan("What did the IMCO/LIBE draft compromise amendments say about Article 5?")["stage"] == "committee"
+    assert plan("Was stand im Kommissionsvorschlag zu Art. 6?")["stage"] == "proposal"

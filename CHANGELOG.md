@@ -8,6 +8,26 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-10-29
+
+> **Minor release – partial versions and the committee stage.** Second version of the AI Act legal project: the European Parliament's IMCO/LIBE *draft compromise amendments* of 9 May 2023 (144 pages). The document is a consolidated text of 12 compromise blocks, not a full regulation – Articles 13, 14, 52, 55, 69, Annex IX and many recitals are missing. Read as a normal version, all of them would have counted as deleted; as a *partial* version they are taken unchanged from the proposal. Checked offline on the real PDFs: 104 articles (24 new, e.g. 4a, 28a, 28b, 54a), 129 recitals, nothing reported as deleted; the smallest reported changes are real (fines EUR 250 000 → 750 000, "user" → "deployer"). One new requirement (REQ-43). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest legal /research/EUAIA/legal/EU-AI-Act` – the comparison of texts changed, so the units of the proposal are embedded once more. Roll back with `git checkout v3.0.2`.
+
+### Requirements
+- **REQ-43 Add the next version of the AI Act (IMCO/LIBE draft compromise amendments, 9.5.2023)** – ✅ prepared and checked offline; file placed and `_legal.yaml` extended (version 2 of 4, stage `committee`, `partial: true`); the ingestion runs in Docker.
+
+### Added
+- `_legal.yaml`: `partial: true` for a version whose document contains only the amended parts; `merge_partial` takes missing components from the previous version, aligns chapters and articles with its structure and orders the result in reading order. Document details show "Scope: only the amended parts".
+- Drafting stage `committee` ("Committee amendments (Parliament)"); the temporal planner recognises "IMCO", "LIBE", "compromise amendments", "committee text/vote", "Ausschuss", "Kompromissänderungen".
+- Segmentation of compromise-amendment documents: block headers "… CA 1" … "CA 12" (also over several lines) restart the structure with recitals; a recital repeated word for word in two blocks counts once; article numbers "28a", "54 a", "28(a)"; recitals and definitions with letters ("(65a)", "(44a)"); "TITLE X - Confidentiality …" headings.
+
+### Changed
+- Versions are compared by letters and digits only (`cmp_key`): spaces, hyphens (including Word's non-breaking hyphens) and punctuation that differ between PDF extractions no longer count as changes. Existing legal units are embedded once more on the next ingestion.
+- A second article heading with the same number no longer merges into an article that already has paragraphs (the IMCO/LIBE text has "Article 57b" twice).
+
+### Open points
+- The plenary position of the Parliament (14 June 2023), the Council's general approach (6 December 2022), the adopted Regulation (EU) 2024/1689 and the consolidated version are not in the collection yet.
+- Footnote markers glued to words ("Council63") and two different "Article 57b" in the committee document are kept as they are.
+
 ## [3.0.2] - 2026-10-29
 
 > **Patch release – clustering after an ingestion.** After the AI Act proposal was ingested, the automatic re-clustering ran over *all* databases together: with the CNN/DailyMail news in the collection the silhouette chose three clusters (two of news, one with all 74 research works and the law), and the clusters of AL, DL, JSW, LDK and ML (by project file) were overwritten. Now only the databases that received data are re-clustered, each on its own and with its previous unit. One new requirement (REQ-42). **Update:** `docker compose up -d --build backend frontend`, then restore the clusters once per database: `docker compose run --rm -e OPENROUTER_API_KEY=… ingest cluster --db <DB>` for AL, DL, JSW, LDK, CNN_DM and EUAIA, and `… ingest cluster --db ML --files` (or `POST /api/clusters/recompute?database=<DB>`, for ML with `&project_files=true`). Roll back with `git checkout v3.0.1`.

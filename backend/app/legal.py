@@ -35,10 +35,10 @@ from datetime import date, datetime, timezone
 LEGAL_TYPES = ("legal_project", "legal_guideline", "standard")
 KIND_OF_TYPE = {"legal_project": "law", "legal_guideline": "guideline", "standard": "standard"}
 # Stufen ohne Geltung (Entstehungsgeschichte) – alles andere mit in_force-Datum gilt
-DRAFT_STAGES = {"proposal", "draft", "position_parliament", "position_council", "general_approach", "trilogue_agreement",
+DRAFT_STAGES = {"proposal", "draft", "committee", "position_parliament", "position_council", "general_approach", "trilogue_agreement",
                 "committee_report", "consultation", "public_consultation", "nwip", "wd", "cd", "dis", "fdis", "prf"}
 STAGE_LABEL = {
-    "proposal": "Proposal", "position_parliament": "Parliament position", "position_council": "Council position",
+    "proposal": "Proposal", "committee": "Committee amendments (Parliament)", "position_parliament": "Parliament position", "position_council": "Council position",
     "general_approach": "General approach", "trilogue_agreement": "Trilogue agreement", "committee_report": "Committee report",
     "adopted": "Adopted text", "published": "Published", "consolidated": "Consolidated version", "corrigendum": "Corrigendum",
     "repealed": "Repealed", "draft": "Draft", "consultation": "Draft for consultation", "public_consultation": "Draft for consultation",
@@ -87,6 +87,12 @@ def norm_text(t: str) -> str:
     return re.sub(r"\s+", " ", t).strip().lower()
 
 
+def cmp_key(t: str) -> str:
+    """Identität eines Textes über Fassungen hinweg: PDF-Extraktion setzt Leerzeichen und Bindestriche uneinheitlich
+    („c onformity“, „high -risk“, geschützte Bindestriche aus Word) – das darf nicht als Änderung zählen."""
+    return re.sub(r"[\W_]+", "", norm_text(t))     # nur Buchstaben und Ziffern: Leerraum, Bindestriche (auch geschützte), Satzzeichen egal
+
+
 def slug(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", (s or "").lower()).strip("-")[:60] or "norm"
 
@@ -112,19 +118,21 @@ _LINE_SKIP = re.compile(r"^(\d{1,4}|\d+/\d+|[-–—]\s*\d+\s*[-–—]|page \d+
 _TITLE = re.compile(r"^(TITLE|TITEL)\s+([IVXLC]+)\b\.?\s*(.*)$")   # Gliederung der Kommissionsvorschläge
 _CHAPTER = re.compile(r"^(CHAPTER|KAPITEL)\s+([IVXLC]+|\d+)\b\.?\s*(.*)$")
 _SECTION = re.compile(r"^(SECTION|ABSCHNITT)\s+(\d+)\b\.?\s*(.*)$")
-_ARTICLE = re.compile(r"^(Article|Artikel|Art\.)\s+(\d+[a-z]?)\s*(?:$|[–—:\-.]\s*(.{0,140})$)")
+_ARTICLE = re.compile(r"^(Article|Artikel|Art\.)\s+(\d+(?:\s?[a-z]{1,2}|\([a-z]\))?)\s*(?:$|[–—:\-.]\s*(.{0,140})$)")   # 28a, „54 a“, „28(a)“
 _PARA_SIGN = re.compile(r"^§\s*(\d+[a-z]?)\s*(.{0,140})$")
 _ANNEX = re.compile(r"^(ANNEX|ANHANG|Annex|Anhang)\s+([IVXLC]+|[A-Z]|\d+)\b\s*(?:$|[–—:\-.(]\s*(.{0,140})$)")
 _SUPPLEMENT = re.compile(r"^(LEGISLATIVE FINANCIAL STATEMENT|FINANZBOGEN ZU RECHTSAKTEN)\b")   # Anlage der Kommissionsvorschläge
-_DEF_EN = re.compile(r"^\((\d{1,3})\)(?:\s+(\S.*))?$")      # Begriffsbestimmungen „(1) ‘AI system’ means …“
+_DEF_EN = re.compile(r"^\((\d{1,3}[a-z]?)\)(?:\s+(\S.*))?$")      # Begriffsbestimmungen „(1) ‘AI system’ means …“
 _ENACTING = re.compile(r"(HAVE|HAS) ADOPTED TH(IS|E FOLLOWING)|HAT FOLGENDE|HABEN FOLGENDE|ERLASSEN:?\s*$", re.I)
-_RECITAL = re.compile(r"^\((\d{1,3})\)(?:\s+(\S.*))?$")
+_RECITAL = re.compile(r"^\((\d{1,3}\s?[a-z]?)\)(?:\s+(\S.*))?$")
 _PARA_EN = re.compile(r"^(\d{1,3})\.(?:\s+(\S.*))?$")
 _PARA_DE = re.compile(r"^\((\d{1,3}[a-z]?)\)(?:\s+(\S.*))?$")
 _POINT_EN = re.compile(r"^\(([a-z]{1,2})\)(?:\s+(\S.*))?$")
 _POINT_DE = re.compile(r"^([a-z]{1,2})\)(?:\s+(\S.*))?$")
 _NUM_DE = re.compile(r"^(\d{1,3})\.(?:\s+(\S.*))?$")
 _ROMAN = re.compile(r"^\(((?:i|ii|iii|iv|v|vi|vii|viii|ix|x|xi|xii))\)(?:\s+(\S.*))?$")
+_CA = re.compile(r"(?:^|\s)CA\s+(\d{1,3})$")              # Kopfzeile eines Kompromissblocks („Articles 40 to 51 … CA 2“)
+CA_MARK = "\x00CA "
 _CLAUSE = re.compile(r"^(\d{1,2}(?:\.\d{1,3}){0,4})\.?\s+([A-ZÄÖÜ][^\n]{1,110})$")
 _MARGIN = re.compile(r"^(\d{1,4})\.\s+(\S.*)$")
 
@@ -136,8 +144,23 @@ def clean_lines(text: str) -> list[str]:
     for ln in raw:
         if ln and len(ln) < 90:
             freq[ln] = freq.get(ln, 0) + 1
+    drop: set[int] = set()
+    for i, ln in enumerate(raw):                  # Kompromissänderungen des Parlaments: Blockkopf über bis zu 3 Zeilen
+        if _CA.search(ln) and len(ln) <= 160:
+            j, head = i - 1, []
+            while j >= 0 and raw[j] and not _LINE_SKIP.match(raw[j]) and len(head) < 3:
+                head.append(j)
+                j -= 1
+            if j < 0 or not raw[j] or _LINE_SKIP.match(raw[j]):   # davor Seitenzahl/Leerzeile: das ist der Kopf
+                drop.update(head)
     out = []
-    for ln in raw:
+    for i, ln in enumerate(raw):
+        if i in drop:
+            continue
+        m = _CA.search(ln) if ln and len(ln) <= 160 else None
+        if m:
+            out.append(CA_MARK + m.group(1))
+            continue
         if not ln or _LINE_SKIP.match(ln):
             continue
         if freq.get(ln, 0) >= 4 and not (_ARTICLE.match(ln) or _CHAPTER.match(ln) or _TITLE.match(ln) or _ANNEX.match(ln)):
@@ -178,7 +201,7 @@ def parse_components(text: str, kind: str = "law") -> list[Component]:
     def add(cid: str, ctype: str, number: str, parent: str | None, title: str = "", first: str = "") -> Component:
         if cid in comps:                          # Inhaltsverzeichnis o. Ä.: Eintrag ohne Text durch den echten ersetzen
             old = comps[cid]
-            if len(old.text) < 60:
+            if len(old.text) < 60 and not any(x.parent == cid for x in comps.values()):
                 old.text, old.title = first, title or old.title
                 return old
             k = 2
@@ -196,7 +219,14 @@ def parse_components(text: str, kind: str = "law") -> list[Component]:
     expect_title: Component | None = None
     clause_stack: list[Component] = []
 
+    ca_seen = False
     for ln in lines:
+        if ln.startswith(CA_MARK):                # neuer Kompromissblock: Gliederung von vorn, Erwägungsgründe zuerst
+            ca_seen = True
+            title_ = chapter = section = article = para = point = defn = None
+            in_recitals, expect_title, cur = True, None, comps["pre"]
+            clause_stack = []
+            continue
         if cur.type in ("title", "chapter", "section") and cur.title and not cur.text and ln.isupper() and len(ln) <= 120 \
                 and len(cur.title) + len(ln) <= 240 and not (_TITLE.match(ln) or _CHAPTER.match(ln) or _SECTION.match(ln)) \
                 and expect_title is None:
@@ -229,7 +259,7 @@ def parse_components(text: str, kind: str = "law") -> list[Component]:
             m = _TITLE.match(ln)
             if m:                                 # TITLE III (Vorschlag) – darin CHAPTER 1 … 5
                 in_recitals = False
-                title_ = add(f"tit_{m.group(2)}", "title", m.group(2), None, m.group(3))
+                title_ = add(f"tit_{m.group(2)}", "title", m.group(2), None, re.sub(r"^[-–—:]\s*", "", m.group(3)))
                 chapter = section = article = para = point = defn = None
                 cur = title_
                 expect_title = title_ if not title_.title else None
@@ -259,7 +289,7 @@ def parse_components(text: str, kind: str = "law") -> list[Component]:
                     num, title = m.group(1), m.group(2) or ""
                     cid = f"par_{num}"
                 else:
-                    num, title = m.group(2), m.group(3) or ""
+                    num, title = re.sub(r"[\s()]", "", m.group(2)), m.group(3) or ""
                     cid = f"art_{num}"
                 article = add(cid, "article", num, (section or chapter or title_).cid if (section or chapter or title_) else None, title)
                 para = point = defn = None
@@ -267,7 +297,8 @@ def parse_components(text: str, kind: str = "law") -> list[Component]:
                 expect_title = article if not article.title else None
                 continue
             m = _ANNEX.match(ln)
-            if m and (article is not None or chapter is not None or title_ is not None or cur.type in ("annex", "supplement")):
+            if m and (article is not None or chapter is not None or title_ is not None or ca_seen
+                      or cur.type in ("annex", "supplement")):
                 title_ = chapter = section = article = para = point = defn = None
                 cur = add(f"anx_{m.group(2)}", "annex", m.group(2), None, m.group(3) or "")
                 expect_title = cur if not cur.title else None
@@ -275,7 +306,8 @@ def parse_components(text: str, kind: str = "law") -> list[Component]:
             if in_recitals:
                 m = _RECITAL.match(ln)
                 if m:
-                    cur = add(f"rec_{m.group(1)}", "recital", m.group(1), None, "", m.group(2) or "")
+                    num = m.group(1).replace(" ", "")
+                    cur = add(f"rec_{num}", "recital", num, None, "", m.group(2) or "")
                     continue
             if article is not None and cur.type != "annex":
                 pm = (_PARA_EN if style == "en" else _PARA_DE).match(ln)
@@ -340,6 +372,10 @@ def parse_components(text: str, kind: str = "law") -> list[Component]:
                     continue
             cur.text = (cur.text + "\n" + ln) if cur.text else ln
     out = sorted(comps.values(), key=lambda c: c.order)
+    if ca_seen:                                   # derselbe Erwägungsgrund wortgleich in zwei Kompromissblöcken: einmal
+        has_kids = {c.parent for c in out if c.parent}
+        out = [c for c in out if not ("~" in c.cid and c.cid not in has_kids
+                                      and (b := comps.get(c.cid.rsplit("~", 1)[0])) is not None and cmp_key(b.text) == cmp_key(c.text))]
     return [c for c in out if c.text.strip() or c.title or any(x.parent == c.cid for x in out)]
 
 
@@ -396,6 +432,89 @@ def ancestors(cid: str, comps: dict[str, Component]) -> list[str]:
     return out
 
 
+_ROMAN_V = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100}
+_TOP_RANK = {"pre": 0, "rec": 1, "tit": 2, "chp": 2, "art": 2, "par": 2, "anx": 4, "cl": 2, "rn": 2, "lfs": 5}
+
+
+def _roman(r: str) -> int | None:
+    if not r or any(ch not in _ROMAN_V for ch in r):
+        return None
+    n = 0
+    for a, b in zip(r, r[1:] + " "):
+        v = _ROMAN_V[a]
+        n += -v if b in _ROMAN_V and _ROMAN_V[b] > v else v
+    return n
+
+
+def _seg_key(seg: str) -> tuple:
+    """Natürliche Sortierung eines ID-Teils: art_4 < art_4a < art_5, pt_d < pt_da < pt_e, anx_IV < anx_IX, cl_6.10 > cl_6.9."""
+    pre, _, num = seg.partition("_")
+    num = num.split("~")[0]
+    m = re.match(r"^(\d+(?:\.\d+)*)\s?([a-z]*)$", num)
+    if m:
+        return (pre, tuple(int(x) for x in m.group(1).split(".")), m.group(2))
+    r = _roman(num)
+    if r is not None and pre in ("tit", "chp", "anx", "sub"):
+        return (pre, (r,), "")
+    return (pre, (0,), num)
+
+
+def doc_order_key(cid: str, comps: dict[str, Component]) -> tuple:
+    """Lesereihenfolge eines Bestandteils (für zusammengeführte Teilfassungen): Präambel, Erwägungsgründe, Artikel
+    (nach Nummer, Gliederung folgt den Artikeln), Anhänge, Anlagen."""
+    c = comps[cid]
+    path = [x for x in reversed(ancestors(cid, comps))]
+    arts = [x for x in path if comps[x].type == "article"]
+    head = path[0].split("_")[0] if path else ""
+    rank = _TOP_RANK.get(head, 3)
+    if c.type in ("title", "chapter", "section"):   # Gliederung vor ihrem ersten Artikel
+        kids = sorted((_seg_key(x.cid) for x in comps.values() if x.type == "article" and cid in ancestors(x.cid, comps)))
+        return (rank, kids[0] if kids else _seg_key(path[-1].split("/")[-1]), 0, ())
+    if arts:
+        a = arts[0]
+        return (rank, _seg_key(a), 1, tuple(_seg_key(x) for x in cid[len(a):].strip("/").split("/") if x))
+    return (rank, _seg_key(cid.split("/")[0]), 1, tuple(_seg_key(x) for x in cid.split("/")[1:]))
+
+
+def merge_partial(prev: list[Component], new: list[Component]) -> list[Component]:
+    """Teilfassung (z. B. Kompromissänderungen eines Ausschusses: nur die geänderten Teile, Blöcke in eigener Reihenfolge)
+    mit der Vorfassung zusammenführen. Fehlende Bestandteile bleiben unverändert; Kapitel ohne Titel-Überschrift und
+    Artikel ohne Gliederung werden an der Gliederung der Vorfassung ausgerichtet; Reihenfolge = Lesereihenfolge."""
+    from collections import Counter
+    from dataclasses import replace
+
+    pv = {c.cid: c for c in prev}
+    new = [replace(c) for c in new]
+    nv = {c.cid: c for c in new}
+    # 1. Kapitel ohne Titel (Block beginnt mit „CHAPTER 4“): Titel aus der Vorfassung, über die Artikel darin
+    for ch in [c for c in new if c.type == "chapter" and c.parent is None and c.cid not in pv]:
+        parents = Counter(pv[a.cid].parent for a in new if a.parent == ch.cid and a.cid in pv and pv[a.cid].parent)
+        target = next((p for p, _ in parents.most_common() if p.endswith("/" + ch.cid.split("~")[0])), None)
+        if not target or target in nv:
+            continue
+        old = ch.cid
+        for c in new:
+            if c.cid == old or c.cid.startswith(old + "/"):
+                c.cid = target + c.cid[len(old):]
+            if c.parent and (c.parent == old or c.parent.startswith(old + "/")):
+                c.parent = target + c.parent[len(old):]
+        ch.parent = pv[target].parent
+    nv = {c.cid: c for c in new}
+    # 2. Artikel ohne Gliederung: Platz aus der Vorfassung, neue Artikel (4a) beim vorhergehenden Artikel
+    merged = {**pv, **nv}
+    arts = sorted((c for c in merged.values() if c.type == "article"), key=lambda c: _seg_key(c.cid))
+    for i, c in enumerate(arts):
+        if c.cid in nv and c.parent is None:
+            if c.cid in pv and pv[c.cid].parent in merged:
+                c.parent = pv[c.cid].parent
+            else:
+                c.parent = next((a.parent for a in reversed(arts[:i]) if a.parent), None)
+    # 3. Reihenfolge
+    for k, cid in enumerate(sorted(merged, key=lambda x: doc_order_key(x, merged)), start=1):
+        merged[cid] = replace(merged[cid], order=k)
+    return sorted(merged.values(), key=lambda c: c.order)
+
+
 # ----------------------------------------------------------------- Fassungen (Temporal Versions) und Actions
 @dataclass
 class VersionInput:
@@ -411,6 +530,7 @@ class VersionInput:
     amended_by: dict | None = None      # {title, eli}
     title: str = ""
     components: list[Component] = field(default_factory=list)
+    partial: bool = False               # Dokument enthält nur geänderte Teile; fehlende sind aus der Vorfassung übernommen
 
 
 def applicable_for(cid: str, path: list[str], v: VersionInput) -> str | None:
@@ -474,7 +594,7 @@ def build_history(norm: dict, versions: list[VersionInput]) -> dict:
             c = comps[cid]
             path = ancestors(cid, comps)
             appl = applicable_for(cid, path, v)
-            own = _h(norm_text(c.text))
+            own = _h(cmp_key(c.text))
             kids = [cur[k]["id"] for k in sorted(children.get(cid, []), key=lambda k: comps[k].order)]
             key = _h(own, appl or "", ",".join(kids))
             p = prev.get(cid)
@@ -517,7 +637,8 @@ def build_history(norm: dict, versions: list[VersionInput]) -> dict:
         vsum.append({"seq": v.seq, "doc_id": v.doc_id, "stage": v.stage, "stage_label": STAGE_LABEL.get(v.stage, v.stage),
                      "title": v.title, "date": iso(v.date), "in_force": vfrom.get(v.seq), "valid_to": vto.get(v.seq),
                      "applicable": iso(v.applicable), "amended_by": v.amended_by, "language": v.language,
-                     "components": len(comps), "added": added, "changed": changed, "removed": removed})
+                     "components": len(comps), "added": added, "changed": changed, "removed": removed,
+                     "partial": v.partial})
         prev, prev_v = cur, v
     # Geltung je CTV: über die gültigen Fassungen, die sie umfasst
     for c in ctvs.values():
