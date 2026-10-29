@@ -1,4 +1,4 @@
-# ALITA – User Manual (front-end, v2.1.0)
+# ALITA – User Manual (front-end, v2.2.0)
 
 ALITA lets you ask questions of your research documents and get answers with numbered, clickable sources.
 The quick visual version is [`ALITA-Cheat-Sheet-Comic.pdf`](ALITA-Cheat-Sheet-Comic.pdf).
@@ -70,7 +70,7 @@ The database bar stays visible on every chat page: **ⓘ Cluster descriptions** 
 
 9. **Info banner:** says what B does: it searches the knowledge graph. For what a document says in detail, use A.
 10. **Knowledge map:** all data in three layers: projects and papers on top, semantic clusters in the middle, documents below. Color by **Document type** or **Database**. Hover to preview, click to open.
-11. **Map controls:** **2D**, **Reset view**, **3D · time** (years as depth) and **Enlarge** to fill the screen.
+11. **Map controls:** **2D**, **Reset view**, **3D · time** (years as depth), **⇄ Citations** (which papers cite each other) and **Enlarge** to fill the screen.
 12. **Projects & clusters:** every cluster with its topic, key terms and number of documents; click one to select it for the chats. Below, the strongest bridges between clusters. Project cards and document details open here too.
 13. **Graph Chat header:** **History** reopens earlier conversations; **+ New** starts a fresh one.
 14. **Answer:** the answer with [n] citations, the **graph path** it followed, the **sources used**, and **Copy**.
@@ -107,6 +107,17 @@ Use it for who-did-what questions: people, organizations, projects, methods. Fil
 - Hover a point for details, click it to open the document. Click a cluster to add it to both chats' search scope.
 - **Compare databases** overlays the clusters of the selected databases; **⟲ Reset view** restores the start view; **⤢ Enlarge** fills the screen.
 - **3D · time** walks through the clusters with years as depth: W/S or wheel = forward/back, A/D = sideways, Q/E = down/up, Shift = faster, drag = look, Esc = close. **▶ Fly through time** animates it.
+
+**See who cites whom (⇄ Citations)**
+
+**⇄ Citations** in the header of the knowledge map switches the map to the citation network of the collection; click it again to go back.
+
+- Each paper, note or project is a node: **left → right is the year**, the **size** shows how often it is cited inside the collection, shape and colour follow *Document type* / *Database* as in the map. Project files count as one node per project.
+- An **arrow** points from the citing to the cited work. Solid = found by DOI or by title with first author; dashed = title only (less certain). Hover an arrow to see the entry in the reference list it came from.
+- Click a node to highlight its citations and open it on the right; its details list **Cites** and **Cited by**. Drag to pan, wheel to zoom, **⟲ Reset view** to start again. The database selection applies.
+- Papers without citations inside the collection sit in a strip at the bottom (checkbox *papers without citations*).
+- ALITA finds the citations by itself after every upload, from the reference lists of the documents – no language model, no cost. **⟳ Recompute** does it again by hand (e.g. after an update). Only works *inside* the collection are linked; external literature is not looked up.
+- Graph Chat answers citation questions from it, e.g. *"Which papers build on Heirati et al. 2024?"* or *"What is the most cited paper in Jasmine?"*.
 
 **Add documents**
 
@@ -169,11 +180,11 @@ ALITA describes every document with the SPAR ontologies for scholarly publishing
 | FaBiO | type of a publication | each document typed by its kind of data | JournalArticle, Note, WorkPackage |
 | CiTO – Citation Typing Ontology | citations between works | DOIs in a bibliography become "cites" links | Document cites Work |
 | ALITA's own | research context not covered by SPAR | people, projects and teams, databases, methods glossary, semantic clusters | Person, Project, Database, Method, Cluster |
-| BIBO – Bibliographic Ontology | bibliographic / bibliometric description | **not implemented** – no bibliometric layer (citation counts, journals, impact metrics) | – |
+| BIBO – Bibliographic Ontology | bibliographic description and citations between documents | every document gets its BIBO type and ordered author list; the reference lists are matched with the papers of the collection (DOI or title), giving "cites" links between documents and citation counts – the **⇄ Citations** view (since 2.2.0). Journals and impact metrics are not looked up | AcademicArticle, authorList, cites |
 
 ![Ontologies and knowledge graph](ALITA-Ontologies.png)
 
-**In the interface:** the *Discourse element* filter in both chats, the *graph path* under each Graph Chat answer, and the *Relation* filter and *hops* in Graph Chat. Details: tab **Technical Documentation** › Ontology. Source: Constantin et al. (2016), The Document Components Ontology (DoCO), Semantic Web 7, 167–181.
+**In the interface:** the *Discourse element* filter in both chats, the *graph path* under each Graph Chat answer, the *Relation* filter and *hops* in Graph Chat, and **⇄ Citations** in the knowledge map with *Cites* / *Cited by* in the document details. Details: tab **Technical Documentation** › Ontology. Source: Constantin et al. (2016), The Document Components Ontology (DoCO), Semantic Web 7, 167–181.
 
 ## How documents get into ALITA (ingestion pipeline)
 
@@ -186,7 +197,7 @@ The ontology is not applied up front: each passage gets its rhetorical role whil
 | 3 | Chunk and assign roles | rule-based: 1,200 characters, 200 overlap; DEO role from the section heading (EN/DE) – DoCO, DEO | passages with roles |
 | 4 | Label the rest | LLM: passages without a role from their heading, at most 60 per document – DEO | all passages labelled |
 | 5 | Embed | every passage (with a short header) becomes a vector; every paper, note and project gets a summary vector | Qdrant: passages (vector + section + DEO role); documents and projects (metadata + summary vector) |
-| 6 | Build the knowledge graph | document typed with FaBiO → sections → passages with DEO roles; people, project, database, methods, cited DOIs (CiTO) | Neo4j knowledge graph |
+| 6 | Build the knowledge graph | document typed with FaBiO and BIBO → sections → passages with DEO roles; people (ordered author list), project, database, methods, cited DOIs (CiTO); after each upload the citations between documents of the collection, found in the reference lists by DOI or title (BIBO, rule-based, no LLM) | Neo4j knowledge graph; `cites` / `cited_by` in Qdrant |
 | 7 | Cluster | after each upload (once per batch): k-means (cosine) on the summary vectors, one point per paper, note or project; project files inherit; names and descriptions by the LLM, map positions by PCA | clusters in Qdrant and the graph |
 
 **Who uses what:** Document Chat (A) searches the passage vectors (with the discourse-element filter); Graph Chat (B) first finds a path in the graph, then searches only the passages of the documents on that path; the knowledge map shows the clusters.

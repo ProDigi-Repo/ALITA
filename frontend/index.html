@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="css/desert.css">
 <link rel="stylesheet" href="css/outside.css">
 <link rel="stylesheet" href="css/progress.css">
+<link rel="stylesheet" href="css/citations.css">
 <link rel="stylesheet" href="css/pages.css">
 </head>
 <body><!--BODY-->
@@ -21,7 +22,7 @@
   <header class="top">
     <div class="brand">
       <h1>ALITA PROTOTYPE</h1>
-      <button class="ver" id="appVersion" type="button" title="Open release notes">v2.1.0</button>
+      <button class="ver" id="appVersion" type="button" title="Open release notes">v2.2.0</button>
       <span class="mode" id="mode" title="">Demo</span>
     </div>
     <nav class="nav" role="tablist" aria-label="Sections">
@@ -294,9 +295,11 @@
           <div class="cv-mode" id="cgMode" role="group" aria-label="Color documents by"><button type="button" data-m="type" aria-pressed="true">Document type</button><button type="button" data-m="db" aria-pressed="false">Database</button></div>
           <button class="mini v3-toggle" type="button">2D</button><button class="mini v3-reset" type="button" title="Back to the start view: zoom, rotation and moved clusters">⟲ Reset view</button>
           <button class="mini s3btn" type="button" data-open3d title="Walk through the clusters in 3D, with the years as depth">3D · time</button>
+          <button class="mini cg-cite" type="button" id="cgCite" aria-pressed="false" title="Show which papers cite each other (found in their reference lists)">⇄ Citations</button>
           <button class="mini cg-max" type="button" id="cgMax" aria-pressed="false" title="Enlarge the knowledge map">⤢ Enlarge</button>
           <span class="meta" id="cgMeta"></span><span class="cv-basis emb" id="cgBasis">semantic · embeddings</span></div>
-        <div class="cg-body"><div id="cgGraph"></div><div class="cv-tip" id="cgTip" hidden></div></div>
+        <div class="cg-body"><div id="cgGraph"></div><div class="cv-tip" id="cgTip" hidden></div>
+          <div class="cite-view" id="cgCiteView" hidden aria-label="Citation network: which documents cite which papers of the collection"></div></div>
         <div class="cg-legend" id="cgLegend"></div>
       </section>
       <section class="bq bq-cluster" aria-label="Project and cluster view">
@@ -567,6 +570,7 @@
 <script src="js/chat.js"></script>
 <script src="js/people.js"></script>
 <script src="js/progress.js"></script>
+<script src="js/citations.js"></script>
 <script src="js/space3d-time.js"></script>
 <script src="js/space3d.js"></script>
 <script src="js/sealife.js"></script>

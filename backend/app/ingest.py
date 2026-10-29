@@ -489,6 +489,7 @@ async def ingest_project(folder: Path, opts: IngestOptions) -> ProjectRecord:
     project.indexed_count = await index_items(items, opts)
     store.upsert_project(project)
     await maybe_recluster(opts)
+    maybe_citations(opts)
     return project
 
 
@@ -505,6 +506,21 @@ async def maybe_recluster(opts: IngestOptions) -> dict | None:
         return res
     except Exception as e:  # Clustering darf die Ingestion nicht scheitern lassen
         log.warning("Clustering fehlgeschlagen: %s", e)
+        return None
+
+
+def maybe_citations(opts: IngestOptions) -> dict | None:
+    """REQ-35: Zitationsnetz am Ende einer Ingestion neu berechnen (Sekunden, ohne LLM und ohne Embeddings)."""
+    if not (opts.recluster and get_settings().auto_citations):
+        return None
+    from .citations import rebuild
+
+    try:
+        res = rebuild()
+        log.info("Zitationsnetz: %s", res)
+        return res
+    except Exception as e:   # das Zitationsnetz darf die Ingestion nicht scheitern lassen
+        log.warning("Zitationsnetz fehlgeschlagen: %s", e)
         return None
 
 
@@ -566,6 +582,7 @@ async def ingest_file(path: Path, doc_type: DocType, opts: IngestOptions, projec
         await enrich_items([it], opts)
     await index_items([it], opts)
     await maybe_recluster(opts)
+    maybe_citations(opts)
     return it.record
 
 
@@ -634,6 +651,9 @@ async def ingest_all(root: Path, opts: IngestOptions, force: bool = False) -> No
     res = await maybe_recluster(opts)   # einmal am Ende statt nach jeder Datei
     if res:
         print(f"Clustering: {res['documents']} documents in {res['k']} clusters")
+    cit = maybe_citations(opts)
+    if cit:
+        print(f"Citation network: {cit['citations']} citations from {cit['citing']} documents to {cit['targets']} papers")
 
 
 # --------------------------------------------------------------- CLI
@@ -647,8 +667,9 @@ def _dump(project: ProjectRecord | None, items: list[Item], out: Path) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Load documents into the RAG index")
-    ap.add_argument("kind", choices=["project", "paper", "notes", "all", "cluster", "graph", "delete"],
+    ap.add_argument("kind", choices=["project", "paper", "notes", "all", "cluster", "graph", "citations", "delete"],
                     help="all = ingest every subfolder of PATH; cluster = recompute clusters only (--db X: only database X, other clusters stay); graph = (re)build the Neo4j graph; "
+                         "citations = recompute the citation network from the reference lists already in the index (no LLM, no embeddings); "
                          "delete --db X = remove all data of database X from the index")
     ap.add_argument("path", type=Path, nargs="?")
     ap.add_argument("--k", type=int, default=0, help="cluster: fixed number of clusters (0 = automatic)")
@@ -672,6 +693,10 @@ def main() -> None:
     if a.kind == "graph":
         from . import graph
         print(json.dumps({"setup": graph.setup(), "rebuild": graph.rebuild_from_store()}, ensure_ascii=False, indent=1, default=str))
+        return
+    if a.kind == "citations":
+        from .citations import rebuild
+        print(json.dumps(rebuild(), ensure_ascii=False, indent=1, default=str))
         return
     if a.kind == "delete":
         if not a.db or "," in a.db:

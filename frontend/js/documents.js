@@ -162,7 +162,7 @@ async function openDoc(id){
   let d=DOCS.find(x=>x.id===id);if(!d)return;
   D.sel=id;$$('#dbody tr').forEach(tr=>tr.classList.toggle('sel',tr.dataset.id===id));
   let full=d;
-  if(LIVE){try{const r=await fetch('api/documents/'+encodeURIComponent(id)).then(r=>r.json());full={...d,su:r.summary,kw:r.keywords,mfull:r.methods,au:r.authors,ed:r.editors,cr:r.created,mo:r.modified,du:(r.project||{}).duplicate_of,tc:r.text_chars}}catch(e){}}
+  if(LIVE){try{const r=await fetch('api/documents/'+encodeURIComponent(id)).then(r=>r.json());full={...d,su:r.summary,kw:r.keywords,mfull:r.methods,au:r.authors,ed:r.editors,cr:r.created,mo:r.modified,du:(r.project||{}).duplicate_of,tc:r.text_chars,cites:r.cites,cited_by:r.cited_by}}catch(e){}}
   const p=PROJECTS.find(x=>x.name===d.pn);
   const siblings=d.vg||d.v?DOCS.filter(x=>x.pn===d.pn&&(x.vg?x.vg===d.vg:false)).sort((a,b)=>verKey(b.v)-verKey(a.v)||(b.d||'').localeCompare(a.d||'')):[];
   const hasOwn=full.su&&SUM_FIELDS.some(([k])=>full.su[k]);
@@ -205,10 +205,12 @@ async function openDoc(id){
       <div class="mchips">${methods.map(m=>`<span class="mchip" title="Source: ${m[3]==='llm'?'LLM':'keyword'}">${esc(METHOD_LABEL[m[0]]||m[1])}${m[2]!=null?`<i>${Math.round(m[2]*100)}%</i>`:''}</span>`).join('')||'<span class="srcnote">none detected</span>'}</div>
     </section>
     ${full.kw&&full.kw.length?`<section><h4>Keywords</h4><div class="mchips">${full.kw.map(k=>`<span class="tagl">${esc(k)}</span>`).join('')}</div></section>`:''}
+    ${typeof citesHtml==='function'?citesHtml(full):''}
     ${siblings.length>1?`<section><h4>Versions (${siblings.length})</h4><div class="vlist">${siblings.map(s=>`<button type="button" data-id="${esc(s.id)}" class="${s.id===id?'cur':''}"><span><b>v${esc(s.v||'–')}</b>${s.la?'<span class="latest">latest</span>':''}<div class="rp">${esc(s.rp)}</div></span><span class="num">${esc(s.d||'')}</span></button>`).join('')}</div></section>`:''}
   `;
   wireDbPicker('drDb',async dbs=>{const all=d.pn&&$('#drDbAll')&&$('#drDbAll').checked;await assignDbs(all?{project:d.pn}:{doc:id},dbs);openDoc(id)});
   $('#drBody').querySelectorAll('.vlist button').forEach(b=>b.addEventListener('click',()=>openDoc(b.dataset.id)));
+  $('#drBody').querySelectorAll('.ci-list [data-open]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();openDoc(b.dataset.open)}));   // REQ-35
   const inB=!$('#page-graph').hidden&&$('#cgDocSlot');
   $('#drAsk').addEventListener('click',()=>{
     if(inB){const g=$('#graphInput');g.value=`What is in "${d.fn||d.ti}"${d.pn?` (project ${d.pn})`:''}? `;g.focus();return}   // B page: ask the Graph Chat, stay on the page

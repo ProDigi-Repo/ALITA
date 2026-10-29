@@ -6,14 +6,18 @@ Graphmodell (Property Graph; Klassen der SPAR-Ontologien als Knoten :DEOClass mi
       -[:CONTAINS {order}]->(:Section {id, heading, doco:"Section"})-[:CONTAINS {order}]->(:Chunk {chunk_id, ...})
       -[:HAS_SUMMARY]->(:SummaryElement {id, field, text})
   (:Section|:Chunk|:SummaryElement)-[:HAS_ROLE]->(:DEOClass {name, uri, definition})
-  (:Person {name})-[:AUTHORED]->(:Document)
+  (:Person {name})-[:AUTHORED {position}]->(:Document)          (position = Platz in bibo:authorList, ab 1)
   (:Document)-[:IN_DATABASE]->(:Database {name})
   (:Document)-[:PART_OF]->(:Project {name})
   (:Document)-[:USES_METHOD]->(:Method {id, label})
   (:Document)-[:IN_CLUSTER]->(:Cluster {id, label, title, description})
   (:Document)-[:REPRESENTS]->(:Work {doi})<-[:CITES]-(:Document)
+  (:Document)-[:CITES {via, confidence, bibo:'bibo:cites', cito:'cito:cites'}]->(:Document)   (REQ-35, citations.py)
 
-Die vollständigen Ontologien (DoCO, DEO, FaBiO, CiTO, Pattern Ontology) lädt optional neosemantics (n10s) als
+BIBO (Bibliographic Ontology, REQ-35): jedes Dokument trägt bibo_type (bibo:AcademicArticle | bibo:Note |
+bibo:Manuscript) und author_list (bibo:authorList, geordnet); die Ontologie selbst lädt n10s wie die SPAR-Ontologien.
+
+Die vollständigen Ontologien (DoCO, DEO, FaBiO, CiTO, Pattern Ontology, BIBO) lädt optional neosemantics (n10s) als
 (:Class)-Hierarchie; :DEOClass-Knoten werden per (:DEOClass)-[:SAME_AS]->(:Class) damit verbunden.
 
 Die Funktionen build_* erzeugen nur Cypher + Parameter (testbar ohne Datenbank); run()/sync_* führen sie aus.
@@ -34,9 +38,12 @@ ONTOLOGIES = {
     "fabio": "http://purl.org/spar/fabio",
     "cito": "http://purl.org/spar/cito",
     "po": "http://www.essepuntato.it/2008/12/pattern",
+    # BIBO: purl.org per Content Negotiation, sonst die von der DCMI gepflegte RDF/XML-Datei
+    "bibo": ["http://purl.org/ontology/bibo/", "https://www.dublincore.org/specifications/bibo/bibo/bibo.rdf.xml"],
 }
 FABIO_TYPE = {"research_paper": "fabio:JournalArticle", "research_notes": "fabio:Note",
               "research_project": "fabio:WorkPackage"}
+BIBO_TYPE = {"research_paper": "bibo:AcademicArticle", "research_notes": "bibo:Note", "research_project": "bibo:Manuscript"}
 DOI_RX = re.compile(r"\b10\.\d{4,9}/[^\s\"<>,;]+", re.I)
 
 
@@ -122,16 +129,19 @@ def import_spar_ontologies() -> dict:
             run("CALL n10s.graphconfig.init({handleVocabUris: 'MAP'})")
     except Exception as e:
         return {"error": f"neosemantics (n10s) not available: {e}"}
-    for name, url in ONTOLOGIES.items():
-        for fmt in ("Turtle", "RDF/XML"):
-            try:
-                r = run("CALL n10s.onto.import.fetch($url, $fmt) YIELD terminationStatus, triplesLoaded "
-                        "RETURN terminationStatus AS status, triplesLoaded AS triples", url=url, fmt=fmt)
-                out[name] = r[0] if r else {"status": "?"}
-                if out[name].get("triples"):
-                    break
-            except Exception as e:
-                out[name] = {"status": "error", "error": str(e)[:200]}
+    for name, urls in ONTOLOGIES.items():
+        for url in [urls] if isinstance(urls, str) else urls:
+            for fmt in ("Turtle", "RDF/XML"):
+                try:
+                    r = run("CALL n10s.onto.import.fetch($url, $fmt) YIELD terminationStatus, triplesLoaded "
+                            "RETURN terminationStatus AS status, triplesLoaded AS triples", url=url, fmt=fmt)
+                    out[name] = r[0] if r else {"status": "?"}
+                    if out[name].get("triples"):
+                        break
+                except Exception as e:
+                    out[name] = {"status": "error", "error": str(e)[:200]}
+            if (out.get(name) or {}).get("triples"):
+                break
     try:
         run("MATCH (d:DEOClass), (c:Class {uri: d.uri}) MERGE (d)-[:SAME_AS]->(c)")
     except Exception:
@@ -178,11 +188,16 @@ def build_document_statements(p: dict, chunks: list[dict]) -> list[tuple[str, di
     props = {k: p.get(k) for k in ("title", "doc_type", "filename", "filetype", "year", "language", "doi",
                                    "project_name", "role", "is_latest", "date")}
     props["fabio_type"] = FABIO_TYPE.get(p.get("doc_type"), "fabio:Expression")
+    authors = [a for a in (p.get("authors") or []) if a and a.strip()]
+    props["bibo_type"] = BIBO_TYPE.get(p.get("doc_type"), "bibo:Document")
+    props["author_list"] = authors                                  # bibo:authorList (Reihenfolge wie im Paper)
+    props["cited_by_count"] = len(p.get("cited_by") or [])
     st.append(("MERGE (d:Document {doc_id: $id}) SET d += $props", {"id": doc_id, "props": props}))
     st.append(("MATCH (d:Document {doc_id: $id}) UNWIND $dbs AS n MERGE (b:Database {name: n}) MERGE (d)-[:IN_DATABASE]->(b)",
                {"id": doc_id, "dbs": p.get("databases") or []}))
-    st.append(("MATCH (d:Document {doc_id: $id}) UNWIND $people AS n MERGE (a:Person {name: n}) MERGE (a)-[:AUTHORED]->(d)",
-               {"id": doc_id, "people": [a for a in (p.get("authors") or []) if a and a.strip()]}))
+    st.append(("MATCH (d:Document {doc_id: $id}) UNWIND range(0, size($people) - 1) AS i WITH d, i, $people[i] AS n "
+               "MERGE (a:Person {name: n}) MERGE (a)-[r:AUTHORED]->(d) SET r.position = i + 1",
+               {"id": doc_id, "people": authors}))
     # REQ-19: Metadaten-Namen einer Projektdatei = wer sie gespeichert hat, nicht Autor:in
     st.append(("MATCH (d:Document {doc_id: $id}) UNWIND $editors AS n MERGE (a:Person {name: n}) MERGE (a)-[:EDITED]->(d)",
                {"id": doc_id, "editors": [a for a in (p.get("editors") or []) if a and a.strip()]}))
@@ -202,6 +217,9 @@ def build_document_statements(p: dict, chunks: list[dict]) -> list[tuple[str, di
     if cites:
         st.append(("MATCH (d:Document {doc_id: $id}) UNWIND $dois AS doi MERGE (w:Work {doi: doi}) MERGE (d)-[:CITES]->(w)",
                    {"id": doc_id, "dois": cites}))
+    docs_cited = [c for c in (p.get("cites") or []) if c.get("doc_id") and c["doc_id"] != doc_id]
+    if docs_cited:
+        st.append(build_cites_statement({doc_id: docs_cited}))
     secs, chs, roles = [], [], []
     for i, sec in enumerate(sections_of(chunks)):
         sid = f"{doc_id}#s{i}"
@@ -269,7 +287,30 @@ def rebuild_from_store() -> dict:
     info = {d["cluster_id"]: {"title": d.get("cluster_title"), "description": d.get("cluster_description")} for d in docs.values()}
     if meta or projs:
         sync_clusters(meta, projs, info)
-    return {"documents": n_docs, "chunks": n_chunks, "clusters": len(info)}
+    cites = {d["doc_id"]: d.get("cites") or [] for d in store.scroll_documents() if d.get("cites")}
+    sync_citations(cites)
+    return {"documents": n_docs, "chunks": n_chunks, "clusters": len(info), "citations": sum(len(v) for v in cites.values())}
+
+
+def build_cites_statement(cites: dict[str, list[dict]]) -> tuple[str, dict]:
+    """(:Document)-[:CITES]->(:Document) aus citations.py – bibo:cites / cito:cites zwischen Dokumenten der Sammlung."""
+    rows = [{"src": s, "dst": c["doc_id"], "via": c.get("via"), "conf": c.get("confidence"), "ev": (c.get("evidence") or "")[:300]}
+            for s, cs in cites.items() for c in cs if c.get("doc_id") and c["doc_id"] != s]
+    return ("UNWIND $rows AS r MATCH (a:Document {doc_id: r.src}) MERGE (b:Document {doc_id: r.dst}) "
+            "MERGE (a)-[x:CITES]->(b) SET x.via = r.via, x.confidence = r.conf, x.evidence = r.ev, "
+            "x.bibo = 'bibo:cites', x.cito = 'cito:cites'", {"rows": rows})
+
+
+def sync_citations(cites: dict[str, list[dict]]) -> None:
+    """Alle Zitate zwischen Dokumenten ersetzen (nach citations.rebuild); Zitate auf DOIs (:Work) bleiben."""
+    counts: dict[str, int] = {}
+    for cs in cites.values():
+        for c in cs:
+            counts[c["doc_id"]] = counts.get(c["doc_id"], 0) + 1
+    ensure_setup()
+    run_all([("MATCH (:Document)-[r:CITES]->(:Document) DELETE r", {}),
+             build_cites_statement(cites),
+             ("MATCH (d:Document) SET d.cited_by_count = coalesce($n[d.doc_id], 0)", {"n": counts})])
 
 
 def build_cluster_statements(doc_meta: dict[str, dict], proj_meta: dict[str, dict], info: dict[int, dict],
@@ -337,10 +378,11 @@ LIMIT $limit"""
 
 
 def build_neighbour_query(doc_ids: list[str], hops: int, limit: int = 6, dbs: list[str] | None = None) -> tuple[str, dict] | None:
-    """Ab 2 Hops: Dokumente, die mit den Treffern über Zitate (CITES/REPRESENTS) verbunden sind; ab 3 Hops auch über den Cluster."""
+    """Ab 2 Hops: Dokumente, die mit den Treffern über Zitate verbunden sind (direkt oder über eine DOI); ab 3 Hops auch über den Cluster."""
     if hops < 2 or not doc_ids:
         return None
-    rel = "[:CITES|REPRESENTS]-(:Work)-[:CITES|REPRESENTS]" if hops == 2 else "[:CITES|REPRESENTS|IN_CLUSTER]-()-[:CITES|REPRESENTS|IN_CLUSTER]"
+    # direkt zitiert/zitierend (REQ-35) oder über dieselbe DOI (:Work); ab 3 Hops auch über den Cluster
+    rel = "[:CITES|REPRESENTS*1..2]" if hops == 2 else "[:CITES|REPRESENTS|IN_CLUSTER*1..2]"
     return (f"""MATCH (d:Document)-{rel}-(n:Document)
 WHERE d.doc_id IN $ids AND NOT n.doc_id IN $ids AND coalesce(n.is_latest, true)
   AND (size($dbs) = 0 OR EXISTS {{ (n)-[:IN_DATABASE]->(b:Database) WHERE b.name IN $dbs }})
@@ -396,4 +438,5 @@ def stats() -> dict:
     nodes = run("MATCH (n) UNWIND labels(n) AS l RETURN l AS label, count(*) AS n ORDER BY n DESC")
     roles = run("MATCH (x)-[:HAS_ROLE]->(c:DEOClass) RETURN c.name AS deo, labels(x)[0] AS kind, count(*) AS n ORDER BY n DESC")
     onto = run("MATCH (c:Class) RETURN count(c) AS n")[0]["n"] if nodes else 0
-    return {"nodes": nodes, "roles": roles, "ontology_classes": onto}
+    cites = run("MATCH (:Document)-[r:CITES]->(:Document) RETURN count(r) AS n")[0]["n"] if nodes else 0
+    return {"nodes": nodes, "roles": roles, "ontology_classes": onto, "document_citations": cites}

@@ -108,8 +108,8 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
     model_name = s.chat_model          # festes Modell (CHAT_MODEL)
     memory = select_memory(req.history, s.memory_max_turns, s.memory_max_chars)
     search_q = await standalone_query(req.message, memory, model_name, key, s.memory_rewrite)
-    plan = plan_question(req.model_copy(update={"message": search_q}),
-                         vocab_from_documents(store.scroll_documents(limit=5000), s.databases))
+    all_docs = store.scroll_documents(limit=5000)
+    plan = plan_question(req.model_copy(update={"message": search_q}), vocab_from_documents(all_docs, s.databases))
 
     graph_docs, neighbours, graph_ok = [], [], False
     if s.graph_enabled:
@@ -129,6 +129,12 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
     sources = to_sources(hits)
     top = next((d for d in graph_docs if any(h.payload["doc_id"] == d["doc_id"] for h in hits)), graph_docs[0] if graph_docs else None)
     path = path_for(plan, top)
+    from .citations import CITE_Q_RX, chat_context as citation_context, short_label
+    by_id = {d["doc_id"]: d for d in all_docs}
+    if top and (req.relation == "cites" or CITE_Q_RX.search(req.message)):   # REQ-35: Zitat im Graphpfad zeigen
+        cited = next((by_id.get(c["doc_id"]) for c in (by_id.get(top["doc_id"]) or {}).get("cites") or [] if by_id.get(c["doc_id"])), None)
+        if cited:
+            path += ["cites", [short_label(cited), "Paper"]]
     sp_source, _, sp_id = resolve_prompt(req.system_prompt, "graph")
     meta = {"sources": [r.model_dump() for r in sources], "path": path, "plan": {k: plan[k] for k in ("deo", "persons", "methods", "projects", "databases", "clusters", "hops")},
             "graph": {"available": graph_ok, "documents": len(graph_docs), "neighbours": len(neighbours)},
@@ -157,8 +163,10 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
         for d in graph_docs[:6])
     ctx = "\n\n".join(f"[{r.n}] {r.title} ({r.doc_type}{', ' + r.locator if r.locator else ''}; DEO: {', '.join(h.payload.get('deo') or []) or '–'})\n{h.payload['text']}"
                       for r, h in zip(sources, hits))
+    cite_ctx = citation_context(req.message if req.relation != "cites" else req.message + " cites", all_docs,
+                                [d["doc_id"] for d in graph_docs], plan["databases"])
     who = people_context([r.project_name for r in sources] + list(req.projects), plan["persons"] if req.persons else None)
-    prompt = (f"Overview of the whole knowledge map (all projects and clusters in scope):\n{overview}\n\n" if overview else "") + who + prog_head + (f"Graph path: {' '.join(x if isinstance(x, str) else f'{x[0]} [{x[1]}]' for x in path) or '–'}\n"
+    prompt = (f"Overview of the whole knowledge map (all projects and clusters in scope):\n{overview}\n\n" if overview else "") + who + prog_head + cite_ctx + (f"Graph path: {' '.join(x if isinstance(x, str) else f'{x[0]} [{x[1]}]' for x in path) or '–'}\n"
               f"Discourse elements asked for: {', '.join(plan['deo']) or 'any'}\n\n"
               f"Knowledge graph context:\n{graph_ctx or '–'}\n\nSources for this question:\n{ctx or '–'}\n\nQuestion: {req.message}")
     from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart

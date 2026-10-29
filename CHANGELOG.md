@@ -8,6 +8,34 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-10-29
+
+> **Minor release – citation network and BIBO:** ALITA now sees which papers of the collection cite each other. The reference lists that are already in the index are matched with the research papers of the collection (by DOI, or by title confirmed with first author and year) – rule-based, without a language model and without new embeddings. "⇄ Citations" in the knowledge map shows the network over time, the document details list "Cites" and "Cited by", and the Graph Chat answers citation questions. The knowledge graph describes documents with the Bibliographic Ontology (BIBO). Two new requirements: REQ-35 done, REQ-36 answered and open; see "Requirements" below, `docs/requirements-status.md` and `docs/requirements-log.xlsx`. **Backend and frontend changed:** rebuild with `docker compose up -d --build backend frontend`, then `POST /api/graph/setup` (loads BIBO) and `docker compose run --rm ingest citations` (or "⟳ Recompute" in the view) – nothing is re-ingested or re-embedded. The REST API is extended, not changed. Roll back with `git checkout v2.1.0`.
+
+### Requirements
+- **REQ-35 BIBO for research papers and the citation network between them** – ✅ done: citations between documents of the collection are found in their reference lists and shown as a network in the knowledge map ("⇄ Citations"), in the document details and in Graph Chat answers; BIBO type, ordered author list and `bibo:cites` in the knowledge graph. Checked on the 21 papers of Aster, Jasmine and Peony: all 7 citations between them found, no false link.
+- **REQ-36 Apply ontology changes without re-embedding** – ◯ open, answered: the vectors do not depend on the DEO roles or the ontology (only the chunk text with a short header is embedded), and changes of the graph model only need `POST /api/graph/setup` and `POST /api/graph/rebuild`. In 2.2.0 this is used for the reference lists (labels corrected via the payload, no embeddings); a general `relabel` command for changed DEO rules is still to be built.
+
+### Added
+- Knowledge map (B page): "⇄ Citations" switches the map to the citation network of the collection and back. Papers, notes and projects (one node per project) are placed by year from left to right, the size shows how often a work is cited inside the collection, shape and colour follow "Document type" / "Database"; an arrow points from the citing to the cited work (solid = DOI or title with first author, dashed = title only). Hover an arrow to see the entry of the reference list it was found in; click a node to highlight its citations and open it under "Projects & clusters"; drag to pan, wheel to zoom. The database selection applies; papers without citations sit in a strip at the bottom (can be hidden). "⟳ Recompute" reads the reference lists again.
+- Document details: section "Citations in this collection" with "Cites" (and how each citation was found) and "Cited by", each entry opens the document.
+- Graph Chat: questions about citations ("Which papers build on …?", "most cited", "zitiert", "Referenzen" …) get the citation network in scope as context; the graph path ends with "cites → Paper"; with 2 or more hops directly citing or cited documents are added as neighbours.
+- Citation network in the backend (`app/citations.py`): after each ingestion (`AUTO_CITATIONS=true`) every paper, note and current project file is matched against the research papers of the collection; stored as `cites` (`doc_id`, `via`, `confidence`, `evidence`), `cited_by`, `refs_chars` and `citations_run` on each document. Versions of the same work count once; an older document cannot cite a newer one.
+- REST API: `GET /api/citations?databases=…&min_confidence=0.6` (nodes and edges of the network) and `POST /api/citations/rebuild`; CLI: `ingest citations`.
+- Knowledge graph, BIBO: every document has `bibo_type` (`bibo:AcademicArticle` paper, `bibo:Note` notes, `bibo:Manuscript` project file), `author_list` (`bibo:authorList`) and `cited_by_count`; `AUTHORED` carries the author's `position`; `(:Document)-[:CITES {via, confidence, evidence}]->(:Document)` with `bibo:cites` / `cito:cites`. `POST /api/graph/setup` also imports BIBO via neosemantics (purl.org, else the DCMI copy); `GET /api/graph/status` counts the document citations.
+- Tests for reading reference lists, matching and the graph statements (`tests/test_citations.py`).
+
+### Changed
+- Documentation: user manual, Quick Reference (pages 3, 4, 6, 7 – BIBO is no longer "not implemented"), technical documentation (overview, graph model, ingestion step 7, Graph RAG, operations) and README describe the citation network and BIBO.
+
+### Fixed
+- Reference lists that were cut off by running page headers (e.g. "Management Learning", "L. T. DO KHAC ET AL." – the extractor takes them for headings) lost their `deo:BibliographicReference` label after the first page, so the knowledge graph missed most cited DOIs there. The citation step follows the list across such headers and labels the continuation passages (`deo_source = bibliography`; payload only, the vectors stay unchanged). DOIs broken across lines ("https://doi. org/10.…") are recognised as well.
+
+### Open points
+- Only works *inside* the collection are linked; journals, volumes, pages and citations to outside literature are not looked up (would need Crossref/OpenAlex via the DOI).
+- REQ-36: a general "relabel" command that applies changed DEO rules without re-embedding is not built yet (the vectors do not depend on the DEO roles).
+- Push `main` and the tags `v2.1.0` and `v2.2.0` to origin and deploy to alita.prodigi-marburg.de.
+
 ## [2.1.0] - 2026-10-17
 
 > **Minor release – workspace and time line:** the B Interaction Interface uses the whole screen (map on the left over the full height, "Projects & clusters" and the Graph Chat on the right), the knowledge map fills its tile and can be enlarged, and the 3D · time view shows every document at its exact date with a time zoom down to days. 13 new requirements from the review of 2.0.0 (REQ-22 – REQ-34, incl. feedback from Dustin) – all done; see "Requirements" below, `docs/requirements-status.md` and `docs/requirements-log.xlsx` (each request with its original wording and as a requirement). Frontend only: the REST API and the backend are unchanged – a browser reload is enough, no rebuild. Roll back with `git checkout v2.0.0`.
@@ -611,6 +639,8 @@ First stable release. From here on, incompatible changes to the REST API, the CL
 - Chat history per tile, metadata backup (`GET /api/export`), Docker Compose setup.
 
 [Unreleased]: #unreleased
+[2.2.0]: #220---2026-10-29
+[2.1.0]: #210---2026-10-17
 [2.0.0]: #200---2026-10-11
 [1.16.2]: #1162---2026-10-11
 [1.16.1]: #1161---2026-10-11

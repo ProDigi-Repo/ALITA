@@ -22,6 +22,7 @@ ALITA Prototype is a research assistant for a curated collection of scientific d
 | Interaction Interface, Graph Chat (tile 2) | Graph RAG over the Neo4j knowledge graph (DoCO/DEO), typed questions, text answers | Yes: LLM + embedding model; no speech recognition or speech output (voice input removed in 0.18.0, read-aloud removed in 1.2.0) |
 | Ingestion | Text extraction, metadata rules (type, date, version, journal), structured summaries | LLM for summaries where none is curated |
 | Clustering | k-means over summary embeddings, labels from distinctive terms, Pokémon pseudonyms for person names | Classical ML (no LLM) |
+| Citation network (since 2.2.0) | Matches the reference lists of the documents with the research papers of the collection (DOI or title with first author and year); BIBO in the knowledge graph; shown as "⇄ Citations" | No: rule-based, no LLM, no embeddings; only documents already in ALITA, no external lookup |
 | Chat meta | Intention and entities per question | Rule-based + LLM |
 | Vector store | Qdrant (`rr_documents`, `rr_chunks`, `rr_projects`) | – |
 

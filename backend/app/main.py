@@ -161,6 +161,24 @@ def graph_rebuild():
     return graph.rebuild_from_store()
 
 
+@app.get("/api/citations")
+def citations_network(databases: Annotated[list[str] | None, Query()] = None, min_confidence: float = 0.6):
+    """REQ-35: Zitationsnetz der Sammlung – Knoten (Papers, Notes, Projekte) und Kanten (wer zitiert wen, über DOI oder Titel)."""
+    from .citations import network
+    try:
+        dbs = get_settings().normalize_databases([x for v in databases or [] for x in v.split(",") if x])
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return network(store.scroll_documents(), dbs, min_confidence)
+
+
+@app.post("/api/citations/rebuild")
+def citations_rebuild():
+    """REQ-35: Zitationsnetz aus den Literaturverzeichnissen im Index neu berechnen (ohne LLM, ohne Embeddings)."""
+    from .citations import rebuild
+    return rebuild()
+
+
 @app.get("/api/deo")
 def deo_classes():
     """Die 31 Klassen der Discourse Elements Ontology und die Zuordnung der Structured Summary."""

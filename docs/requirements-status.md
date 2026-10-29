@@ -1,4 +1,4 @@
-# ALITA – requirements status (2.1.0, 2026-10-17)
+# ALITA – requirements status (2.2.0, 2026-10-29)
 
 Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wording, the request as a requirement, acceptance criterion).
 
@@ -38,10 +38,14 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 | REQ-32 | 3D · time view: time zoom and exact dates | ✅ done | 2.1.0 | Request by Dustin: exact document dates; the axis zooms with the time range; "Scale" Years / Months / Weeks / Days; tooltip with date and its source; project files at their own date. |
 | REQ-33 | Enlarge the knowledge map | ✅ done | 2.1.0 | Request by Dustin: "⤢ Enlarge" opens the map almost full screen, redrawn at that size. |
 | REQ-34 | Dragging must not break the time line | ✅ done | 2.1.0 | Remark by Dustin: clusters can be dragged, but only inside their own period column. |
+| REQ-35 | BIBO for research papers and the citation network between them | ✅ done | 2.2.0 | Reference lists already in the index are matched with the research papers of the collection (DOI, or title confirmed by first author and year) – no LLM, no new embeddings, automatically after each ingestion (`app/citations.py`). "⇄ Citations" in the knowledge map (papers and projects by year, arrows = cites, size = cited by), "Cites / Cited by" in the document details, citation context in Graph Chat. Graph: BIBO type, ordered author list, `(:Document)-[:CITES]->(:Document)` (`bibo:cites`), BIBO import via n10s. Checked on the 21 papers of Aster, Jasmine, Peony: 7 of 7 citations found, no false link. |
+| REQ-36 | Apply ontology changes without re-embedding | ◯ open (answered; partly in 2.2.0) | 2.2.0 (partly) | The vectors do not depend on DEO or the ontology (embedded: chunk text plus a header with type, project, file, role); graph-model changes only need `POST /api/graph/setup` + `/api/graph/rebuild`. Done for reference lists only (`citations.rebuild` relabels via `set_payload`). Open: a general `relabel` command for changed DEO rules instead of `ingest all --force`. |
 
 ## Open points for the requirement owners
 - REQ-10, REQ-15 – REQ-18: main document chain per project, inferred links between versions and analyses, threshold for "substantive", AI stage texts automatic or on demand, versions without full text.
 - REQ-11: explanation enough, or merge the two chats?
 - REQ-19: enter the project teams (Sustainability: Jürgen Strohecker, Sabrina – surname needed).
 - REQ-20: implementation later.
+- REQ-35: only works inside the collection are linked; journals, volumes, pages and outside literature would need Crossref/OpenAlex via the DOI – wanted?
+- REQ-36: build the general `relabel` command (DEO rules → payload + graph, no embeddings)?
 - Date quality (seen with REQ-32): many documents only carry the file date (last saved / copied), so they share one day in the time view – better dates (file properties, text, curation) would make the time line more telling.

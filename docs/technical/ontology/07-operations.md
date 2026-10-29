@@ -17,9 +17,10 @@
 | Situation | Action |
 |---|---|
 | Neo4j was added to an existing installation | `POST /api/graph/rebuild` (graph from Qdrant) |
-| DEO rules or classification changed | re-ingest: `docker compose run --rm ingest all /research --force` |
+| DEO rules or classification changed | re-ingest: `docker compose run --rm ingest all /research --force`. Note: this re-embeds everything although the vectors do not depend on DEO roles (only chunk text plus a header with type, project, file and role is embedded); a payload-only relabel command is not built yet – only the reference-list labels are corrected that way (`citations.rebuild`). Changes to extraction or chunking always need the re-ingest |
 | Ontology import failed (no internet) | later `POST /api/graph/setup`; ALITA works with its built-in DEO classes meanwhile |
 | Clusters recomputed | graph is updated automatically |
+| Update to 2.2.0 (citations, BIBO) | `POST /api/graph/setup` (imports BIBO), then `POST /api/citations/rebuild` – nothing is re-embedded |
 
 ## Quality check
 
