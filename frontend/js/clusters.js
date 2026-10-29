@@ -6,7 +6,7 @@ function cvSyncToggle(){const c=$('#cviz').classList.contains('collapsed');$$('.
 cvSyncToggle();
 $$('.cv-toggle').forEach(b=>b.addEventListener('click',()=>{const c=$('#cviz').classList.toggle('collapsed');try{localStorage.setItem('cviz_hidden',c?'1':'0')}catch(e){}cvSyncToggle();if(!c)renderClusterViz()}));
 const cvHue=c=>(c*67)%360, cvCol=(c,l=45)=>`hsl(${cvHue(c)} 60% ${l}%)`;
-const CV_TYPE={research_paper:'Paper',research_notes:'Note',research_project:'Project',legal_project:'Law',legal_guideline:'Guideline',standard:'Standard'};
+const CV_TYPE={research_paper:'Paper',research_notes:'Note',research_project:'Project',legal_project:'Law',legal_guideline:'Guideline',standard:'Standard',guidance:'FAQ'};
 function cvUnits(){
   const inDb=x=>!SEL_DB.length||(x.db||[]).some(n=>SEL_DB.includes(n));
   const docs=DOCS.filter(d=>d.cb==='summary'&&d.cx!=null&&d.ci!=null);
@@ -278,7 +278,7 @@ function mountGraph3D(units,cls,box=$('#cvGraph'),key='graph',GH=350){ // key/GH
     L.forEach(l=>{const p=P(l.a),q=P(l.b);if(!p||!q)return;g.strokeStyle='rgba(217,72,15,.45)';g.lineWidth=1+3*l.n/mx;g.beginPath();g.moveTo(p.x,p.y);g.lineTo(q.x,q.y);g.stroke()});
     if(LAY){   // document layer: the cluster's documents below it, joined by a thin stem
       const tc={research_paper:css.getPropertyValue('--t-paper').trim()||'#6b4fa3',research_notes:css.getPropertyValue('--t-notes').trim()||'#2e7d4f',research_project:css.getPropertyValue('--t-project').trim()||'#1f5f8b',
-        legal_project:css.getPropertyValue('--t-legal').trim()||'#a23b2a',legal_guideline:css.getPropertyValue('--t-guideline').trim()||'#9a6a00',standard:css.getPropertyValue('--t-standard').trim()||'#3f6f7a'};
+        legal_project:css.getPropertyValue('--t-legal').trim()||'#a23b2a',legal_guideline:css.getPropertyValue('--t-guideline').trim()||'#9a6a00',standard:css.getPropertyValue('--t-standard').trim()||'#3f6f7a',guidance:css.getPropertyValue('--t-guidance').trim()||'#5b6b1f'};
       nodes.forEach(d=>{const ds=docsOf(d);if(!ds.length)return;const dim=cvOff(d.c.id),top=P({x:d.x,y:Y_DOC[1]-1,z:d.z}),q=P(d);if(top&&q){g.globalAlpha=dim?.12:.35;g.strokeStyle=cvCol(d.c.id);g.lineWidth=1;g.beginPath();g.moveTo(q.x,q.y);g.lineTo(top.x,top.y);g.stroke()}
         ds.forEach((u,k)=>{const col=k%DCOLS,row=Math.floor(k/DCOLS),w=P({x:d.x+(col-(Math.min(DCOLS,ds.length)-1)/2)*DOCSP,y:Y_DOC[1]-3-row*DOCSP,z:d.z});if(!w)return;
           const r=Math.max(1.6,1.25*w.s);g.globalAlpha=dim?.2:.9;g.fillStyle=CG.mode==='db'&&(u.db||[])[0]?(getComputedStyle(document.documentElement).getPropertyValue('--db-'+u.db[0]).trim()||muted):(tc[u.t]||muted);g.beginPath();

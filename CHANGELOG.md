@@ -8,6 +8,21 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-10-29
+
+> **Minor release – new document class "Guidance & FAQ".** Authorities explain the AI Act not only in formally adopted guidelines (Communications with a reference number such as C(2025) 5052) but also on Q&A pages, in FAQs and factsheets – not binding, without reference number, and changing over time. These now have their own document type `guidance` ("Guidance & FAQ"), next to legal guidelines. First document: "AI Literacy – Questions & Answers" of the European Commission / AI Office (digital-strategy.ec.europa.eu, printed 29 October 2026, 15 pages, already reflecting the Digital Omnibus): 5 topics, 34 questions. One new requirement (REQ-48). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest guidance /research/EUAIA/guidance`. Roll back with `git checkout v3.2.2`.
+
+### Requirements
+- **REQ-48 New document class for the EU AI Act database (Q&A page on AI literacy)** – ✅ prepared and checked offline: type "Guidance & FAQ", folder `research/EUAIA/guidance/` with `_legal.yaml`; the ingestion runs in Docker.
+
+### Added
+- Document type `guidance` – "Guidance & FAQ": folders `research/<DB>/guidance/` (also `faq/`, `faqs/`), CLI `ingest guidance`, upload option in "Add new data" and "Documents → Upload", filter chip "FAQ", ▲ in olive in the map and lists; knowledge graph `fabio:WebPage` / `bibo:Webpage`; clustering unit like guidelines.
+- Q&A parsing (`parse_faq`, kind `faq`): topics (`tp_2`, "Topic 2") and questions (`q_2.1`, "Q 2.1", numbered as the page itself refers to them – "question 2.1"); a question starts with a question word at the start of a line and ends with "?" within three lines; questions listed inside an answer ("a) … What is AI?") stay part of the answer; two question sentences without an answer in between are one question; the page footer ("Source URL", "© European Union") is left out.
+- Stage `snapshot` ("Web page snapshot"): a printed state of a web page, valid from the day of the snapshot; a later snapshot of the same page is the next version, so changes of an FAQ become visible over time.
+
+### Changed
+- "Legal guidelines" now means formally adopted guidelines (upload text and documentation); FAQs and Q&A pages belong to "Guidance & FAQ".
+
 ## [3.2.2] - 2026-10-29
 
 > **Patch release – the guidelines on prohibited AI practices.** Second legal guideline of the database "EU AI Act": Commission Guidelines on prohibited artificial intelligence practices established by Regulation (EU) 2024/1689, C(2025) 5052 final of 29 July 2025 (134 pages). It has a table of contents, quotes provisions of the AI Act and contains numbered lists – all of which the parser took for headings, so most headings appeared twice. Checked on the real file: 114 headings (down to "10.2.2.5"), all 433 margin numbers without gaps or duplicates, each under its heading; the first guideline and the four AI Act versions are split as before. One new requirement (REQ-47). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest guideline /research/EUAIA/guidelines` (reads both guidelines). Roll back with `git checkout v3.2.1`.

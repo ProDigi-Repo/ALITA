@@ -394,7 +394,7 @@ SUMMARY_FIELDS = [
     ("research_limitations_implications", "Research limitations/implications"),
     ("originality_value", "Originality/value"),
 ]
-UNIT_TYPES = ("research_paper", "research_notes", "legal_guideline", "standard")   # + aktuelle Gesetzesfassungen (REQ-38)
+UNIT_TYPES = ("research_paper", "research_notes", "legal_guideline", "standard", "guidance")   # + aktuelle Gesetzesfassungen (REQ-38)
 
 
 def summary_text(title: str | None, summary: dict | None) -> str:

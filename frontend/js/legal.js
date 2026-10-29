@@ -32,7 +32,7 @@ function legalBlockHtml(a){
 function legalDocHtml(full){
   const lg=full.leg||full.legal;if(!lg)return '';
   const sibl=DOCS.filter(d=>d.leg&&d.leg.norm_id===lg.norm_id).sort((a,b)=>a.leg.seq-b.leg.seq);
-  return `<section><h4>Legal text <span class="prov">${lg.kind==='law'?'ELI · LegalResource':lg.kind==='standard'?'standard':'guideline'}</span></h4><dl class="kv">
+  return `<section><h4>Legal text <span class="prov">${lg.kind==='law'?'ELI · LegalResource':lg.kind==='standard'?'standard':lg.kind==='faq'?'guidance & FAQ':'guideline'}</span></h4><dl class="kv">
     <dt>Norm</dt><dd>${esc(lg.norm_title||'')}${lg.eli?` <a class="mono" href="${esc(lg.eli)}" target="_blank" rel="noopener">ELI</a>`:''}</dd>
     <dt>Version</dt><dd>${lg.seq} of ${lg.versions} · ${esc(lg.stage_label||STAGE_LABEL[lg.stage]||lg.stage)}${lg.current?' <span class="latest">current</span>':''}</dd>
     ${(lg.files||[]).length>1?`<dt>Files</dt><dd>${lg.files.map(esc).join(' + ')}</dd>`:''}

@@ -50,6 +50,7 @@ log = logging.getLogger("legal")
 LEGAL_YAML = "_legal.yaml"
 FOLDERS = {"legal": DocType.legal_project, "laws": DocType.legal_project, "gesetze": DocType.legal_project,
            "guidelines": DocType.legal_guideline, "leitlinien": DocType.legal_guideline,
+           "guidance": DocType.guidance, "faq": DocType.guidance, "faqs": DocType.guidance,
            "standards": DocType.standard, "normen": DocType.standard}
 
 

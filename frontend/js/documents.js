@@ -237,9 +237,9 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeDrawer();$('#u
 function fmtSize(b){if(b==null)return '–';return b<1024?b+' B':b<1048576?(b/1024).toFixed(0)+' KB':(b/1048576).toFixed(1)+' MB'}
 
 /* ---------- Upload ---------- */
-const KIND_N=(t,n)=>({research_paper:'paper',research_notes:'note',legal_guideline:'guideline',standard:'standard',legal_project:'legal project'}[t]||'file')+(n>1?'s':'');
+const KIND_N=(t,n)=>({research_paper:'paper',research_notes:'note',legal_guideline:'guideline',standard:'standard',guidance:'guidance page',legal_project:'legal project'}[t]||'file')+(n>1?'s':'');
 const ZIP_T=t=>t==='research_project'||t==='legal_project';   // one ZIP per project (REQ-38: legal projects too)
-const LEGAL_HINT={legal_project:'Upload the folder of a law as a ZIP: its versions (proposal, adopted text, consolidated versions) and accompanying documents. A _legal.yaml in the folder gives stages, entry into force and application dates.',legal_guideline:'One or more guidelines (one file each). Versions of the same guideline can be grouped with a _legal.yaml.',standard:'One or more standards (one file each). Check that the licence allows storing the full text.'};
+const LEGAL_HINT={guidance:'One or more Q&A pages, FAQs or factsheets of authorities (one file each, e.g. a web page printed as PDF). ALITA splits them into topics and questions (Q 2.1). A _legal.yaml can give the date of the snapshot; a later snapshot of the same page becomes a new version.',legal_project:'Upload the folder of a law as a ZIP: its versions (proposal, adopted text, consolidated versions) and accompanying documents. A _legal.yaml in the folder gives stages, entry into force and application dates.',legal_guideline:'One or more guidelines (one file each). Versions of the same guideline can be grouped with a _legal.yaml.',standard:'One or more standards (one file each). Check that the licence allows storing the full text.'};
 function openUpload(t){
   if(t)$$('input[name=utype]').forEach(r=>r.checked=r.value===t);
   syncUpload();$('#upload').hidden=false;

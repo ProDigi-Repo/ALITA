@@ -47,9 +47,10 @@ ONTOLOGIES = {
 # FaBiO kennt keine Klasse „Note“ (bis 2.2.0 fälschlich fabio:Note) – Notes und Rechtstexte: allgemeines fabio:Expression
 FABIO_TYPE = {"research_paper": "fabio:JournalArticle", "research_notes": "fabio:Expression",
               "research_project": "fabio:WorkPackage", "legal_project": "fabio:Expression",
-              "legal_guideline": "fabio:Expression", "standard": "fabio:Expression"}
+              "legal_guideline": "fabio:Expression", "standard": "fabio:Expression", "guidance": "fabio:WebPage"}
 BIBO_TYPE = {"research_paper": "bibo:AcademicArticle", "research_notes": "bibo:Note", "research_project": "bibo:Manuscript",
-             "legal_project": "bibo:Legislation", "legal_guideline": "bibo:LegalDocument", "standard": "bibo:Document"}
+             "legal_project": "bibo:Legislation", "legal_guideline": "bibo:LegalDocument", "standard": "bibo:Document",
+             "guidance": "bibo:Webpage"}
 DOI_RX = re.compile(r"\b10\.\d{4,9}/[^\s\"<>,;]+", re.I)
 
 

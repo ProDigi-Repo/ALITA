@@ -561,3 +561,36 @@ def test_guideline_toc_lists_and_outline_sequence():
     assert [c for c in cs if c.startswith("rn_")] == [f"rn_{i}" for i in range(1, 7)]               # „(2022) doi:…“ keine Randnummer
     assert cs["rn_2"].parent == "cl_1" and "Transparency" in cs["rn_2"].text and cs["rn_6"].parent == "cl_2.3"
     assert "(2022) doi" in cs["rn_4"].text
+
+
+FAQ_PAGE = """AI Literacy - Questions & Answers
+Article 4 of the AI Act requires AI literacy.
+Definitions of article 4 and the AI Act
+What does article 4 of the AI Act provide?
+Article 4(1) requires measures.
+Which target group is in scope of article 4 of the AI Act? Who are 'other
+persons’?
+Staff and other persons.
+Compliance with article 4
+What should be the minimum content to consider for an AI literacy programme complying
+with article 4 of the AI Act?
+Providers should consider the following questions:
+a) Ensure a general understanding of AI: What is AI? How does it
+work? What AI is used in our organisation?
+What additional guidance do the AI Office plan to release?
+Will the AI Office share a rubric?
+Not at this stage.
+Source URL: https://digital-strategy.ec.europa.eu/faqs/ai-literacy-questions-answers
+© European Union, 2026
+"""
+
+
+def test_guidance_faq_topics_and_questions():
+    cs = {c.cid: c for c in L.parse_components(FAQ_PAGE, "faq")}
+    assert cs["tp_1"].title.startswith("Definitions") and cs["tp_2"].title == "Compliance with article 4"
+    assert cs["q_1.1"].parent == "tp_1" and "Article 4(1)" in cs["q_1.1"].text
+    assert cs["q_1.2"].title.endswith("persons’?")                           # Frage über zwei Zeilen
+    assert "What is AI?" in cs["q_2.1"].text                                  # Aufzählung in der Antwort bleibt Antwort
+    assert cs["q_2.2"].title.endswith("rubric?") and "q_2.3" not in cs        # zwei Sätze, eine Frage
+    assert not any("Source URL" in c.text or "©" in c.text for c in cs.values())
+    assert L.component_label("q_2.1") == "Q 2.1" and L.KIND_OF_TYPE["guidance"] == "faq"

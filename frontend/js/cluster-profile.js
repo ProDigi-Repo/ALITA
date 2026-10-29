@@ -32,7 +32,7 @@ function cpConnHtml(ci){
     return `<button type="button" data-cc="${x.o}" style="--h:${cvHue(x.o)}" aria-pressed="${typeof cvHas==='function'&&cvHas(x.o)}" title="${x.n} document${x.n>1?'s':''} of C${ci} are second-closest to C${x.o} · average similarity ${x.s.toFixed(2)} – click to select C${x.o} as well"><b>C${x.o}</b><span>${esc(cvName(c,info))}</span><small>${x.n} · ${x.s.toFixed(2)}</small></button>`}).join('')}</div>`;
 }
 /* REQ-09: the elements of a cluster/project – a collapsible list of its documents; a click opens the document (top right on the B page) */
-const CP_TYPE_MARK={research_paper:'■',research_notes:'●',research_project:'◆',legal_project:'▲',legal_guideline:'▲',standard:'▲'};
+const CP_TYPE_MARK={research_paper:'■',research_notes:'●',research_project:'◆',legal_project:'▲',legal_guideline:'▲',standard:'▲',guidance:'▲'};
 function cpDocListHtml(list,label,open){
   if(!list.length)return '';
   const role=u=>u.ro&&typeof ROLE_LABEL!=='undefined'&&ROLE_LABEL[u.ro]?ROLE_LABEL[u.ro]:'';

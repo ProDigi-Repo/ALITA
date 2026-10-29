@@ -32,13 +32,13 @@ import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 
-LEGAL_TYPES = ("legal_project", "legal_guideline", "standard")
-KIND_OF_TYPE = {"legal_project": "law", "legal_guideline": "guideline", "standard": "standard"}
+LEGAL_TYPES = ("legal_project", "legal_guideline", "standard", "guidance")
+KIND_OF_TYPE = {"legal_project": "law", "legal_guideline": "guideline", "standard": "standard", "guidance": "faq"}
 # Stufen ohne Geltung (Entstehungsgeschichte) – alles andere mit in_force-Datum gilt
 DRAFT_STAGES = {"proposal", "draft", "committee", "position_parliament", "position_council", "general_approach", "trilogue_agreement",
                 "committee_report", "consultation", "public_consultation", "nwip", "wd", "cd", "dis", "fdis", "prf"}
 STAGE_LABEL = {
-    "proposal": "Proposal", "committee": "Committee amendments (Parliament)", "position_parliament": "Parliament position", "position_council": "Council position",
+    "snapshot": "Web page snapshot", "proposal": "Proposal", "committee": "Committee amendments (Parliament)", "position_parliament": "Parliament position", "position_council": "Council position",
     "general_approach": "General approach", "trilogue_agreement": "Trilogue agreement", "committee_report": "Committee report",
     "adopted": "Adopted text", "published": "Published", "consolidated": "Consolidated version", "corrigendum": "Corrigendum",
     "repealed": "Repealed", "draft": "Draft", "consultation": "Draft for consultation", "public_consultation": "Draft for consultation",
@@ -49,7 +49,7 @@ STAGE_LABEL = {
     "confirmed": "Confirmed (90.93)", "amendment": "Amendment", "edition": "Edition", "version": "Version",
 }
 TYPE_LABEL = {"preamble": "Preamble", "recital": "Recital", "title": "Title", "chapter": "Chapter", "section": "Section", "article": "Article",
-              "paragraph": "Paragraph", "point": "Point", "subpoint": "Point", "annex": "Annex", "supplement": "Supplement", "clause": "Clause",
+              "paragraph": "Paragraph", "point": "Point", "subpoint": "Point", "annex": "Annex", "supplement": "Supplement", "clause": "Clause", "topic": "Topic", "question": "Question",
               "margin": "Para."}
 FAR_FUTURE = 32503680000            # 3000-01-01 als Zeitstempel: „gilt noch“ (valid_to offen)
 
@@ -233,10 +233,75 @@ def detect_style(lines: list[str]) -> str:
     return "clause"
 
 
+_Q_START = re.compile(r"^(What|Which|Why|Who|Whom|Whose|How|Where|When|Is|Are|Do|Does|Did|Can|Could|Should|Shall|Will|"
+                      r"Would|Has|Have|May|Might|Must|In what|In which|To what|Under what)\b")
+_FAQ_FOOTER = re.compile(r"^(Source URL:|© European Union)")
+_SENT_END = (".", ";", ":", "?", "!", ")", "”", "’")
+
+
+def parse_faq(text: str) -> list[Component]:
+    """REQ-48: Guidance & FAQ (z. B. „AI Literacy – Questions & Answers“ des AI Office): Themen und Fragen.
+    Eine Frage beginnt mit einem Fragewort am Zeilenanfang, endet nach höchstens drei Zeilen mit „?“ und folgt auf ein
+    Satzende oder eine Themenüberschrift; Fragen als Aufzählung in Antworten („a) … What is AI?“) bleiben Antworttext.
+    IDs wie auf der Seite gezählt: Thema tp_2, Frage q_2.1 („question 2.1“ in den Antworten)."""
+    lines = clean_lines(text)
+    cut = next((i for i, ln in enumerate(lines) if _FAQ_FOOTER.match(ln)), len(lines))
+    lines = lines[:cut]
+    comps: list[Component] = []
+    pre = Component("pre", "preamble", "", None, lines[0] if lines else "", "", 1)
+    comps.append(pre)
+    cur, topic, tn, qn = pre, None, 0, 0
+
+    def ends(i: int) -> bool:
+        return i < 0 or lines[i].rstrip().endswith(_SENT_END) or comps[-1].type == "topic" and comps[-1].title == lines[i]
+
+    def question_at(i: int, after_heading: bool = False) -> int | None:
+        if not _Q_START.match(lines[i]) or not (after_heading or ends(i - 1)):
+            return None
+        for j in range(i, min(i + 3, len(lines))):
+            if lines[j].rstrip().endswith("?"):
+                return j
+            if lines[j].rstrip().endswith((".", ";", ":")):
+                return None
+        return None
+
+    i = 1
+    while i < len(lines):
+        ln = lines[i]
+        j = question_at(i)
+        if j is not None:
+            if topic is None:
+                tn, qn = 1, 0
+                topic = Component("tp_1", "topic", "1", None, "General", "", len(comps) + 1)
+                comps.append(topic)
+            if cur.type == "question" and not cur.text.strip():   # „What … future? Will the AI Office …?“ = eine Frage
+                cur.title += " " + " ".join(x.strip() for x in lines[i:j + 1])
+                i = j + 1
+                continue
+            qn += 1
+            cur = Component(f"q_{tn}.{qn}", "question", f"{tn}.{qn}", topic.cid, " ".join(x.strip() for x in lines[i:j + 1]), "",
+                            len(comps) + 1)
+            comps.append(cur)
+            i = j + 1
+            continue
+        if (i + 1 < len(lines) and len(ln) <= 90 and ln[:1].isupper() and not ln.rstrip().endswith(_SENT_END + (",",))
+                and ends(i - 1) and question_at(i + 1, after_heading=True) is not None):
+            tn, qn = tn + 1, 0
+            topic = cur = Component(f"tp_{tn}", "topic", str(tn), None, ln.strip(), "", len(comps) + 1)
+            comps.append(topic)
+            i += 1
+            continue
+        cur.text = (cur.text + "\n" + ln) if cur.text else ln
+        i += 1
+    return comps
+
+
 def parse_components(text: str, kind: str = "law") -> list[Component]:
     """Text eines Gesetzes / einer Leitlinie / eines Standards -> Bestandteile mit Hierarchie (strukturbewusste Segmentierung,
     Paper Abschnitt 3.3). Gesetze: Erwägungsgründe, Kapitel, Abschnitte, Artikel bzw. §, Absätze, Nummern/Buchstaben, Anhänge.
     Standards und Leitlinien: nummerierte Clauses (6, 6.1, 6.1.2), Anhänge und – bei Leitlinien – Randnummern."""
+    if kind == "faq":
+        return parse_faq(text)
     eu_gl = kind == "guideline" and len(re.findall(r"(?m)^\s*\(\d{1,4}\)\s", text or "")) >= 3   # Kommissionsleitlinie
     lines = clean_lines(text, numbered_footnotes=eu_gl)
     style = detect_style(lines) if kind == "law" else "clause"
@@ -478,6 +543,10 @@ def component_label(cid: str, title: str = "") -> str:
         return "Preamble"
     elif head.startswith("sec_"):
         return f"Section {head[4:]}"
+    elif head.startswith("q_"):
+        return f"Q {head[2:]}"
+    elif head.startswith("tp_"):
+        return f"Topic {head[3:]}"
     elif head == "lfs":
         return "Legislative financial statement"
     for p in parts[1:]:

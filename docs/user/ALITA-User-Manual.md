@@ -1,4 +1,4 @@
-# ALITA – User Manual (front-end, v3.2.2)
+# ALITA – User Manual (front-end, v3.3.0)
 
 ALITA lets you ask questions of your research documents and get answers with numbered, clickable sources.
 The quick visual version is [`ALITA-Cheat-Sheet-Comic.pdf`](ALITA-Cheat-Sheet-Comic.pdf).
@@ -110,7 +110,7 @@ Use it for who-did-what questions: people, organizations, projects, methods. Fil
 
 **Laws, guidelines and standards (since 3.0.0)**
 
-ALITA knows three more kinds of data: **Legal projects** (the versions of a law – proposal, adopted text, consolidated versions – plus accompanying documents, uploaded as one ZIP like a research project), **Legal guidelines** and **Standards**. They appear as ▲ in the map and under *Documents → Laws, Guidelines & Standards*.
+ALITA knows three more kinds of data: **Legal projects** (the versions of a law – proposal, adopted text, consolidated versions – plus accompanying documents, uploaded as one ZIP like a research project), **Legal guidelines**, **Standards** and – since 3.3.0 – **Guidance & FAQ** (Q&A pages, FAQs and factsheets of authorities, e.g. a page of the AI Office printed as PDF; split into topics and questions, cited as "Q 2.1"; filter chip "FAQ"). They appear as ▲ in the map and under *Documents → Laws, Guidelines & Standards*.
 
 - Each text is split into its parts (articles, paragraphs, points, annexes; clauses for standards) and every part has dated versions. Answers use the **version valid at the time you ask about**: write the date into the question (*"What applied on 1 September 2026 to Annex III?"*, *"in 2025"*), a stage (*"in the Commission proposal"*) – or set **Legal texts as of** under *Advanced settings → Parameters*. Without a date ALITA uses today's version. The line **⏱ Legal texts** under the answer says which versions were used.
 - Ask about changes (*"What changed in Article 50 since 2024?"*) or origins (*"Since when does the term 'general-purpose AI model' appear?"*): the answer shows a table from the change history (date, part, kind of change, amending act).

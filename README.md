@@ -192,7 +192,8 @@ oder `POST /api/citations/rebuild`; abrufen: `GET /api/citations?databases=JSW`.
 
 **Gesetze, Leitlinien und Standards (seit 3.0.0, REQ-37/38):** Neue Dokumenttypen `legal_project` (Ordner
 `research/<DB>/legal/<Projekt>/`, Upload als ZIP – die Gesetzesfassungen sind die Stufen), `legal_guideline`
-(`research/<DB>/guidelines/`) und `standard` (`research/<DB>/standards/`). `app/legal.py` zerlegt die Texte in
+(`research/<DB>/guidelines/`), `standard` (`research/<DB>/standards/`) und seit 3.3.0 `guidance` – Guidance & FAQ
+(`research/<DB>/guidance/`: Q&A-Seiten, FAQs, Factsheets von Behörden, gegliedert in Themen und Fragen „Q 2.1“). `app/legal.py` zerlegt die Texte in
 Bestandteile (Artikel/§, Absatz, Nummer, Erwägungsgrund, Anhang, Clause) und baut nach dem SAT-Graph RAG von
 de Martim (2025) datierte Fassungen mit Aggregation sowie Actions (Änderungen mit eingebettetem Beschreibungstext);
 im Graphen an ELI ausgerichtet (`Norm`, `Component`, `TemporalVersion`, `LanguageVersion`, `Action`). Daten zu
@@ -250,7 +251,8 @@ und `APP_VERSION` im Frontend angleichen. Der Test `test_changelog_follows_keepa
 
 | Version | Datum | Inhalt | früher |
 |---|---|---|---|
-| **3.2.2** | 2026-10-29 | **Patch Release – Leitlinien zu verbotenen KI-Praktiken (REQ-47):** zweite Legal guideline (C(2025) 5052 final, 134 Seiten, 433 Randnummern, 114 Gliederungspunkte); Inhaltsverzeichnis wird übersprungen, Gliederung und Randnummern müssen fortlaufen (Aufzählungen und zitierte Artikel im Text bleiben Text), Überschriften dürfen mit Klammer oder Anführungszeichen beginnen. | 3.2.1 |
+| **3.3.0** | 2026-10-29 | **Minor Release – neue Dokumentklasse „Guidance & FAQ“ (REQ-48):** Q&A-Seiten, FAQs und Factsheets von Behörden (unverbindlich, ohne Aktenzeichen) als eigener Typ `guidance` neben Legal guidelines; erste Seite: „AI Literacy – Questions & Answers“ des AI Office (Stand 29.10.2026) in EU AI Act; Gliederung in Themen und Fragen, Stufe `snapshot` für Webseitenstände. | 3.2.2 |
+| 3.2.2 | 2026-10-29 | **Patch Release – Leitlinien zu verbotenen KI-Praktiken (REQ-47):** zweite Legal guideline (C(2025) 5052 final, 134 Seiten, 433 Randnummern, 114 Gliederungspunkte); Inhaltsverzeichnis wird übersprungen, Gliederung und Randnummern müssen fortlaufen (Aufzählungen und zitierte Artikel im Text bleiben Text), Überschriften dürfen mit Klammer oder Anführungszeichen beginnen. | 3.2.1 |
 | 3.2.1 | 2026-10-29 | **Patch Release – Leitlinien der Kommission (REQ-46):** Leitlinien zur Definition eines KI-Systems (C(2025) 5053 final, 29.7.2025) als erste Legal guideline in „EU AI Act“; Parser für Kommissionsleitlinien: Abschnitte „I.“–„III.“, Gliederung „1.“/„5.1.“, Randnummern „(1)“–„(64)“, Fußnoten ausgelassen. | 3.2.0 |
 | 3.2.0 | 2026-10-29 | **Minor Release – Änderungsverordnungen anwenden (REQ-45):** Digital Omnibus on AI (Verordnung (EU) 2026/1744) als vierte Fassung des AI Act; `apply_amendments` in `_legal.yaml` wendet die Änderungsbefehle auf die Vorfassung an (`app/legal_amend.py`) – 63 von 72 Befehlen exakt, 5 angenähert, 4 offen gemeldet; neue Artikel 4a, 60a, 75a–75d, Anhang XIV; Anwendungsdaten des geänderten Art. 113; Bericht je Befehl in den Dokumentdetails. | 3.1.1 |
 | 3.1.1 | 2026-10-29 | **Patch Release – Verordnung (EU) 2024/1689 aus dem Amtsblatt (REQ-44):** dritte Fassung des AI Act; Amtsblatt-PDFs: Fußnoten werden nicht mehr als Erwägungsgründe gelesen (236 → 180), Abschnittsüberschriften „SECTION 1“ bleiben erhalten (16 Abschnitte), Verweise „Article 49“ in Anhängen sind keine Artikel (115 → 113); Anwendungsregeln: die Regel für einen Artikel schlägt die für sein Kapitel (Art. 101 ab 2.8.2026). | 3.1.0 |

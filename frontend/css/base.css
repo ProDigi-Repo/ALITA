@@ -3,7 +3,7 @@
   --bg:#eef1f3; --panel:#ffffff; --sunk:#f5f7f8; --line:#d9dfe3; --fg:#18222a; --muted:#5d6b75;
   --rag:#1f5f8b; --rag-soft:#e3eef6; --graph:#8a5a12; --graph-soft:#f6ecdc;
   --ok:#2e7d4f; --ok-soft:#e1f2e7; --warn:#a3561a; --warn-soft:#f8eadf; --rec:#c0392b;
-  --t-project:#1f5f8b; --t-paper:#6b4fa0; --t-notes:#2e7d4f; --t-legal:#a23b2a; --t-guideline:#94650a; --t-standard:#2f6c78;
+  --t-project:#1f5f8b; --t-paper:#6b4fa0; --t-notes:#2e7d4f; --t-legal:#a23b2a; --t-guideline:#94650a; --t-standard:#2f6c78; --t-guidance:#5b6b1f;
   --db-AL:#0f7a6e; --db-CNN_DM:#5c6670; --db-DL:#3b5bb5; --db-JSW:#a1442a; --db-LDK:#86620a; --db-ML:#8a3b8f; --db-UM:#3d7a2a; --db-EUAIA:#0067c5; --db-OTH:#b4325f;
   --f-display:"IBM Plex Sans Condensed","Arial Narrow",system-ui,sans-serif;
   --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -13,12 +13,12 @@
   --bg:#111518; --panel:#192026; --sunk:#141a1f; --line:#2b353d; --fg:#e4e9ec; --muted:#93a1ab;
   --rag:#6fb0e0; --rag-soft:#1b2d3b; --graph:#e0aa55; --graph-soft:#33281a;
   --ok:#6cc690; --ok-soft:#1a3326; --warn:#e39a5c; --warn-soft:#3a2818; --rec:#ef6b5c;
-  --t-project:#6fb0e0; --t-paper:#b59ae6; --t-notes:#6cc690; --t-legal:#ef8a74; --t-guideline:#e5b553; --t-standard:#74c3cf; --db-AL:#4fc4b4; --db-CNN_DM:#a9b4bf; --db-DL:#8ea6ef; --db-JSW:#ee9677; --db-LDK:#e3bb55; --db-ML:#d892dc; --db-UM:#8fcf7a; --db-EUAIA:#5cc4ff; --db-OTH:#f08aac; color-scheme:dark }}
+  --t-project:#6fb0e0; --t-paper:#b59ae6; --t-notes:#6cc690; --t-legal:#ef8a74; --t-guideline:#e5b553; --t-standard:#74c3cf; --t-guidance:#b5c46a; --db-AL:#4fc4b4; --db-CNN_DM:#a9b4bf; --db-DL:#8ea6ef; --db-JSW:#ee9677; --db-LDK:#e3bb55; --db-ML:#d892dc; --db-UM:#8fcf7a; --db-EUAIA:#5cc4ff; --db-OTH:#f08aac; color-scheme:dark }}
 :root[data-theme="dark"]{
   --bg:#111518; --panel:#192026; --sunk:#141a1f; --line:#2b353d; --fg:#e4e9ec; --muted:#93a1ab;
   --rag:#6fb0e0; --rag-soft:#1b2d3b; --graph:#e0aa55; --graph-soft:#33281a;
   --ok:#6cc690; --ok-soft:#1a3326; --warn:#e39a5c; --warn-soft:#3a2818; --rec:#ef6b5c;
-  --t-project:#6fb0e0; --t-paper:#b59ae6; --t-notes:#6cc690; --t-legal:#ef8a74; --t-guideline:#e5b553; --t-standard:#74c3cf; --db-AL:#4fc4b4; --db-CNN_DM:#a9b4bf; --db-DL:#8ea6ef; --db-JSW:#ee9677; --db-LDK:#e3bb55; --db-ML:#d892dc; --db-UM:#8fcf7a; --db-EUAIA:#5cc4ff; --db-OTH:#f08aac; color-scheme:dark }
+  --t-project:#6fb0e0; --t-paper:#b59ae6; --t-notes:#6cc690; --t-legal:#ef8a74; --t-guideline:#e5b553; --t-standard:#74c3cf; --t-guidance:#b5c46a; --db-AL:#4fc4b4; --db-CNN_DM:#a9b4bf; --db-DL:#8ea6ef; --db-JSW:#ee9677; --db-LDK:#e3bb55; --db-ML:#d892dc; --db-UM:#8fcf7a; --db-EUAIA:#5cc4ff; --db-OTH:#f08aac; color-scheme:dark }
 html,body{height:100%}
 body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.5;margin:0}
 *{box-sizing:border-box}

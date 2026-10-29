@@ -14,7 +14,8 @@ class DocType(str, Enum):
     research_notes = "research_notes"
     # REQ-38: Rechtstexte (Legal-Ontologie, app/legal.py)
     legal_project = "legal_project"       # Ordner wie ein research project; die Gesetzesfassungen sind die Stufen
-    legal_guideline = "legal_guideline"   # Leitlinien, FAQ, Auslegungshilfen von Behörden (soft law)
+    legal_guideline = "legal_guideline"   # förmliche Leitlinien von Behörden (Mitteilungen der Kommission, C(…)) – soft law
+    guidance = "guidance"                 # REQ-48: Guidance & FAQ – Q&A-Seiten, Factsheets, Erläuterungen von Behörden (unverbindlich)
     standard = "standard"                 # Normen/Standards (ISO, IEC, CEN, DIN …)
 
 

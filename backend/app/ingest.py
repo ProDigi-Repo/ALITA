@@ -716,7 +716,7 @@ def _dump(project: ProjectRecord | None, items: list[Item], out: Path) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(description="Load documents into the RAG index")
     ap.add_argument("kind", choices=["project", "paper", "notes", "all", "cluster", "graph", "citations", "delete",
-                                     "legal", "guideline", "standard"],
+                                     "legal", "guideline", "standard", "guidance"],
                     help="all = ingest every subfolder of PATH; cluster = recompute clusters only (--db X: only database X, other clusters stay); graph = (re)build the Neo4j graph; "
                          "citations = recompute the citation network from the reference lists already in the index (no LLM, no embeddings); "
                          "legal / guideline / standard = ingest a legal project folder, guidelines or standards (folder or file, see _legal.yaml); "
@@ -789,9 +789,10 @@ def main() -> None:
     if a.kind == "all":
         asyncio.run(ingest_all(a.path, opts, force=a.force))
         return
-    if a.kind in ("legal", "guideline", "standard"):
+    if a.kind in ("legal", "guideline", "standard", "guidance"):
         from .legal_ingest import ingest_legal
-        dt = {"legal": DocType.legal_project, "guideline": DocType.legal_guideline, "standard": DocType.standard}[a.kind]
+        dt = {"legal": DocType.legal_project, "guideline": DocType.legal_guideline, "standard": DocType.standard,
+              "guidance": DocType.guidance}[a.kind]
         r = asyncio.run(ingest_legal(a.path, dt, opts))
         print(f"{dt.value}: {getattr(r, 'name', None) or getattr(r, 'filename', '')} ingested")
         return

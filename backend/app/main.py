@@ -651,7 +651,7 @@ async def ingest(
                 shutil.copyfileobj(up.file, f)
             jid = str(uuid.uuid4())
             JOBS[jid] = {"status": "queued", "kind": doc_type.value, "name": path.name}
-            background.add_task(_run_job, jid, ingest_legal(path, doc_type, opts) if doc_type in (DocType.legal_guideline, DocType.standard)
+            background.add_task(_run_job, jid, ingest_legal(path, doc_type, opts) if doc_type in (DocType.legal_guideline, DocType.standard, DocType.guidance)
                                 else ingest_file(path, doc_type, opts, project_name))
             job_ids.append(jid)
     return {"jobs": job_ids}

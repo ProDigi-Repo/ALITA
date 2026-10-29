@@ -7,7 +7,8 @@
 | Type | Folder | What it is |
 |---|---|---|
 | `legal_project` | `research/<DB>/legal/<Project>/` (upload: one ZIP per project) | like a research project: the versions of a law (proposal, positions, adopted text, consolidated versions) are its stages; accompanying documents (impact assessment, opinions, commentary) belong to it |
-| `legal_guideline` | `research/<DB>/guidelines/` | guidelines, FAQ, interpretation aids of authorities (soft law) |
+| `legal_guideline` | `research/<DB>/guidelines/` | formally adopted guidelines of authorities, e.g. Commission guidelines C(2025) … (soft law) |
+| `guidance` (since 3.3.0) | `research/<DB>/guidance/` (also `faq/`, `faqs/`) | Guidance & FAQ: Q&A pages, FAQs, factsheets and explanations of authorities without a reference number (not binding); `kind: faq`; split into topics `tp_n` and questions `q_n.m` ("Q 2.1"); each printed snapshot of a web page is a version (stage `snapshot`); typed `fabio:WebPage` / `bibo:Webpage` |
 | `standard` | `research/<DB>/standards/` | ISO, IEC, CEN, DIN … one file per standard (check the licence before storing full texts) |
 
 ## Model
