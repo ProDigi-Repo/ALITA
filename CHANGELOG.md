@@ -8,6 +8,20 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [Unreleased]
 
+## [3.2.1] - 2026-10-29
+
+> **Patch release – Commission guidelines.** First legal guideline of the database "EU AI Act": the Commission Guidelines on the definition of an artificial intelligence system established by Regulation (EU) 2024/1689, C(2025) 5053 final of 29 July 2025 (13 pages). Commission guidelines are structured by sections "I.", "II.", headings "1." and "5.1." and margin numbers "(1)" … "(64)" – the parser expected margin numbers "1." and took the footnotes ("4 For overview …") for headings. Checked on the real file: 3 sections, 9 headings, all 64 margin numbers, no footnotes in the text; 138 text units. One new requirement (REQ-46). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest guideline /research/EUAIA/guidelines`. Roll back with `git checkout v3.2.0`.
+
+### Requirements
+- **REQ-46 Add a legal guideline (Commission Guidelines on the AI system definition)** – ✅ prepared and checked offline; file and `_legal.yaml` in `research/EUAIA/guidelines/` (stage `published`, valid from 2025-07-29); the ingestion runs in Docker.
+
+### Fixed
+- Commission guidelines: margin numbers in brackets ("(13)") are recognised as margin numbers (cited as "Para. 13"); sections "I." – "III." group the headings and margin numbers ("Section II"); headings need a dot ("1. Machine-based system"); footnote blocks ("4 For overview …", after a blank line, numbers ascending) are left out, so a margin number continues across the page. ISO-style standards ("4 Context of the organization") are not affected – the footnote rule applies only to documents with margin numbers in brackets.
+
+### Open points
+- The guideline is not yet linked to the provisions it explains (Art. 3(1), Art. 96(1)(f) AI Act); ALITA finds it by content and database, not through a link in the graph.
+- Inline footnote markers stay in the text ("(‘the AI Act’)1 entered into force").
+
 ## [3.2.0] - 2026-10-29
 
 > **Minor release – applying an amending act.** Fourth version of the AI Act legal project: the Digital Omnibus on AI, Regulation (EU) 2026/1744 of 8 July 2026 (OJ L, 24.7.2026, in force 27 July 2026). It is an amending act – 72 instructions such as "in Article 6, the following paragraphs are inserted: ‘1a. …’" – not a consolidated text. ALITA now applies such instructions to the previous version and builds the consolidated version itself, as the actions "commanded by" the amending act in SAT-Graph RAG. On the real files: 63 of 72 instructions applied exactly, 5 approximately (first subparagraph / introductory part), 4 reported as not applied (two later subparagraphs, two point deletions inside annexes); new Articles 4a, 60a, 75a–75d and Annex XIV; the Regulation of 2024 is valid until 26 July 2026, the consolidated version from 27 July 2026. One new requirement (REQ-45). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest legal /research/EUAIA/legal/EU-AI-Act`. Roll back with `git checkout v3.1.1`.

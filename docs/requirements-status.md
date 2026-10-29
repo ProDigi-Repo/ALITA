@@ -1,4 +1,4 @@
-# ALITA – requirements status (3.2.0, 2026-10-29)
+# ALITA – requirements status (3.2.1, 2026-10-29)
 
 Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wording, the request as a requirement, acceptance criterion).
 
@@ -49,6 +49,7 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 | REQ-43 | Next version of the AI Act: IMCO/LIBE draft compromise amendments (9 May 2023) as a partial version | 🔄 in progress – ingestion in Docker pending | 3.1.0 | `_legal.yaml` version 2 of 4, stage `committee`, `partial: true`; `merge_partial` (missing parts unchanged from the previous version, no deletions), committee stage in the planner, parser for compromise blocks CA 1–12, article numbers "54 a"/"28(a)", recitals "(65a)", comparison by letters and digits only (`cmp_key`). Checked offline: 104 articles (24 new), 129 recitals, 0 removed; smallest changes are real (EUR 250 000 → 750 000, user → deployer). |
 | REQ-44 | Final AI Act: Regulation (EU) 2024/1689 from the Official Journal | 🔄 in progress – ingestion in Docker pending | 3.1.1 | File placed as version 3 of 4 (stage `adopted`, in force 2024-08-01, application dates of Art. 113). Official Journal parsing fixed: footnotes are no recitals (236 → 180), section headings kept (8 → 16), references in annexes are no articles (115 → 113); the rule for Article 101 beats the rule for Chapter XII. Checked offline: structure exactly as the regulation; application dates of Art. 5, 6(1), 50, 53, 78, 99, 101 correct. |
 | REQ-45 | Digital Omnibus on AI (Regulation (EU) 2026/1744) in the AI Act project | 🔄 in progress – ingestion in Docker pending | 3.2.0 | Version 4 (`consolidated`, in force 2026-07-27, `apply_amendments`); `app/legal_amend.py` applies the 72 instructions to version 3: 63 exactly, 5 approximately, 4 reported as not applied (later subparagraphs, points inside annexes); new Art. 4a, 60a, 75a–75d, Annex XIV; application dates of the amended Art. 113; report per instruction in the document details. |
+| REQ-46 | Legal guideline: Commission Guidelines on the AI system definition, C(2025) 5053 (29.7.2025) | 🔄 in progress – ingestion in Docker pending | 3.2.1 | File + `_legal.yaml` in `research/EUAIA/guidelines/` (stage `published`, valid from 2025-07-29). Parser for Commission guidelines: sections I.–III., headings 1./5.1., margin numbers (1)–(64) as `rn_n` ("Para. 13"), footnotes left out. Checked offline: 3 sections, 9 headings, 64 margin numbers, 138 text units. |
 
 ## Open points for the requirement owners
 - REQ-10, REQ-15 – REQ-18: main document chain per project, inferred links between versions and analyses, threshold for "substantive", AI stage texts automatic or on demand, versions without full text.

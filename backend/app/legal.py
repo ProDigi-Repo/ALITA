@@ -138,10 +138,15 @@ _CA = re.compile(r"(?:^|\s)CA\s+(\d{1,3})$")              # Kopfzeile eines Komp
 CA_MARK = "\x00CA "
 _CLAUSE = re.compile(r"^(\d{1,2}(?:\.\d{1,3}){0,4})\.?\s+([A-ZÄÖÜ][^\n]{1,110})$")
 _MARGIN = re.compile(r"^(\d{1,4})\.\s+(\S.*)$")
+_MARGIN_P = re.compile(r"^\((\d{1,4})\)\s+(\S.*)$")             # Randnummern „(13)“ der Kommissionsleitlinien
+_ROMAN_SEC = re.compile(r"^([IVX]{1,5})\.\s+([A-Z].{1,110})$")   # „II. Objective and main elements …“
+_FN_LINE = re.compile(r"^(\d{1,3})\s+(?![\d.])\S")                # Fußnote „4 For overview …“ (Ziffer ohne Punkt)
 
 
-def clean_lines(text: str) -> list[str]:
-    """Zeilen ohne Seitenzahlen und ohne wiederkehrende Kopf-/Fußzeilen (z. B. „OJ L, 12.7.2024“, „EN“)."""
+def clean_lines(text: str, numbered_footnotes: bool = False) -> list[str]:
+    """Zeilen ohne Seitenzahlen und ohne wiederkehrende Kopf-/Fußzeilen (z. B. „OJ L, 12.7.2024“, „EN“).
+    numbered_footnotes: Fußnotenblöcke „4 For overview …“ (nach einer Leerzeile, Nummern aufsteigend) entfernen –
+    nur für Dokumente mit Randnummern „(n)“ (Kommissionsleitlinien); Normen nach ISO haben „4 Context …“ als Gliederung."""
     raw = [ln.strip() for ln in (text or "").replace("\r", "").split("\n")]
     freq: dict[str, int] = {}
     for ln in raw:
@@ -156,6 +161,16 @@ def clean_lines(text: str) -> list[str]:
                 j -= 1
             if j < 0 or not raw[j] or _LINE_SKIP.match(raw[j]):   # davor Seitenzahl/Leerzeile: das ist der Kopf
                 drop.update(head)
+    if numbered_footnotes:
+        last = 0
+        for i, ln in enumerate(raw):
+            m = _FN_LINE.match(ln)
+            if m and (i == 0 or not raw[i - 1]) and last < int(m.group(1)) <= last + 4:
+                last = int(m.group(1))
+                j = i
+                while j < len(raw) and raw[j]:
+                    drop.add(j)
+                    j += 1
     for i, ln in enumerate(raw):                  # Amtsblatt: Fußnoten der Seite stehen als Block direkt nach der Fußzeile
         if _OJ_FOOTER.search(ln) and _PAGE_OF.search(ln) and i + 1 < len(raw) and _FOOTNOTE.match(raw[i + 1]):
             j = i + 1
@@ -201,7 +216,8 @@ def parse_components(text: str, kind: str = "law") -> list[Component]:
     """Text eines Gesetzes / einer Leitlinie / eines Standards -> Bestandteile mit Hierarchie (strukturbewusste Segmentierung,
     Paper Abschnitt 3.3). Gesetze: Erwägungsgründe, Kapitel, Abschnitte, Artikel bzw. §, Absätze, Nummern/Buchstaben, Anhänge.
     Standards und Leitlinien: nummerierte Clauses (6, 6.1, 6.1.2), Anhänge und – bei Leitlinien – Randnummern."""
-    lines = clean_lines(text)
+    eu_gl = kind == "guideline" and len(re.findall(r"(?m)^\s*\(\d{1,4}\)\s", text or "")) >= 3   # Kommissionsleitlinie
+    lines = clean_lines(text, numbered_footnotes=eu_gl)
     style = detect_style(lines) if kind == "law" else "clause"
     if kind == "law" and style == "clause":
         style = "en"
@@ -230,6 +246,7 @@ def parse_components(text: str, kind: str = "law") -> list[Component]:
     clause_stack: list[Component] = []
 
     ca_seen = in_annexes = False
+    roman: Component | None = None                # Hauptabschnitt „II.“ einer Leitlinie
     for ln in lines:
         if ln.startswith(CA_MARK):                # neuer Kompromissblock: Gliederung von vorn, Erwägungsgründe zuerst
             ca_seen = True
@@ -358,7 +375,14 @@ def parse_components(text: str, kind: str = "law") -> list[Component]:
                 cur = add(f"anx_{m.group(2)}", "annex", m.group(2), None, m.group(3) or "")
                 expect_title = cur if not cur.title else None
                 continue
+            m = _ROMAN_SEC.match(ln) if eu_gl else None
+            if m and not ln.rstrip().endswith((".", ";", ",")):
+                clause_stack = []
+                roman = cur = add(f"sec_{m.group(1)}", "section", m.group(1), None, m.group(2).strip())
+                continue
             m = _CLAUSE.match(ln)
+            if eu_gl and m and not re.match(r"^\d+(?:\.\d+)*\.\s", ln):
+                m = None                          # Leitlinie: Gliederung immer „5.1.“ mit Punkt
             if m and not ln.rstrip().endswith((".", ";", ",")) and int(m.group(1).split(".")[0]) <= 30:
                 num = m.group(1)
                 prefix = None
@@ -370,15 +394,17 @@ def parse_components(text: str, kind: str = "law") -> list[Component]:
                     prefix = clause_stack[-1].cid
                 elif annex and len(parts) > 1:
                     prefix = annex
-                cid = (f"{annex}/cl_{num}" if annex and prefix else f"cl_{num}")
+                elif roman is not None and not annex:
+                    prefix = roman.cid
+                cid = (f"{annex}/cl_{num}" if annex and prefix and prefix.startswith("anx_") else f"cl_{num}")
                 c = add(cid, "clause", num, prefix, m.group(2))
                 clause_stack.append(c)
                 cur = c
                 continue
             if kind == "guideline":
-                mm = _MARGIN.match(ln)
+                mm = (_MARGIN_P if eu_gl else _MARGIN).match(ln)
                 if mm:
-                    parent = clause_stack[-1].cid if clause_stack else None
+                    parent = clause_stack[-1].cid if clause_stack else (roman.cid if roman else None)
                     cur = add(f"rn_{mm.group(1)}", "margin", mm.group(1), parent, "", mm.group(2))
                     continue
             cur.text = (cur.text + "\n" + ln) if cur.text else ln
@@ -420,6 +446,8 @@ def component_label(cid: str, title: str = "") -> str:
         return f"Para. {head[3:]}"
     elif head == "pre":
         return "Preamble"
+    elif head.startswith("sec_"):
+        return f"Section {head[4:]}"
     elif head == "lfs":
         return "Legislative financial statement"
     for p in parts[1:]:

@@ -488,3 +488,42 @@ def test_apply_amendments_from_an_amending_act():
                         amendments=rep, amended_by={"title": "Regulation (EU) 2099/9"})]
     m = L.build_history({"norm_id": "x", "title": "X"}, v)
     assert m["versions"][1]["amendments"] and m["versions"][1]["removed"] >= 1
+
+
+EU_GUIDELINE = """COMMUNICATION FROM THE COMMISSION
+Commission Guidelines on the definition of an artificial intelligence system
+
+I. Purpose of the Guidelines
+
+(1) The AI Act entered into force on 1 August 2024.1 It lays down rules.
+
+(2) The definition of an AI system is key.
+
+1 Regulation (EU) 2024/1689.
+2 Article 1 AI Act.
+
+II. Objective and main elements of the AI system definition
+(3) Article 3(1) defines an AI system.
+1. Machine-based system
+(4) The term machine-based refers to the fact that AI systems run on machines. For example,
+
+4 For overview of the AI system phases see the OECD (2024),
+https://doi.org/10.1787/623da898-en, p.7.
+
+quantum computing systems are machine-based systems.
+5.1. AI techniques that enable inference
+(5) Machine learning approaches learn from data.
+III. Concluding remarks
+(6) The Commission will update these Guidelines.
+"""
+
+
+def test_commission_guideline_margins_sections_and_footnotes():
+    cs = {c.cid: c for c in L.parse_components(EU_GUIDELINE, "guideline")}
+    assert cs["sec_II"].title.startswith("Objective") and cs["cl_1"].parent == "sec_II"
+    assert [c for c in cs if c.startswith("rn_")] == ["rn_1", "rn_2", "rn_3", "rn_4", "rn_5", "rn_6"]
+    assert cs["rn_1"].parent == "sec_I" and cs["rn_4"].parent == "cl_1" and cs["rn_6"].parent == "sec_III"
+    assert "quantum computing" in cs["rn_4"].text and not any("OECD" in c.text or "Regulation (EU) 2024/1689." in c.text
+                                                              for c in cs.values())
+    assert "cl_4" not in cs and "cl_2" not in cs                          # Fußnoten „4 …“, „2 …“ sind keine Gliederung
+    assert L.component_label("sec_II") == "Section II" and L.component_label("rn_4") == "Para. 4"
