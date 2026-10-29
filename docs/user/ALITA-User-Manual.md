@@ -1,4 +1,4 @@
-# ALITA – User Manual (front-end, v3.1.1)
+# ALITA – User Manual (front-end, v3.2.0)
 
 ALITA lets you ask questions of your research documents and get answers with numbered, clickable sources.
 The quick visual version is [`ALITA-Cheat-Sheet-Comic.pdf`](ALITA-Cheat-Sheet-Comic.pdf).
@@ -117,6 +117,7 @@ ALITA knows three more kinds of data: **Legal projects** (the versions of a law 
 - In the document details of a version: stage, in force from–to, application date, the amending act, all versions of the norm and **Show the changes of this version**.
 - Dates of entry into force and application come from a small file `_legal.yaml` in the folder (template in `research/EUAIA/legal/EU-AI-Act/`). Without it ALITA takes the file dates – then point-in-time answers are only as good as those dates. A version can consist of several files (e.g. a Commission proposal and its separate annexes): list them together, `file: [proposal.pdf, annexes.pdf]`.
 - Some drafting documents contain only the amended parts – e.g. the compromise amendments of a Parliament committee. Mark such a version with `partial: true` in `_legal.yaml`; everything not in the document is then taken unchanged from the previous version instead of being counted as deleted, and the document details show "Scope: only the amended parts". Ask about this stage with words like *"in the IMCO/LIBE compromise amendments"* or *"im Ausschuss"*.
+- An amending act (e.g. the Digital Omnibus on AI) contains instructions, not a full text. With `apply_amendments: <name of the amended act>` in `_legal.yaml` ALITA applies the instructions to the previous version and builds the consolidated version itself; the document details show how many instructions were applied and list those it could only apply approximately or not at all (later subparagraphs, points inside annexes). For exact work, check those against the consolidated text on EUR-Lex.
 - If only drafts of a law are in the collection (e.g. just the Commission proposal), answers use the latest draft and say so ("no version in force …, showing the latest draft").
 
 **See who cites whom (⇄ Citations)**

@@ -36,6 +36,8 @@ function legalDocHtml(full){
     <dt>Norm</dt><dd>${esc(lg.norm_title||'')}${lg.eli?` <a class="mono" href="${esc(lg.eli)}" target="_blank" rel="noopener">ELI</a>`:''}</dd>
     <dt>Version</dt><dd>${lg.seq} of ${lg.versions} · ${esc(lg.stage_label||STAGE_LABEL[lg.stage]||lg.stage)}${lg.current?' <span class="latest">current</span>':''}</dd>
     ${(lg.files||[]).length>1?`<dt>Files</dt><dd>${lg.files.map(esc).join(' + ')}</dd>`:''}
+    ${(lg.amendments||[]).length?(()=>{const A=lg.amendments,n=k=>A.filter(a=>a.status===k).length,open=A.filter(a=>a.status!=='applied');
+      return `<dt>Amendments</dt><dd>generated from the amending act: ${n('applied')} of ${A.length} instructions applied${n('approximate')?`, ${n('approximate')} approximately`:''}${n('not_applied')?`, <b>${n('not_applied')} not applied</b>`:''}${open.length?`<details class="lg-amend"><summary>Show</summary><ul>${open.map(a=>`<li><b>${esc(a.instruction)}</b> ${a.status==='approximate'?'≈':'✗'} ${esc(a.text)}${a.note?` <span class="srcnote">– ${esc(a.note)}</span>`:''}</li>`).join('')}</ul></details>`:''}</dd>`})():''}
     ${lg.partial?`<dt>Scope</dt><dd>only the amended parts <span class="srcnote">(all other parts are taken unchanged from the previous version)</span></dd>`:''}
     <dt>In force</dt><dd>${lg.in_force?esc(lg.in_force)+' – '+esc(lg.valid_to||'today'):'<span class="srcnote">not in force (drafting stage)</span>'}</dd>
     ${lg.applicable?`<dt>Applies from</dt><dd>${esc(lg.applicable)} <span class="srcnote">(some provisions may differ)</span></dd>`:''}

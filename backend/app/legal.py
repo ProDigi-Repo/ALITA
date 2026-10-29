@@ -125,7 +125,7 @@ _SUPPLEMENT = re.compile(r"^(LEGISLATIVE FINANCIAL STATEMENT|FINANZBOGEN ZU RECH
 _DEF_EN = re.compile(r"^\((\d{1,3}[a-z]?)\)(?:\s+(\S.*))?$")      # Begriffsbestimmungen „(1) ‘AI system’ means …“
 _ENACTING = re.compile(r"(HAVE|HAS) ADOPTED TH(IS|E FOLLOWING)|HAT FOLGENDE|HABEN FOLGENDE|ERLASSEN:?\s*$", re.I)
 _RECITAL = re.compile(r"^\((\d{1,3}\s?[a-z]?)\)(?:\s+(\S.*))?$")
-_PARA_EN = re.compile(r"^(\d{1,3})\.(?:\s+(\S.*))?$")
+_PARA_EN = re.compile(r"^(\d{1,3}[a-z]?)\.(?:\s+(\S.*))?$")      # auch eingefügte Absätze „1a.“
 _PARA_DE = re.compile(r"^\((\d{1,3}[a-z]?)\)(?:\s+(\S.*))?$")
 _POINT_EN = re.compile(r"^\(([a-z]{1,2})\)(?:\s+(\S.*))?$")
 _POINT_DE = re.compile(r"^([a-z]{1,2})\)(?:\s+(\S.*))?$")
@@ -133,6 +133,7 @@ _NUM_DE = re.compile(r"^(\d{1,3})\.(?:\s+(\S.*))?$")
 _ROMAN = re.compile(r"^\(((?:i|ii|iii|iv|v|vi|vii|viii|ix|x|xi|xii))\)(?:\s+(\S.*))?$")
 _OJ_FOOTER = re.compile(r"ELI:\s*https?://data\.europa\.eu/eli/\S+")   # Fußzeile jeder Amtsblattseite („ELI: … 2/144“)
 _FOOTNOTE = re.compile(r"^\(\d{1,3}\)\s")
+_PAGE_OF = re.compile(r"(?:^|\s)\d{1,4}/\d{1,4}(?:\s|$)")              # „15/41“ – nur echte Seitenfußzeilen, kein ELI-Zitat im Text
 _CA = re.compile(r"(?:^|\s)CA\s+(\d{1,3})$")              # Kopfzeile eines Kompromissblocks („Articles 40 to 51 … CA 2“)
 CA_MARK = "\x00CA "
 _CLAUSE = re.compile(r"^(\d{1,2}(?:\.\d{1,3}){0,4})\.?\s+([A-ZÄÖÜ][^\n]{1,110})$")
@@ -156,7 +157,7 @@ def clean_lines(text: str) -> list[str]:
             if j < 0 or not raw[j] or _LINE_SKIP.match(raw[j]):   # davor Seitenzahl/Leerzeile: das ist der Kopf
                 drop.update(head)
     for i, ln in enumerate(raw):                  # Amtsblatt: Fußnoten der Seite stehen als Block direkt nach der Fußzeile
-        if _OJ_FOOTER.search(ln) and i + 1 < len(raw) and _FOOTNOTE.match(raw[i + 1]):
+        if _OJ_FOOTER.search(ln) and _PAGE_OF.search(ln) and i + 1 < len(raw) and _FOOTNOTE.match(raw[i + 1]):
             j = i + 1
             while j < len(raw) and raw[j]:
                 drop.add(j)
@@ -541,6 +542,7 @@ class VersionInput:
     title: str = ""
     components: list[Component] = field(default_factory=list)
     partial: bool = False               # Dokument enthält nur geänderte Teile; fehlende sind aus der Vorfassung übernommen
+    amendments: list[dict] = field(default_factory=list)   # Fassung aus einer Änderungsverordnung erzeugt: Bericht je Befehl
 
 
 def applicable_for(cid: str, path: list[str], v: VersionInput) -> str | None:
@@ -654,7 +656,7 @@ def build_history(norm: dict, versions: list[VersionInput]) -> dict:
                      "title": v.title, "date": iso(v.date), "in_force": vfrom.get(v.seq), "valid_to": vto.get(v.seq),
                      "applicable": iso(v.applicable), "amended_by": v.amended_by, "language": v.language,
                      "components": len(comps), "added": added, "changed": changed, "removed": removed,
-                     "partial": v.partial})
+                     "partial": v.partial, "amendments": v.amendments})
         prev, prev_v = cur, v
     # Geltung je CTV: über die gültigen Fassungen, die sie umfasst
     for c in ctvs.values():

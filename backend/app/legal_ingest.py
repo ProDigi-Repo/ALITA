@@ -191,22 +191,33 @@ async def ingest_legal(path: Path, doc_type: DocType, opts):
             in_force = iso(v.get("in_force"))
             if not in_force and n.get("guessed") and stage not in DRAFT_STAGES and r.date:
                 in_force = r.date.date().isoformat()          # ohne Metadaten: gilt ab ihrem Datum (offengelegt in date_source)
-            comps = parse_components(it.extracted.text, n["kind"])
             partial = bool(v.get("partial")) and bool(vin)
-            if partial:                           # nur geänderte Teile im Dokument: Rest aus der Vorfassung
-                comps = merge_partial(vin[-1].components, comps)
+            report: list[dict] = []
+            if v.get("apply_amendments") and vin:   # REQ-45: Änderungsverordnung -> konsolidierte Fassung aus der Vorfassung
+                from .legal_amend import apply_amendments
+                src = (v.get("amended_by") or {}).get("title") or r.title
+                comps, report = apply_amendments(vin[-1].components, it.extracted.text, str(v["apply_amendments"]), src)
+                st = {k: sum(1 for x in report if x["status"] == k) for k in ("applied", "approximate", "not_applied")}
+                log.info("%s: %d Änderungsbefehle – %s", n["norm_id"], len(report), st)
+            else:
+                comps = parse_components(it.extracted.text, n["kind"])
+                if partial:                       # nur geänderte Teile im Dokument: Rest aus der Vorfassung
+                    comps = merge_partial(vin[-1].components, comps)
             vin.append(VersionInput(seq=seq, doc_id=r.doc_id, stage=stage, date=iso(v.get("date")) or (r.date.date().isoformat() if r.date else None),
                                     in_force=in_force, applicable=iso(v.get("applicable")), applicability=v.get("applicability") or [],
                                     no_longer_in_force=iso(n.get("no_longer_in_force")) if seq == len(vlist) else None,
                                     language=v.get("language") or n.get("language") or "en", amended_by=v.get("amended_by"),
-                                    title=v.get("title") or r.title, components=comps, partial=partial))
+                                    title=v.get("title") or r.title, components=comps, partial=partial, amendments=report))
             if r.project is not None:
                 r.project.role = ProjectRole.legal_text
                 r.project.version_group = n["norm_id"]
                 r.project.version, r.project.version_num = str(seq), seq
                 r.project.stage = stage
                 r.project.is_latest = seq == len(vlist)
-            if seq == len(vlist) and stage not in DRAFT_STAGES:
+            if v.get("apply_amendments"):         # Datei ist die Änderungsverordnung, die Fassung ist konsolidiert
+                r.title = (f"{n.get('short') or n['title']} – {STAGE_LABEL.get(stage, stage)} "
+                           f"({(v.get('amended_by') or {}).get('title') or 'amendments applied'})")
+            elif seq == len(vlist) and stage not in DRAFT_STAGES:
                 r.title = n["title"]                  # geltende Fassung trägt den Titel der Norm
             else:                                     # Entwurf (auch wenn er die jüngste Fassung ist): „AI Act – Proposal“
                 r.title = f"{n.get('short') or n['title']} – {STAGE_LABEL.get(stage, stage)}"
@@ -221,7 +232,9 @@ async def ingest_legal(path: Path, doc_type: DocType, opts):
                        "amended_by": vs["amended_by"], "components": vs["components"],
                        "files": [q.name for q in (next(v for v in vlist if by_path[v["path"]].record.doc_id == vi.doc_id).get("parts")
                                                    or [])], "added": vs["added"],
-                       "changed": vs["changed"], "removed": vs["removed"], "current": vs["seq"] == len(vin), "partial": vs.get("partial", False)}
+                       "changed": vs["changed"], "removed": vs["removed"], "current": vs["seq"] == len(vin), "partial": vs.get("partial", False),
+                       "amendments": [{k: a.get(k) for k in ("instruction", "text", "op", "status", "note", "components")}
+                                      for a in vs.get("amendments") or []]}
         save_model(model)
         models.append(model)
     # 3. LLM-Zusammenfassung: nur die aktuelle Fassung jeder Norm und die Begleitdokumente (Kosten)
@@ -288,7 +301,7 @@ async def ingest_legal(path: Path, doc_type: DocType, opts):
         project.indexed_count = sum(1 for it in items if it.record.indexed)
         cur = next((it.record for it in current), None)
         if cur:
-            project.title = cur.title or cur.legal.get("norm_title")
+            project.title = (cur.legal.get("norm_title") if cur.legal.get("in_force") else None) or cur.title   # Entwurf: „AI Act – Proposal“
             if not cur.summary.is_empty():
                 project.summary = cur.summary.model_copy(update={"source_doc_id": cur.doc_id})
         store.upsert_project(project)

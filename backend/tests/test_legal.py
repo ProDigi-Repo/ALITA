@@ -436,3 +436,55 @@ def test_official_journal_footnotes_sections_and_annex_references():
     assert not any("OJ C 517" in c.text or "13 March 2024" in c.text for c in cs.values())
     assert cs["art_6"].parent == "chp_III/sec_1"
     assert "art_49" not in cs and "art_17" not in cs and "Article 49" in cs["anx_VIII"].text   # Verweise im Anhang
+
+
+AMENDING_ACT = """REGULATION (EU) 2099/9 amending Regulation (EU) 2099/1
+HAVE ADOPTED THIS REGULATION:
+Article 1
+Amendments to Regulation (EU) 2099/1
+Regulation (EU) 2099/1 is amended as follows:
+(1) in Article 1, paragraph 2 is replaced by the following:
+‘2. It does not apply to military or national security uses.’;
+(2) Article 2 is amended as follows:
+(a) point (b) is replaced by the following:
+‘(b) “provider” means a natural or legal person who develops an AI system;’;
+(b) the following point is inserted:
+‘(ba) “SMC” means a small mid-cap enterprise;’;
+(3) the following Article is inserted:
+‘Article 2a
+AI literacy
+1. Providers shall support AI literacy.’;
+(4) in Article 6, paragraph 2 is deleted;
+(5) in Article 6(1), the following subparagraph is added:
+‘This paragraph shall be reviewed by 2030.’;
+(6) Annex III is amended as follows:
+(a) point 1 is deleted;
+OJ L, 24.7.2099 EN
+ELI: http://data.europa.eu/eli/reg/2099/9/oj 2/3
+
+Article 2
+Entry into force
+This Regulation shall enter into force on the third day following that of its publication.
+"""
+
+
+def test_apply_amendments_from_an_amending_act():
+    from app.legal_amend import apply_amendments
+    prev = L.parse_components(EN_V1, "law")
+    comps, rep = apply_amendments(prev, AMENDING_ACT, "Regulation (EU) 2099/1", "Regulation (EU) 2099/9")
+    cs = {c.cid: c for c in comps}
+    assert "national security" in cs["art_1/abs_2"].text
+    assert "legal person" in cs["art_2/pt_b"].text and "art_2/pt_ba" in cs
+    assert cs["art_2a"].title == "AI literacy" and cs["art_2a"].parent == "chp_I" and "art_2a/abs_1" in cs
+    order = [c.cid for c in comps if c.type == "article"]
+    assert order.index("art_2") < order.index("art_2a") < order.index("art_6")
+    assert "art_6/abs_2" not in cs and "reviewed by 2030" in cs["art_6/abs_1"].text
+    st = {r["instruction"]: r["status"] for r in rep}
+    assert st["(1)"] == st["(2)(a)"] == st["(2)(b)"] == st["(3)"] == st["(4)"] == st["(5)"] == "applied"
+    assert st["(6)(a)"] == "not_applied"                                    # Punkte in Anhängen: offen gemeldet
+    assert "Entry into force" not in " ".join(c.text for c in comps)        # Art. 2 des Änderungsakts gehört nicht dazu
+    v = [L.VersionInput(seq=1, doc_id="a", stage="adopted", date="2099-01-01", in_force="2099-02-01", components=prev),
+         L.VersionInput(seq=2, doc_id="b", stage="consolidated", date="2099-07-27", in_force="2099-07-27", components=comps,
+                        amendments=rep, amended_by={"title": "Regulation (EU) 2099/9"})]
+    m = L.build_history({"norm_id": "x", "title": "X"}, v)
+    assert m["versions"][1]["amendments"] and m["versions"][1]["removed"] >= 1

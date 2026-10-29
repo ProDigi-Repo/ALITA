@@ -8,6 +8,27 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-10-29
+
+> **Minor release – applying an amending act.** Fourth version of the AI Act legal project: the Digital Omnibus on AI, Regulation (EU) 2026/1744 of 8 July 2026 (OJ L, 24.7.2026, in force 27 July 2026). It is an amending act – 72 instructions such as "in Article 6, the following paragraphs are inserted: ‘1a. …’" – not a consolidated text. ALITA now applies such instructions to the previous version and builds the consolidated version itself, as the actions "commanded by" the amending act in SAT-Graph RAG. On the real files: 63 of 72 instructions applied exactly, 5 approximately (first subparagraph / introductory part), 4 reported as not applied (two later subparagraphs, two point deletions inside annexes); new Articles 4a, 60a, 75a–75d and Annex XIV; the Regulation of 2024 is valid until 26 July 2026, the consolidated version from 27 July 2026. One new requirement (REQ-45). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest legal /research/EUAIA/legal/EU-AI-Act`. Roll back with `git checkout v3.1.1`.
+
+### Requirements
+- **REQ-45 Add the Digital Omnibus on AI to the AI Act project** – ✅ prepared and checked offline; file placed, `_legal.yaml` version 4 (`consolidated`, in force 2026-07-27, `apply_amendments: Regulation (EU) 2024/1689`, application dates of the amended Article 113); the ingestion runs in Docker.
+
+### Added
+- `app/legal_amend.py`: reads the article of an amending act that amends the norm, splits it into instructions (target, operation, quoted new text) and applies them to the previous version: replace / insert / add / delete for articles, paragraphs ("1a."), points ("(ba)"), definitions ("(14a)"), headings, subparagraphs (added; first subparagraph and introductory part replaced approximately) and whole annexes; a report per instruction (`applied`, `approximate`, `not_applied` with a reason).
+- `_legal.yaml`: `apply_amendments: <amended act as named in the amending act>` for a version whose file is an amending act; its document is titled "AI Act – Consolidated version (…)".
+- Document details: "Amendments – generated from the amending act: n of m instructions applied …" with the list of instructions that were applied only approximately or not at all.
+- Paragraph numbers with letters ("1a.", "1b.") are recognised.
+
+### Fixed
+- An ELI link inside a text ("… (OJ L 165, …, ELI: http://data.europa.eu/eli/reg/2023/1230/oj).") was taken for the page footer of an Official Journal page, and the following lines were dropped as footnotes. Only footer lines with a page counter ("15/41") count now.
+
+### Open points
+- Instructions on later subparagraphs (Art. 11(1) second subparagraph, Art. 96(1) second subparagraph) and on points inside Annexes I and VIII are not applied – the consolidated text on EUR-Lex has them.
+- Article 113(c) now has two dates for Chapter III Sections 1–3 (2 December 2027 for Annex III systems, 2 August 2028 for Annex I systems); ALITA keeps one date per part: the sections and Annex III from 2 December 2027, Article 6(1) and Annex I from 2 August 2028.
+- The summary of the current version is made from the amending act's text (the file of that version).
+
 ## [3.1.1] - 2026-10-29
 
 > **Patch release – the adopted AI Act from the Official Journal.** Third version of the AI Act legal project: Regulation (EU) 2024/1689 (OJ L, 12.7.2024, 144 pages), in force since 1 August 2024. It was the first Official Journal PDF ALITA read, and three things went wrong: footnotes were read as recitals, section headings disappeared and references in annexes became articles. Fixed and checked on the real file: 180 recitals, 113 articles, 13 chapters with 16 sections, 13 annexes – exactly the structure of the regulation. The application dates of Article 113 are now right for every provision, including the exception for Article 101. One new requirement (REQ-44). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest legal /research/EUAIA/legal/EU-AI-Act` (reads all three versions; unchanged passages keep their vectors). Roll back with `git checkout v3.1.0`.
