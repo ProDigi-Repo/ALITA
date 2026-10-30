@@ -8,6 +8,16 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [Unreleased]
 
+## [3.6.1] - 2026-10-30
+
+> **Patch release – Wachter is public.** Without the password the interface now shows two databases, EU AI Act and Wachter; both chats search these two when nothing is selected. The other databases still appear only after entering the password.
+
+### Requirements
+- **REQ-56 Wachter visible by default like EU AI Act** – ✅ done; checked in a headless browser (locked: EU AI Act and Wachter, empty selection sends both to the backend; unlocked: all ten).
+
+### Changed
+- Public databases (shown without the password): EU AI Act and Wachter (`PUBLIC_DBS` in `frontend/js/databases.js`).
+
 ## [3.6.0] - 2026-10-30
 
 > **Minor release – new database "Wachter".** A tenth database with the ID `WACHTER` and the display name "Wachter" (symbol: a shield with a check mark, colour violet) for scientific papers on trustworthy AI and the EU AI Act. First content, with curated summaries so that no LLM summary is needed: Laux, Wachter & Mittelstadt (2024), "Trustworthy artificial intelligence and the European Union AI act: On the conflation of trustworthiness and acceptability of risk" (Regulation & Governance 18(1), 3–32), and Ho & Caals (2024), "How the EU AI Act Seeks to Establish an Epistemic Environment of Trust" (Asian Bioethics Review 16, 345–372). Like every database except EU AI Act, it is shown only after entering the password (REQ-52).

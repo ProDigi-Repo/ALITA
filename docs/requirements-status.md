@@ -1,4 +1,4 @@
-# ALITA – requirements status (3.6.0, 2026-10-30)
+# ALITA – requirements status (3.6.1, 2026-10-30)
 
 Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wording, the request as a requirement, acceptance criterion).
 
@@ -58,7 +58,8 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 | REQ-52 | Hide all databases except EU AI Act; show the others only after entering a password next to the OpenRouter key | ✅ done – needs deploy | 3.5.0 | Front-end gate: database bar, documents, projects and views only for EU AI Act; chats and people/citation requests limited to EU AI Act when nothing is selected. Field "Password" + "Lock" in the header; unlock stored in localStorage. Not access control – the API still serves all databases. |
 | REQ-53 | Add three scientific papers (Do Khac & Leyer 2026, Laux et al. 2024, Ho & Caals 2024) to EU AI Act | ❌ withdrawn by the requester | – | Prepared and removed again; nothing changed. |
 | REQ-54 | Remove the option to add new databases in the interface | ✅ done – needs deploy | 3.5.1 | Databases are fixed in the backend config; the button "+ Add new data" in the database bar was removed. Upload into existing databases remains under Documents → + Upload. |
-| REQ-55 | New database "Wachter" with two papers (Laux, Wachter & Mittelstadt 2024; Ho & Caals 2024) | 🔄 in progress – ingestion in Docker pending | 3.6.0 | ID `WACHTER`, name "Wachter", shield icon, violet. Files + curated `_summaries.yaml` in `research/WACHTER/papers/`. Hidden without the password (REQ-52). |
+| REQ-55 | New database "Wachter" with two papers (Laux, Wachter & Mittelstadt 2024; Ho & Caals 2024) | 🔄 in progress – ingestion in Docker pending | 3.6.0 | ID `WACHTER`, name "Wachter", shield icon, violet. Files + curated `_summaries.yaml` in `research/WACHTER/papers/`. Public since 3.6.1 (REQ-56). |
+| REQ-56 | Wachter visible by default like EU AI Act | ✅ done – needs deploy (frontend) | 3.6.1 | `PUBLIC_DBS=['EUAIA','WACHTER']`; empty selection sends both to the backend while locked. |
 
 ## Open points for the requirement owners
 - REQ-10, REQ-15 – REQ-18: main document chain per project, inferred links between versions and analyses, threshold for "substantive", AI stage texts automatic or on demand, versions without full text.

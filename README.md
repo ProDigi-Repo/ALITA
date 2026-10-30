@@ -251,7 +251,8 @@ und `APP_VERSION` im Frontend angleichen. Der Test `test_changelog_follows_keepa
 
 | Version | Datum | Inhalt | früher |
 |---|---|---|---|
-| **3.6.0** | 2026-10-30 | **Minor Release – neue Datenbank „Wachter“ (REQ-55):** ID `WACHTER`, Schild-Symbol, Farbe Violett; zwei Paper (Laux, Wachter & Mittelstadt 2024; Ho & Caals 2024) mit kuratierten Summaries in `research/WACHTER/papers/`; wie alle Datenbanken außer EU AI Act nur mit Passwort sichtbar. | 3.5.1 |
+| **3.6.1** | 2026-10-30 | **Patch Release – Wachter öffentlich (REQ-56):** ohne Passwort sind jetzt EU AI Act und Wachter sichtbar; die übrigen Datenbanken weiter nur mit Passwort. | 3.6.0 |
+| 3.6.0 | 2026-10-30 | **Minor Release – neue Datenbank „Wachter“ (REQ-55):** ID `WACHTER`, Schild-Symbol, Farbe Violett; zwei Paper (Laux, Wachter & Mittelstadt 2024; Ho & Caals 2024) mit kuratierten Summaries in `research/WACHTER/papers/`; zunächst nur mit Passwort sichtbar (seit 3.6.1 öffentlich). | 3.5.1 |
 | 3.5.1 | 2026-10-30 | **Patch Release – kein Upload-Button in der Datenbankleiste (REQ-54):** „+ Add new data“ entfernt; Hochladen in bestehende Datenbanken weiter über Documents → + Upload. REQ-53 (drei Paper für EU AI Act) zurückgezogen. | 3.5.0 |
 | 3.5.0 | 2026-10-30 | **Minor Release – nur „EU AI Act“ öffentlich (REQ-52):** ohne Passwort zeigt die Oberfläche nur die Datenbank EU AI Act, beide Chats suchen nur dort; die übrigen Datenbanken erscheinen nach Eingabe des Passworts im Feld „Password“ neben dem OpenRouter-Key („Lock“ blendet sie wieder aus). Nur Anzeige-Filter im Frontend, kein Zugriffsschutz der API. | 3.4.0 |
 | 3.4.0 | 2026-10-30 | **Minor Release – Weißbuch als Begleitdokument (REQ-51):** Weißbuch der Kommission zur KI (COM(2020) 65, 19.2.2020) im Legal project EU-AI-Act; neue Projektrolle `white_paper`; Abschnitt `documents:` in `_legal.yaml` legt Rolle, Datum und Titel von Begleitdokumenten fest. | 3.3.2 |

@@ -20,7 +20,7 @@ let SEL_DB=[];
 try{SEL_DB=JSON.parse(localStorage.getItem('sel_db')||'[]')}catch(e){}
 /* Access gate (3.5.0): without the password only the public databases are shown. The other databases appear
    once the password is entered next to the OpenRouter key (stored in this browser only). */
-const PUBLIC_DBS=['EUAIA'];
+const PUBLIC_DBS=['EUAIA','WACHTER'];   // 3.6.1 (REQ-56): Wachter is public too
 const DB_PASSWORD='password';
 let DB_UNLOCKED=false;
 try{DB_UNLOCKED=localStorage.getItem('db_unlocked')==='1'}catch(e){}
