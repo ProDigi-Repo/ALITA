@@ -8,6 +8,17 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [Unreleased]
 
+## [3.5.1] - 2026-10-30
+
+> **Patch release – no upload button in the database bar.** The button "+ Add new data" in the database bar is gone, so the bar no longer suggests that databases can be added from the interface (the list of databases is fixed in the backend configuration, `DATABASES`). Papers, notes and projects are still uploaded into the existing databases via Documents → + Upload.
+
+### Requirements
+- **REQ-53 Add three scientific papers to "EU AI Act"** – withdrawn by the requester; prepared files and summaries were removed again, nothing changed.
+- **REQ-54 Remove the option to add new databases in the interface** – ✅ done; the only entry that looked like it, "+ Add new data" in the database bar, was removed. Checked in a headless browser: button gone, Documents → + Upload still offers only the visible databases.
+
+### Removed
+- Button "+ Add new data" in the database bar (the dialog behind it is no longer reachable); user manual and Quick Reference point to Documents → + Upload.
+
 ## [3.5.0] - 2026-10-30
 
 > **Minor release – only "EU AI Act" is public.** Without a password the interface shows only the database "EU AI Act": the database bar, document list, projects, clusters, 3D/time view, people and citations contain only its documents, and both chats search only it (an empty selection no longer means "all databases"). The other databases appear once the password is entered in the new field "Password" next to the OpenRouter key; "Lock" hides them again. The unlock is remembered in this browser only.

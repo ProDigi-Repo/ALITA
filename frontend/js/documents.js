@@ -305,7 +305,8 @@ adDrop.addEventListener('drop',e=>{e.preventDefault();if(e.dataTransfer.files.le
 $$('[data-adclose]').forEach(b=>b.addEventListener('click',()=>$('#addData').hidden=true));
 $('#addData').addEventListener('click',e=>{if(e.target===$('#addData'))$('#addData').hidden=true});
 document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(!$('#adConfirm').hidden){$('#adConfirm').hidden=true;return}$('#addData').hidden=true});
-$('#dbAdd').addEventListener('click',adOpen);
+/* 3.6.0 (REQ-54): the "+ Add new data" button was removed from the database bar; uploads go via Documents → + Upload */
+if($('#dbAdd'))$('#dbAdd').addEventListener('click',adOpen);
 /* Second window before the upload: confirms the choice; for projects it checks that every project is one ZIP */
 $('#addForm').addEventListener('submit',e=>{
   e.preventDefault();const files=[...$('#adFiles').files];
