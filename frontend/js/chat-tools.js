@@ -72,7 +72,7 @@ function ragFilters(){
   const types=$$('#ragFilters .chip').filter(c=>c.getAttribute('aria-pressed')==='true').map(c=>c.dataset.v);
   const sc=chatScope();
   const all=$$('#ragFilters .chip[data-v]').length,asOf=$('#rAsOf')&&$('#rAsOf').value;
-  return {...(asOf?{as_of:asOf}:{}),database:[...SEL_DB],doc_type:types.length===all?[]:types,project:sc.project,person:sc.person,filetype:$('#rFiletype').value?[$('#rFiletype').value]:[],
+  return {...(asOf?{as_of:asOf}:{}),database:dbScope(),doc_type:types.length===all?[]:types,project:sc.project,person:sc.person,filetype:$('#rFiletype').value?[$('#rFiletype').value]:[],
     method:$('#rMethod').value?[$('#rMethod').value]:[],cluster:sc.kind==='project'?[]:(sc.cluster.length?sc.cluster:($('#rCluster').value?[+$('#rCluster').value]:[])),deo:$('#rDeo').value?[$('#rDeo').value]:[],role:[],venue:[],year_from:+$('#rFrom').value||null,year_to:+$('#rTo').value||null,latest_only:$('#rLatest').checked};
 }
 function paramSummary(tile){

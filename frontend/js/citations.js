@@ -14,7 +14,7 @@ const ciR=n=>4.5+3.2*Math.sqrt(n.cited_by||0)+(n.kind==='project'?1:0);
 const CI_VIA={'doi':'DOI','title+author+year':'title, first author and year','title+author':'title and first author','title-start+author+year':'start of the title, first author and year','title+year':'title and year','title':'title only'};
 
 async function ciLoad(force){
-  const key=(SEL_DB||[]).join(',');
+  const key=dbScope().join(',');
   if(!force&&CI.data&&CI.key===key)return CI.data;
   if(!LIVE){CI.data={nodes:[],edges:[],stats:{},demo:true};CI.key=key;return CI.data}
   CI.loading=true;ciDraw();

@@ -6,8 +6,20 @@ function renderKey(){
   if(apiKey){s.className='pill ok';s.innerHTML='<span class="dot"></span>Key …'+esc(apiKey.slice(-4));$('#apiKey').value=apiKey}
   else{s.className='pill';s.innerHTML='<span class="dot"></span>no key'}
 }
+function renderDbLock(){
+  const p=$('#dbPass'),l=$('#dbLock');if(!p)return;
+  p.placeholder=DB_UNLOCKED?'all databases unlocked':'show all databases';p.disabled=DB_UNLOCKED;l.hidden=!DB_UNLOCKED;
+}
+$('#dbLock').addEventListener('click',()=>{try{localStorage.removeItem('db_unlocked')}catch(e){}location.reload()});
+renderDbLock();
 $('#keyForm').addEventListener('submit',e=>{
   e.preventDefault();
+  const pw=$('#dbPass').value;
+  if(pw){
+    $('#dbPass').value='';
+    if(pw===DB_PASSWORD){const k=$('#apiKey').value.trim();try{localStorage.setItem('db_unlocked','1');if(k.startsWith('sk-or-'))localStorage.setItem('or_key',k)}catch(e){}DB_UNLOCKED=true;toast('Password correct · all databases are shown');setTimeout(()=>location.reload(),600);return}
+    toast('Wrong password');if(!$('#apiKey').value.trim()||$('#apiKey').value.trim()===apiKey)return;
+  }
   const v=$('#apiKey').value.trim();
   if(v && !v.startsWith('sk-or-')){toast('The key should start with "sk-or-"');return}
   apiKey=v;try{v?localStorage.setItem('or_key',v):localStorage.removeItem('or_key')}catch(e){}
@@ -40,6 +52,7 @@ async function loadDocs(){
     PROJECTS=[{...DEMO.project,db:DEMO.project.db||[]}];
   }
   
+  DOCS=dbGateFilter(DOCS);PROJECTS=dbGateFilter(PROJECTS);
   [...DOCS,...PROJECTS].forEach(x=>{x.cl=dbRelabel(x.cl);if(x.ct)x.ct=dbRelabel(x.ct);if(x.cd)x.cd=dbRelabel(x.cd)});
   if(!LIVE&&DEMO&&DEMO.clusters&&DEMO.clusters.desc&&!DEMO.clusters._relabeled){Object.values(DEMO.clusters.desc).forEach(v=>{v.title=dbRelabel(v.title);v.description=dbRelabel(v.description)});DEMO.clusters._relabeled=true}
   fillFacetSelects();renderDbBar();renderDocs();renderClusterViz();renderClusterPage();loadClusterProfiles();

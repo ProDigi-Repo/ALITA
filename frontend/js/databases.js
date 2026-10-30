@@ -18,6 +18,22 @@ function dbRelabel(s){
 }
 let SEL_DB=[];
 try{SEL_DB=JSON.parse(localStorage.getItem('sel_db')||'[]')}catch(e){}
+/* Access gate (3.5.0): without the password only the public databases are shown. The other databases appear
+   once the password is entered next to the OpenRouter key (stored in this browser only). */
+const PUBLIC_DBS=['EUAIA'];
+const DB_PASSWORD='password';
+let DB_UNLOCKED=false;
+try{DB_UNLOCKED=localStorage.getItem('db_unlocked')==='1'}catch(e){}
+function applyDbGate(){
+  if(DB_UNLOCKED)return;
+  DATABASES=DATABASES.filter(n=>PUBLIC_DBS.includes(n));if(!DATABASES.length)DATABASES=[...PUBLIC_DBS];
+  SEL_DB=SEL_DB.filter(n=>DATABASES.includes(n));
+}
+/* documents/projects visible under the gate: only those in a visible database */
+function dbGateFilter(list){return DB_UNLOCKED?list:(list||[]).filter(x=>(x.db||[]).some(n=>DATABASES.includes(n)))}
+/* databases sent to the backend: the selection, or – while locked – all visible databases (never "all") */
+function dbScope(){return SEL_DB.length?[...SEL_DB]:(DB_UNLOCKED?[]:[...DATABASES])}
+applyDbGate();
 const DB_ICON='<svg width="22" height="24" viewBox="0 0 22 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="11" cy="5" rx="8" ry="3"/><path d="M3 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M3 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>';
 /* Flower icons for the databases (drawn in the database color via currentColor) */
 const DB_FLOWER=(()=>{

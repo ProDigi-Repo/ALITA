@@ -8,6 +8,19 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [Unreleased]
 
+## [3.5.0] - 2026-10-30
+
+> **Minor release – only "EU AI Act" is public.** Without a password the interface shows only the database "EU AI Act": the database bar, document list, projects, clusters, 3D/time view, people and citations contain only its documents, and both chats search only it (an empty selection no longer means "all databases"). The other databases appear once the password is entered in the new field "Password" next to the OpenRouter key; "Lock" hides them again. The unlock is remembered in this browser only.
+
+### Requirements
+- **REQ-52 Hide all databases except EU AI Act behind a password** – ✅ done in the front end; checked in a headless browser (locked: only EU AI Act; wrong password: unchanged; correct password: all nine databases; Lock: back to EU AI Act).
+
+### Added
+- Header: field "Password" next to the OpenRouter key and a "Lock" button; the password is checked when "Save" is pressed.
+
+### Security
+- The gate is a display filter in the front end, not access control: the backend API (`/api/documents`, `/api/chat` without a database filter, …) still answers for all databases, and the password is visible in the front-end code. For real protection the API would need its own check (e.g. a header checked by the backend or a reverse proxy with authentication).
+
 ## [3.4.0] - 2026-10-30
 
 > **Minor release – the White Paper as an accompanying document.** The Commission's White Paper on Artificial Intelligence – A European approach to excellence and trust (COM(2020) 65 final, 19 February 2020, 27 pages) is the policy precursor of the AI Act: the proposal of 2021 builds on its "ecosystem of trust". It has no articles and is not a version of the law, so it goes into the legal project EU-AI-Act as an accompanying document with the new role "White paper", dated 19 February 2020 – before the proposal in the project's timeline. Accompanying documents can now be described in `_legal.yaml`. One new requirement (REQ-51). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest legal /research/EUAIA/legal/EU-AI-Act`. Roll back with `git checkout v3.3.2`.

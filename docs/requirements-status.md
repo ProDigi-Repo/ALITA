@@ -1,4 +1,4 @@
-# ALITA – requirements status (3.4.0, 2026-10-30)
+# ALITA – requirements status (3.5.0, 2026-10-30)
 
 Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wording, the request as a requirement, acceptance criterion).
 
@@ -55,6 +55,7 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 | REQ-49 | First standard: DIN SPEC 92005:2024-03 (uncertainty quantification in ML) | 🔄 in progress – check the licence, then ingest in Docker | 3.3.1 | File + `_legal.yaml` in `research/EUAIA/standards/`. Personal licence stamps (name, customer number, download ID, time) removed from every PDF's text. Standards: terms as parts (28), annex status, annex clauses C.1.2.1, table rows in annexes stay text. Checked offline: no stamp, sections 1–7, 28 terms, Annexes A–C, 174 text units. |
 | REQ-50 | Another standard: NIST SP 800-18 Rev. 2 (system plans) | 🔄 in progress – ingestion in Docker pending | 3.3.2 | Second entry in `research/EUAIA/standards/_legal.yaml` (published June 2026, free). Parser: "Appendix A." as annex, "References"/"Bibliography" as supplement. Checked offline: sections 1–4.7, References, Appendices A–D. (First upload was the DIN SPEC file again – nothing changed.) |
 | REQ-51 | White Paper on AI (COM(2020) 65) as "White paper" in the EU AI Act project | 🔄 in progress – ingestion in Docker pending | 3.4.0 | File in the legal project, `documents:` entry in its `_legal.yaml` (role `white_paper`, 19.2.2020). New project role `white_paper`; `documents:` section for accompanying documents (role, date, title; never a version of the norm). Checked offline: project with 5 files. |
+| REQ-52 | Hide all databases except EU AI Act; show the others only after entering a password next to the OpenRouter key | ✅ done – needs deploy | 3.5.0 | Front-end gate: database bar, documents, projects and views only for EU AI Act; chats and people/citation requests limited to EU AI Act when nothing is selected. Field "Password" + "Lock" in the header; unlock stored in localStorage. Not access control – the API still serves all databases. |
 
 ## Open points for the requirement owners
 - REQ-10, REQ-15 – REQ-18: main document chain per project, inferred links between versions and analyses, threshold for "substantive", AI stage texts automatic or on demand, versions without full text.

@@ -1,4 +1,4 @@
-# ALITA – User Manual (front-end, v3.4.0)
+# ALITA – User Manual (front-end, v3.5.0)
 
 ALITA lets you ask questions of your research documents and get answers with numbered, clickable sources.
 The quick visual version is [`ALITA-Cheat-Sheet-Comic.pdf`](ALITA-Cheat-Sheet-Comic.pdf).
@@ -60,6 +60,7 @@ The database bar stays visible on every chat page: **ⓘ Cluster descriptions** 
 1. **Title and version:** click the version number to open the Release Notes. The DEMO badge appears when the page runs without the backend.
 2. **Tabs:** switch between B, A/B, Documents, Release Notes and the compliance and technical documentation.
 3. **API key:** paste your OpenRouter key and click **Save**; the eye shows or hides it. Once saved, the status shows **Key …** with the last four characters. The model is fixed.
+   **Password:** without it only the database **EU AI Act** is shown. Enter the password you were given in the field **Password** next to the key and click **Save** to show all databases; **Lock** hides them again. The unlock is remembered in this browser only.
 4. **ALITA avatar:** follows your cursor. The small **i** buttons on the page say hello and explain the view.
 5. **Database selection:** shows what is selected; it applies to A and B. **Cluster descriptions** explains all clusters and how the databases share them.
 6. **Database tiles:** click a tile to select or deselect it; it shows its number of documents and projects. **ⓘ** opens its contents and cluster descriptions.

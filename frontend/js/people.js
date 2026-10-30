@@ -23,7 +23,7 @@ function personLinks(names){return (names||[]).map(n=>`<button type="button" cla
 
 async function loadPeople(){
   if(LIVE){
-    try{const q=SEL_DB.map(d=>'database='+encodeURIComponent(d)).join('&');const r=await fetch('api/people'+(q?'?'+q:''));PEOPLE=r.ok?await r.json():[]}catch(e){PEOPLE=[]}
+    try{const q=dbScope().map(d=>'database='+encodeURIComponent(d)).join('&');const r=await fetch('api/people'+(q?'?'+q:''));PEOPLE=r.ok?await r.json():[]}catch(e){PEOPLE=[]}
   }else{
     const m=new Map(),add=n=>{const k=personKey(n);if(!m.has(k))m.set(k,{name:n,documents:0,projects:[]});return m.get(k)};
     const inDb=x=>!SEL_DB.length||(x.db||[]).some(d=>SEL_DB.includes(d));
