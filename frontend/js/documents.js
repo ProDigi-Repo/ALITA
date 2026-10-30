@@ -1,6 +1,8 @@
 /* ---------- API-Key ---------- */
 let apiKey='';
-try{apiKey=localStorage.getItem('or_key')||''}catch(e){}
+// Never persist a bearer key on shared computers; remove the old persisted value.
+try{localStorage.removeItem('or_key')}catch(e){}
+window.addEventListener('pagehide',()=>{apiKey='';$('#apiKey').value=''});
 function renderKey(){
   const s=$('#keyStatus');
   if(apiKey){s.className='pill ok';s.innerHTML='<span class="dot"></span>Key …'+esc(apiKey.slice(-4));$('#apiKey').value=apiKey}
@@ -10,20 +12,26 @@ function renderDbLock(){
   const p=$('#dbPass'),l=$('#dbLock');if(!p)return;
   p.placeholder=DB_UNLOCKED?'all databases unlocked':'show all databases';p.disabled=DB_UNLOCKED;l.hidden=!DB_UNLOCKED;
 }
-$('#dbLock').addEventListener('click',()=>{try{localStorage.removeItem('db_unlocked')}catch(e){}location.reload()});
+/* lock/unlock without a page reload: the OpenRouter key lives in page memory only and would be lost */
+function setDbUnlocked(on){
+  DB_UNLOCKED=on;try{on?localStorage.setItem('db_unlocked','1'):localStorage.removeItem('db_unlocked')}catch(e){}
+  DATABASES=[...DB_ALL];applyDbGate();renderDbLock();if(typeof loadDocs==='function')loadDocs();
+}
+$('#dbLock').addEventListener('click',()=>{setDbUnlocked(false);toast('Locked · only the public databases are shown')});
 renderDbLock();
 $('#keyForm').addEventListener('submit',e=>{
   e.preventDefault();
   const pw=$('#dbPass').value;
   if(pw){
     $('#dbPass').value='';
-    if(pw===DB_PASSWORD){const k=$('#apiKey').value.trim();try{localStorage.setItem('db_unlocked','1');if(k.startsWith('sk-or-'))localStorage.setItem('or_key',k)}catch(e){}DB_UNLOCKED=true;toast('Password correct · all databases are shown');setTimeout(()=>location.reload(),600);return}
-    toast('Wrong password');if(!$('#apiKey').value.trim()||$('#apiKey').value.trim()===apiKey)return;
+    if(pw===DB_PASSWORD){setDbUnlocked(true);toast('Password correct · all databases are shown')}
+    else toast('Wrong password');
+    if(!$('#apiKey').value.trim()||$('#apiKey').value.trim()===apiKey)return;
   }
   const v=$('#apiKey').value.trim();
   if(v && !v.startsWith('sk-or-')){toast('The key should start with "sk-or-"');return}
-  apiKey=v;try{v?localStorage.setItem('or_key',v):localStorage.removeItem('or_key')}catch(e){}
-  renderKey();toast(v?'Key saved · in this browser only':'Key removed');
+  apiKey=v;
+  renderKey();toast(v?'Key set · until this page is closed or reloaded':'Key removed');
 });
 $('#toggleKey').addEventListener('click',()=>{const i=$('#apiKey');i.type=i.type==='password'?'text':'password'});
 const CHAT_MODEL_ID='openai/gpt-6-luna';   // fixed model, no selection (backend: CHAT_MODEL)
@@ -254,6 +262,7 @@ const KIND_N=(t,n)=>({research_paper:'paper',research_notes:'note',legal_guideli
 const ZIP_T=t=>t==='research_project'||t==='legal_project';   // one ZIP per project (REQ-38: legal projects too)
 const LEGAL_HINT={guidance:'One or more Q&A pages, FAQs or factsheets of authorities (one file each, e.g. a web page printed as PDF). ALITA splits them into topics and questions (Q 2.1). A _legal.yaml can give the date of the snapshot; a later snapshot of the same page becomes a new version.',legal_project:'Upload the folder of a law as a ZIP: its versions (proposal, adopted text, consolidated versions) and accompanying documents. A _legal.yaml in the folder gives stages, entry into force and application dates.',legal_guideline:'One or more guidelines (one file each). Versions of the same guideline can be grouped with a _legal.yaml.',standard:'One or more standards (one file each). Check that the licence allows storing the full text.'};
 function openUpload(t){
+  if(LIVE&&!IS_ADMIN){toast('Admin access required');return}
   if(t)$$('input[name=utype]').forEach(r=>r.checked=r.value===t);
   syncUpload();$('#upload').hidden=false;
 }
@@ -271,6 +280,7 @@ $('#openUpload').addEventListener('click',()=>openUpload());
 /* ---------- "Add new data" (button in the database bar): database · type · overall date · files ---------- */
 const AD={db:null,type:null};
 function adOpen(){
+  if(LIVE&&!IS_ADMIN){toast('Admin access required');return}
   AD.db=SEL_DB.length===1?SEL_DB[0]:AD.db;AD.type=AD.type||null;
   const n=db=>DOCS.filter(d=>(d.db||[]).includes(db)).length;
   $('#adDbs').innerHTML=DATABASES.map(db=>`<label class="ad-db" style="--c:${dbColor(db)}"><input type="radio" name="addb" value="${esc(db)}" ${AD.db===db?'checked':''}><span class="ad-fl">${dbIcon(db)}</span><b>${esc(dbName(db))}</b><small>${n(db)} docs</small></label>`).join('');

@@ -42,8 +42,18 @@ import re
 from pathlib import Path
 
 from .config import get_settings
-from .legal import (DRAFT_STAGES, KIND_OF_TYPE, STAGE_LABEL, VersionInput, build_history, iso, merge_partial, parse_components, slug,
-                    text_units)
+from .legal import (
+    DRAFT_STAGES,
+    KIND_OF_TYPE,
+    STAGE_LABEL,
+    VersionInput,
+    build_history,
+    iso,
+    merge_partial,
+    parse_components,
+    slug,
+    text_units,
+)
 from .schemas import DocType, ProjectContext, ProjectRole, make_project_id
 
 log = logging.getLogger("legal")
@@ -134,8 +144,16 @@ async def ingest_legal(path: Path, doc_type: DocType, opts):
     """Legal project (Ordner) oder Leitlinie/Standard (Ordner oder Einzeldatei) einlesen. Gibt ProjectRecord bzw. das
     DocumentRecord der aktuellen Fassung zurück."""
     from . import store
-    from .ingest import (_aggregate_project, _apply_databases, build_record, detect_databases, enrich_items, index_items,
-                         maybe_citations, maybe_recluster)
+    from .ingest import (
+        _aggregate_project,
+        _apply_databases,
+        build_record,
+        detect_databases,
+        enrich_items,
+        index_items,
+        maybe_citations,
+        maybe_recluster,
+    )
 
     s = get_settings()
     path = path.resolve()

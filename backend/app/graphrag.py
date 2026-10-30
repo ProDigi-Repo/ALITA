@@ -133,7 +133,8 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
     sources = to_sources(hits)
     top = next((d for d in graph_docs if any(h.payload["doc_id"] == d["doc_id"] for h in hits)), graph_docs[0] if graph_docs else None)
     path = path_for(plan, top)
-    from .citations import CITE_Q_RX, chat_context as citation_context, short_label
+    from .citations import CITE_Q_RX, short_label
+    from .citations import chat_context as citation_context
     by_id = {d["doc_id"]: d for d in all_docs}
     if top and (req.relation == "cites" or CITE_Q_RX.search(req.message)):   # REQ-35: Zitat im Graphpfad zeigen
         cited = next((by_id.get(c["doc_id"]) for c in (by_id.get(top["doc_id"]) or {}).get("cites") or [] if by_id.get(c["doc_id"])), None)

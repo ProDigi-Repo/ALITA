@@ -147,14 +147,13 @@ function demoAnswer(q,filters,prior=[]){
   return {answer,sources:sources.filter(x=>cited.has(x.n)),retrieval_query:query,allSources:sources,docs,llm:'extractive'};
 }
 
-/* ---------- Chat history (per tile, stored in this browser) ---------- */
-const HIST_KEY='alita_chat_history';
+/* ---------- Chat history (this page only; export before closing/reloading) ---------- */
 let HIST={rag:[],graph:[]};
-try{HIST=Object.assign({rag:[],graph:[]},JSON.parse(localStorage.getItem(HIST_KEY)||'{}'))}catch(e){}
+try{localStorage.removeItem('alita_chat_history')}catch(e){}
 const CUR={rag:null,graph:null};
 const CHAT_EL={rag:()=>$('#ragChat'),graph:()=>$('#graphChat')};
 const TILE_NAME={rag:'Document Chat',graph:'Graph Chat'};
-function saveHist(){try{localStorage.setItem(HIST_KEY,JSON.stringify(HIST))}catch(e){}renderHistCounts();renderGraphSide()}
+function saveHist(){renderHistCounts();renderGraphSide()}
 function renderHistCounts(){$$('[data-hcount]').forEach(el=>{const n=HIST[el.dataset.hcount].length;el.textContent=n||''})}
 function recordTurn(tile,turn){
   let sess=HIST[tile].find(x=>x.id===CUR[tile]);

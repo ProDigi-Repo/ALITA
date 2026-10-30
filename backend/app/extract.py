@@ -9,11 +9,11 @@ from __future__ import annotations
 import csv
 import io
 import logging
+import re
 import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-import re
 
 log = logging.getLogger(__name__)
 

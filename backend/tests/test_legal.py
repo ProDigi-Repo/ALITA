@@ -322,6 +322,7 @@ def test_legal_project_is_one_clustering_unit():
 
 def test_auto_recluster_only_touches_ingested_databases(monkeypatch):
     import asyncio
+
     from app import clustering, ingest
     calls = []
 

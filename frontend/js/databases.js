@@ -24,7 +24,9 @@ const PUBLIC_DBS=['EUAIA','WACHTER'];   // 3.6.1 (REQ-56): Wachter is public too
 const DB_PASSWORD='password';
 let DB_UNLOCKED=false;
 try{DB_UNLOCKED=localStorage.getItem('db_unlocked')==='1'}catch(e){}
+let DB_ALL=[...DATABASES];   // full list (from /api/health), kept for unlocking without a reload
 function applyDbGate(){
+  if(DATABASES.some(n=>!PUBLIC_DBS.includes(n)))DB_ALL=[...DATABASES];   // a full list (default or /api/health), not the filtered one
   if(DB_UNLOCKED)return;
   DATABASES=DATABASES.filter(n=>PUBLIC_DBS.includes(n));if(!DATABASES.length)DATABASES=[...PUBLIC_DBS];
   SEL_DB=SEL_DB.filter(n=>DATABASES.includes(n));

@@ -33,7 +33,7 @@ Keep the invitation code confidential; it is sent separately and not printed in 
 ## Getting started
 
 1. Log in as described in [Access ALITA](#access-alita).
-2. Paste your **OpenRouter API key** (`sk-or-v1-…`) in the header and click **Save**. It stays in your browser. No key yet? See [Get an OpenRouter API key](#get-an-openrouter-api-key).
+2. Paste your **OpenRouter API key** (`sk-or-v1-…`) in the header and click **Save**. It stays only in this page's memory: enter it again after reloading or closing the page. No key yet? See [Get an OpenRouter API key](#get-an-openrouter-api-key).
 3. Pick one or more **databases** in the database bar (Aster, Camellia, Dahlia, Jasmine, Peony, Magnolia, Orchid, EU AI Act, Wachter, Others). No selection = all databases are searched. Without the password only EU AI Act and Wachter are shown, and an empty selection then means these two only.
 
 ## The tabs
@@ -42,12 +42,12 @@ Keep the invitation code confidential; it is sent separately and not printed in 
 | --- | --- |
 | **B Interaction Interface** | Full-width knowledge map on the left; **Projects & clusters** and Graph Chat on the right |
 | **A/B Interaction Interface** | Document Chat and Graph Chat side by side, each with its cluster view above it |
-| **Documents** | Browse, search, filter and upload files; open a document's details |
+| **Documents** | Browse, search, filter and download files; open a document's details. Uploads are admin-only |
 | **Release Notes** | What changed in each version (also via the version number in the header) |
 | **ISO 42001/EUAIACT Docs** | Compliance documentation |
 | **Technical Documentation** | Architecture and ontology reference |
 
-The database bar stays visible on every chat page: **ⓘ Cluster descriptions** explains all clusters and **Clear selection** resets databases and clusters. New data is uploaded in **Documents → + Upload**.
+The database bar stays visible on every chat page: **ⓘ Cluster descriptions** explains all clusters and **Clear selection** resets databases and clusters. Admins upload new data in **Documents → + Upload**. Readers and reviewers can read and download all documents, but cannot upload or change data.
 
 ## The B Interaction Interface
 
@@ -59,12 +59,12 @@ The database bar stays visible on every chat page: **ⓘ Cluster descriptions** 
 
 1. **Title and version:** click the version number to open the Release Notes. The DEMO badge appears when the page runs without the backend.
 2. **Tabs:** switch between B, A/B, Documents, Release Notes and the compliance and technical documentation.
-3. **API key:** paste your OpenRouter key and click **Save**; the eye shows or hides it. Once saved, the status shows **Key …** with the last four characters. The model is fixed.
-   **Password:** without it only the databases **EU AI Act** and **Wachter** are shown. Enter the password you were given in the field **Password** next to the key and click **Save** to show all databases; **Lock** hides them again. The unlock is remembered in this browser only.
+3. **API key:** paste your OpenRouter key and click **Save**; the eye shows or hides it. Once saved, the status shows **Key …** with the last four characters; the key stays in this page's memory only. The model is fixed.
+   **Password:** without it only the databases **EU AI Act** and **Wachter** are shown. Enter the password you were given in the field **Password** next to the key and click **Save** to show all databases; **Lock** hides them again. The unlock is remembered in this browser (the key is not).
 4. **ALITA avatar:** follows your cursor. The small **i** buttons on the page say hello and explain the view.
 5. **Database selection:** shows what is selected; it applies to A and B. **Cluster descriptions** explains all clusters and how the databases share them.
 6. **Database tiles:** click a tile to select or deselect it; it shows its number of documents and projects. **ⓘ** opens its contents and cluster descriptions.
-7. **Upload:** papers, notes or a project ZIP are uploaded in **Documents → + Upload** (the database bar no longer has an upload button).
+7. **Upload (admins only):** papers, notes or a project ZIP are uploaded in **Documents → + Upload** (the database bar no longer has an upload button).
 8. **Window to the outside:** planned external challenge (REQ-20). Opens a concept preview; not active yet.
 
 **Map, projects and Graph Chat**
@@ -133,7 +133,7 @@ ALITA knows three more kinds of data: **Legal projects** (the versions of a law 
 - ALITA finds the citations by itself after every upload, from the reference lists of the documents – no language model, no cost. **⟳ Recompute** does it again by hand (e.g. after an update). Only works *inside* the collection are linked; external literature is not looked up.
 - Graph Chat answers citation questions from it, e.g. *"Which papers build on Heirati et al. 2024?"* or *"What is the most cited paper in Jasmine?"*.
 
-**Add documents**
+**Add documents (admins only)**
 
 Click **Documents → + Upload**. Choose the database, the kind of data (Research project as ZIP, Research papers, Research notes, Legal project as ZIP, Legal guidelines, Standards), optionally a date and a project to link, and tick *Generate summary and methods with the LLM* if wanted. Check the summary screen and click **Upload**.
 
@@ -146,7 +146,8 @@ On **Documents**, search by title, file name or path and filter by project, role
 ## Settings and tips
 
 - **Memory:** *use the conversation as memory* sends earlier turns with each question. Click **New** to start fresh.
-- **History:** **History** reopens earlier chats, which are saved in this browser only. Download one or all as .txt.
+- **History:** **History** reopens chats from the current page session only. They disappear when the page is reloaded or closed; download one or all as .txt first.
+- **Log out:** use **Log out** when finished, especially on shared computers. Reviewer sessions last at most eight hours; sign in again with the same unexpired invitation code.
 - **System prompt:** the parameters button next to **New** opens the chat's system prompt for editing; **Reset to default** restores it.
 - **Ask about one person:** click a 👤 name (or *restrict to a person*) to limit both chats to that person's papers, notes and project teams.
 - **Prompt filters:** type `@db:Magnolia`, `@type:paper`, `@year:2019-2021`, `@method:survey` or `@cluster:3` in a question to filter inline.
@@ -160,7 +161,7 @@ ALITA answers through OpenRouter, so every user needs their own key once.
 1. **Create an account:** go to [openrouter.ai](https://openrouter.ai), click **Sign in** and sign up with Google, GitHub or e-mail.
 2. **Add credits:** open [openrouter.ai/settings/credits](https://openrouter.ai/settings/credits) and buy credits (prepaid). **Starting with €5 is fine** – at about €0.003 per 10-page paper and well under one cent per question, that lasts for hundreds of questions and uploads. Payment by credit card, AliPay or USDC; card payments carry a 5.5% fee (at least $0.80). Unused credits can be refunded within 24 hours. ALITA uses a paid model; free models are limited to 50 requests per day without purchased credits.
 3. **Create the key:** open [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys), click **Create Key**, name it (e.g. `ALITA`) and set a credit limit (e.g. $10) or no limit. Copy the key right away: it starts with `sk-or-` and is shown only once.
-4. **Paste it into ALITA:** paste it into **OpenRouter API-Key** in the top bar and click **Save**. The status changes from **no key** to **Key …** with the last four characters. The key is stored in this browser only.
+4. **Paste it into ALITA:** paste it into **OpenRouter API-Key** in the top bar and click **Save**. The status changes from **no key** to **Key …** with the last four characters. The key stays in this page's memory only; enter it again after reloading.
 5. **Keep it safe:** treat it like a password. If it leaks, delete it under [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys) and create a new one; OpenRouter also e-mails you if it detects an exposed key.
 
 Fees and limits as stated by OpenRouter in October 2026 ([FAQ](https://openrouter.ai/docs/faq), [Authentication](https://openrouter.ai/docs/api-reference/authentication)); they can change.
