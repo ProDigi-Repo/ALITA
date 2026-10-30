@@ -20,18 +20,20 @@ One block can carry several DEO classes. A section "Materials and Methods" is bo
 
 | Ontology | Use in ALITA |
 |---|---|
-| FaBiO | document types: `fabio:JournalArticle` (research paper), `fabio:Note` (research notes), `fabio:WorkPackage` (research project material) |
+| FaBiO | document types: `fabio:JournalArticle` (research paper), `fabio:WorkPackage` (research project material), `fabio:Expression` (research notes, legal texts). Until 2.2.0 notes were typed `fabio:Note`, a class FaBiO does not define. |
 | CiTO | citations between documents: `(:Document)-[:CITES]->(:Work)` |
-| C4O / Collections Ontology | text content and order: chunk text in Qdrant, `order` on `CONTAINS` relationships |
+| ELI (European Legislation Identifier, since 3.0.0) | legal texts: `eli:LegalResource` (norm), `eli:LegalResourceSubdivision` (article, paragraph, annex, clause), `eli:LegalExpression` (language version); versions and changes follow the SAT-Graph RAG model of de Martim (2025, LRMoo-inspired) – see *Legal ontology* |
+| BIBO (Bibliographic Ontology, since 2.2.0) | bibliographic description: `bibo_type` (`bibo:AcademicArticle` paper, `bibo:Note` notes, `bibo:Manuscript` project file), `author_list` (`bibo:authorList`, ordered; `AUTHORED {position}`), and citations between documents of the collection: `(:Document)-[:CITES {via, confidence}]->(:Document)` (`bibo:cites` / `cito:cites`), found in the reference lists (see *Ingestion*, step 7) |
 
 ## Where the ontology lives
 
 | Component | Content |
 |---|---|
 | Qdrant (`rr_chunks`) | each text chunk has `section` (heading) and `deo` (list of DEO classes), filterable |
+| Qdrant (`rr_documents`) | since 2.2.0: `cites` (`[{doc_id, via, confidence, evidence}]`), `cited_by`, `refs_chars`, `citations_run` |
 | Neo4j | documents, sections, chunks, summary elements, people, methods, databases, clusters, works, and the DEO classes as nodes |
-| neosemantics (n10s) | optional import of the complete DoCO, DEO, FaBiO, CiTO and Pattern Ontology as `(:Class)` hierarchy |
+| neosemantics (n10s) | optional import of the complete DoCO, DEO, FaBiO, CiTO, Pattern Ontology and BIBO as `(:Class)` hierarchy |
 
 ## Sources
 
-Constantin, A., Peroni, S., Pettifer, S., Shotton, D., Vitali, F. (2016): *The Document Components Ontology (DoCO).* Semantic Web 7, 167–181, doi:10.3233/SW-150177. Ontologies: `http://purl.org/spar/doco`, `http://purl.org/spar/deo`.
+Constantin, A., Peroni, S., Pettifer, S., Shotton, D., Vitali, F. (2016): *The Document Components Ontology (DoCO).* Semantic Web 7, 167–181, doi:10.3233/SW-150177. Ontologies: `http://purl.org/spar/doco`, `http://purl.org/spar/deo`. BIBO: `http://purl.org/ontology/bibo/`, maintained by DCMI (RDF: https://www.dublincore.org/specifications/bibo/bibo/bibo.rdf.xml).

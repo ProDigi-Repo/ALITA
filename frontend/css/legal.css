@@ -1,0 +1,11 @@
+/* REQ-37/38: legal texts – temporal scope under answers, change tables, document details (js/legal.js) */
+.lg-scope{margin:6px 0 2px;font-size:12px;color:var(--muted);display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.lg-scope .lbl{font-weight:600;color:var(--t-legal);white-space:nowrap}
+.lg-note{font-size:12px;color:var(--muted);margin:2px 0}
+.lg-tab{margin:6px 0;font-size:12px}
+.lg-tab summary{cursor:pointer;color:var(--t-legal);font-weight:600}
+.lg-tab table{border-collapse:collapse;width:100%;margin-top:4px}
+.lg-tab th,.lg-tab td{border-bottom:1px solid var(--line);padding:3px 6px;text-align:left;vertical-align:top}
+.lg-tab th{color:var(--muted);font-weight:600}
+.lg-acts{margin:6px 0;padding-left:18px;font-size:12px}.lg-acts li{margin-bottom:4px}
+.lg-changes{margin-top:6px}

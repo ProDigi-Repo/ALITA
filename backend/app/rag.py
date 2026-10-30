@@ -51,6 +51,59 @@ async def retrieve(query: str, req: ChatRequest, api_key: str):
     return [hits[i] for i in out]
 
 
+def legal_ref(p: dict) -> dict | None:
+    """REQ-38: Bestandteil, Fassung und Geltung einer Rechtstext-Stelle (für Quelle, Kontext und Oberfläche)."""
+    if not (p.get("ctv_id") or p.get("action_id")):
+        return None
+    return {k: v for k, v in {"norm": p.get("norm_title"), "norm_id": p.get("norm_id"), "component": p.get("component_label"),
+            "kind": p.get("unit_kind"), "valid_from": p.get("valid_from"), "valid_to": p.get("valid_to"),
+            "applicable_from": p.get("applicable_from"), "stages": p.get("stages"), "action": p.get("action_kind"),
+            "date": p.get("action_date")}.items() if v not in (None, [], "")}
+
+
+def legal_note(p: dict) -> str:
+    lr = legal_ref(p)
+    if not lr:
+        return ""
+    if lr.get("kind") == "action":
+        return f"; {lr.get('norm')}, change history of {lr.get('component')} ({lr.get('date') or '?'})"
+    state = (f"in force {lr['valid_from']} – {lr.get('valid_to') or 'today'}" if lr.get("valid_from")
+             else "not in force: " + ", ".join(lr.get("stages") or []))
+    return f"; {lr.get('norm')}, {lr.get('component')}, {state}" + (f", applies from {lr['applicable_from']}" if lr.get("applicable_from") else "")
+
+
+def legal_scope(query: str, filters, all_docs: list[dict]):
+    """REQ-37: Gibt es Rechtstexte im Umfang? Dann Zeitplan der Frage anwenden -> (filters, temporal, prompt-kopf, tabelle)."""
+    from .legal import LEGAL_TYPES
+    from .legal_chat import context
+    from .legal_ingest import list_models
+    from .legal_time import apply, plan
+
+    dbs = set(filters.database or [])
+    if not any(d.get("doc_type") in LEGAL_TYPES and (not dbs or dbs & set(d.get("databases") or [])) for d in all_docs):
+        return filters, None, "", None
+    lp = plan(query)
+    filters = apply(filters, lp)
+    eff = {"as_of": filters.as_of, "stage": filters.legal_stage, "all_versions": filters.legal_all_versions}
+    if filters.as_of and filters.as_of != lp.get("as_of"):
+        lp = {**lp, "policy": "point_in_time", "as_of": filters.as_of, "source": "settings"}
+        from .legal_time import describe
+        lp["label"] = describe(lp)
+    models = list_models(list(dbs) or None)
+    if not filters.legal_stage and not filters.legal_all_versions and lp.get("policy") != "stage":
+        from .legal_time import describe, draft_fallback
+        as_of = filters.as_of or lp.get("as_of")
+        stage = draft_fallback(models, as_of) if as_of else None
+        if stage:                                 # nur Entwürfe vorhanden: jüngste Entwurfsstufe statt leerer Antwort
+            filters = filters.model_copy(update={"as_of": None, "legal_stage": stage})
+            lp = {**lp, "policy": "stage", "stage": stage, "source": "fallback"}
+            lp["label"] = describe(lp) + f" – no version in force on {as_of}, showing the latest draft"
+            eff = {"as_of": None, "stage": stage, "all_versions": False}
+    head, table = context(query, lp, models)
+    temporal = {k: lp.get(k) for k in ("policy", "as_of", "interval", "stage", "history", "term", "refs", "label", "source")} | {"effective": eff}
+    return filters, temporal, head, table
+
+
 def to_sources(hits) -> list[SourceRef]:
     refs = []
     for i, h in enumerate(hits, start=1):
@@ -63,6 +116,7 @@ def to_sources(hits) -> list[SourceRef]:
             year=p.get("year"), role=p.get("role"), methods=p.get("method_ids") or [],
             databases=p.get("databases") or [],
             cluster_id=p.get("cluster_id"), cluster_label=p.get("cluster_label"),
+            legal=legal_ref(p),
         ))
     return refs
 
@@ -145,17 +199,26 @@ async def prepare(req: ChatRequest, api_key: str | None) -> tuple[ChatRequest, P
     sp_source, _, sp_id = resolve_prompt(req.system_prompt)
     all_docs = store.scroll_documents(limit=5000)
     meta = analyze(query or req.message, vocab_from_documents(all_docs, s.databases), filters)
+    filters, temporal, legal_head, legal_table = legal_scope(query or req.message, filters, all_docs)   # REQ-37
+    req = req.model_copy(update={"filters": filters})
     memory = select_memory(req.history, s.memory_max_turns, s.memory_max_chars)
     search_q = await standalone_query(query or req.message, memory, model_name, key, s.memory_rewrite)
     extra = {"system_prompt_source": sp_source, "system_prompt_id": sp_id,
              "memory_turns": len(memory), "retrieval_query": search_q}
     hits = await retrieve(search_q, req, key)
     sources = to_sources(hits)
+    if temporal:
+        extra["temporal"] = temporal
+    if legal_table:
+        extra["legal"] = legal_table
     p = Prepared(key, query or req.message, filters, prompt_filters, model_name, extra, meta, sources)
     overview = scope_overview(filters.database, all_docs) if req.overview else ""
     if overview:
         p.extra["scope"] = "map"
     head = f"Overview of the whole knowledge map (all projects and clusters in scope):\n{overview}\n\n" if overview else ""
+    if temporal and not legal_head and any(h.payload.get("ctv_id") or h.payload.get("action_id") for h in hits):
+        legal_head = f"Legal texts – temporal scope: {temporal['label']}. Say which version/date your answer refers to.\n\n"
+    head += legal_head
     if meta.intent == "progress":                    # REQ-15/16
         prog, prog_head = progress_chat_context(query or req.message, filters, meta.entities, filters.database)
         head += prog_head
@@ -165,6 +228,10 @@ async def prepare(req: ChatRequest, api_key: str | None) -> tuple[ChatRequest, P
             p.prompt = f"{head}Question: {p.query}"
             p.history = [ModelRequest(parts=[UserPromptPart(content=t.content)]) if t.role == "user"
                          else ModelResponse(parts=[TextPart(content=t.content)]) for t in memory]
+    if not sources and legal_head and not overview and not p.prompt:   # REQ-37: Antwort aus Wortlaut/Änderungen der Legal-Ontologie
+        p.prompt = f"{head}Question: {p.query}"
+        p.history = [ModelRequest(parts=[UserPromptPart(content=t.content)]) if t.role == "user"
+                     else ModelResponse(parts=[TextPart(content=t.content)]) for t in memory]
     if not sources and overview:   # top-level question without a matching passage: answer from the overview
         p.prompt = f"{head}No single document passage matched this question; answer from the overview.\n\nQuestion: {p.query}"
         p.history = [ModelRequest(parts=[UserPromptPart(content=t.content)]) if t.role == "user"
@@ -172,7 +239,7 @@ async def prepare(req: ChatRequest, api_key: str | None) -> tuple[ChatRequest, P
     if sources:
         context = "\n\n".join(
             f"[{r.n}] {r.title} ({r.doc_type}{', ' + r.project_name if r.project_name else ''}, {r.filetype}"
-            f"{', ' + str(r.year) if r.year else ''}{', ' + r.locator if r.locator else ''})\n{h.payload['text']}"
+            f"{', ' + str(r.year) if r.year else ''}{', ' + r.locator if r.locator else ''}{legal_note(h.payload)})\n{h.payload['text']}"
             for r, h in zip(sources, hits))
         who = people_context([r.project_name for r in sources], filters.person)
         p.prompt = f"{head}{who}Sources for this question:\n{context}\n\nQuestion: {p.query}"

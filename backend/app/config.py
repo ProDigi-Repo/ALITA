@@ -80,15 +80,15 @@ class Settings(BaseSettings):
 
     # --- Datenbanken ------------------------------------------------------
     # Feste Liste der Datenbanken, denen Dateien zugeordnet werden (Metadatum "databases").
-    # In der .env: DATABASES=AL,CNN_DM,DL,JSW,LDK,ML,UM,OTH  (OTH = „Others“ für alles, was nirgends sonst hingehört)
-    databases: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["AL", "CNN_DM", "DL", "JSW", "LDK", "ML", "UM", "OTH"])
+    # In der .env: DATABASES=AL,CNN_DM,DL,JSW,LDK,ML,UM,EUAIA,WACHTER,OTH  (EUAIA = „EU AI Act“, Kornblume, seit 3.0.0; WACHTER = „Wachter“, Paper zu vertrauenswürdiger KI und AI Act, seit 3.6.0; OTH = „Others“ für alles, was nirgends sonst hingehört)
+    databases: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["AL", "CNN_DM", "DL", "JSW", "LDK", "ML", "UM", "EUAIA", "WACHTER", "OTH"])
     # Anzeigenamen (Blumen) der Datenbanken. Die Kürzel oben bleiben die internen Schlüssel
     # (Ordner research/<ID>/, Qdrant-Payload "databases", API-Filter); Namen erscheinen in Oberfläche,
     # Cluster-Labels und LLM-Kontext, und Fragen dürfen beide Schreibweisen nutzen.
     # In der .env als JSON: DATABASE_NAMES={"LDK":"Peony",...}
     database_names: dict[str, str] = Field(default_factory=lambda: {
         "AL": "Aster", "CNN_DM": "Camellia", "DL": "Dahlia", "JSW": "Jasmine",
-        "LDK": "Peony", "ML": "Magnolia", "UM": "Orchid", "OTH": "Others"})
+        "LDK": "Peony", "ML": "Magnolia", "UM": "Orchid", "EUAIA": "EU AI Act", "WACHTER": "Wachter", "OTH": "Others"})
 
     # --- Clustering -------------------------------------------------------
     memory_max_turns: int = 20      # Gesprächsgedächtnis: so viele frühere Wechsel gehen mit jeder Frage mit
@@ -101,8 +101,9 @@ class Settings(BaseSettings):
     neo4j_user: str = "neo4j"
     neo4j_password: str = ""
     neo4j_database: str = "neo4j"
-    graph_import_ontologies: bool = True  # DoCO/DEO/FaBiO/CiTO per neosemantics (n10s) aus dem Netz laden
+    graph_import_ontologies: bool = True  # DoCO/DEO/FaBiO/CiTO/BIBO per neosemantics (n10s) aus dem Netz laden
     auto_cluster: bool = True     # nach jeder Ingestion neu clustern
+    auto_citations: bool = True   # REQ-35: nach jeder Ingestion das Zitationsnetz neu berechnen (ohne LLM/Embeddings)
     cluster_k: int = 0            # 0 = automatisch per Silhouette, sonst feste Anzahl
     pseudonym_salt: str = ""      # Salt für die Pokémon-Pseudonyme in Cluster-Bezeichnungen
 

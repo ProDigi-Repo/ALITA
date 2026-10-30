@@ -1,6 +1,6 @@
 /* ===== Cluster space 3D (v1.3.0) ===== */
 .s3{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;color:#e8ecf6;
-  --db-AL:#4fc4b4; --db-CNN_DM:#a9b4bf; --db-DL:#8ea6ef; --db-JSW:#ee9677; --db-LDK:#e3bb55; --db-ML:#d892dc; --db-UM:#8fcf7a; --db-OTH:#f08aac;
+  --db-AL:#4fc4b4; --db-CNN_DM:#a9b4bf; --db-DL:#8ea6ef; --db-JSW:#ee9677; --db-LDK:#e3bb55; --db-ML:#d892dc; --db-UM:#8fcf7a; --db-EUAIA:#5cc4ff; --db-WACHTER:#b3a2ff; --db-OTH:#f08aac;
   background:radial-gradient(120% 120% at 20% 0%,#1a0f2e 0%,#0b0f1c 45%,#05070d 100%)}
 .s3[hidden]{display:none}
 .s3-top{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:10px 14px;border-bottom:1px solid #262c45;background:rgb(6 8 15 / .6)}

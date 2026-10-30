@@ -9,6 +9,7 @@ from __future__ import annotations
 import csv
 import io
 import logging
+import re
 import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -105,6 +106,16 @@ def split_by_headings(text: str, current: str | None) -> list[tuple[str | None, 
 
 
 # ------------------------------------------------------------------ Extraktoren
+# REQ-49: personalisierte Lizenzstempel von Normen-Downloads (Name, Kundennummer, Download-ID, Zeitpunkt) gehören weder
+# in den Index noch in Prompts an das Sprachmodell – z. B. „Normen-Download-DIN Media-<Name>-KdNr.<n>-ID.<id>-2026-10-29 23:53:33“.
+_LICENCE_STAMP = re.compile(r"(?:Normen-Download|Norm-Download|Standards? download)-[^\n]{0,240}?(?:KdNr|Kd\.-?Nr|Customer No)\.?\s*\d+"
+                            r"(?:-ID\.?\s*[\w]+)?(?:-\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2}(?::\d{2})?)?)?", re.I)
+
+
+def strip_licence_stamps(text: str) -> str:
+    return _LICENCE_STAMP.sub("", text) if text else text
+
+
 def extract_pdf(path: Path) -> Extracted:
     from pypdf import PdfReader
 
@@ -119,7 +130,7 @@ def extract_pdf(path: Path) -> Extracted:
     heading = None
     for i, page in enumerate(reader.pages, start=1):
         try:
-            t = page.extract_text() or ""
+            t = strip_licence_stamps(page.extract_text() or "")
         except Exception as e:  # defekte Seiten überspringen
             log.warning("PDF-Seite %s in %s: %s", i, path.name, e)
             t = ""

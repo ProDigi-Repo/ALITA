@@ -6,7 +6,7 @@ function cvSyncToggle(){const c=$('#cviz').classList.contains('collapsed');$$('.
 cvSyncToggle();
 $$('.cv-toggle').forEach(b=>b.addEventListener('click',()=>{const c=$('#cviz').classList.toggle('collapsed');try{localStorage.setItem('cviz_hidden',c?'1':'0')}catch(e){}cvSyncToggle();if(!c)renderClusterViz()}));
 const cvHue=c=>(c*67)%360, cvCol=(c,l=45)=>`hsl(${cvHue(c)} 60% ${l}%)`;
-const CV_TYPE={research_paper:'Paper',research_notes:'Note',research_project:'Project'};
+const CV_TYPE={research_paper:'Paper',research_notes:'Note',research_project:'Project',legal_project:'Law',legal_guideline:'Guideline',standard:'Standard',guidance:'FAQ'};
 function cvUnits(){
   const inDb=x=>!SEL_DB.length||(x.db||[]).some(n=>SEL_DB.includes(n));
   const docs=DOCS.filter(d=>d.cb==='summary'&&d.cx!=null&&d.ci!=null);
@@ -54,6 +54,7 @@ function cvShape(u,x,y,col,dim){
   const flw=f=>(n&&typeof DB_FLOWER!=='undefined'&&DB_FLOWER[n])?`<use href="#cvf-${n}" x="${x-f/2}" y="${y-f/2}" width="${f}" height="${f}" style="color:#fff" opacity="${op}" pointer-events="none"/>`:'';
   if(u.t==='research_project')return `<path d="M${x} ${y-10}L${x+10} ${y}L${x} ${y+10}L${x-10} ${y}Z" fill="${col}" ${st} opacity="${op}"/>`+flw(11);
   if(u.t==='research_paper')return `<rect x="${x-6}" y="${y-6}" width="12" height="12" rx="2" fill="${col}" ${st} opacity="${op}"/>`+flw(11);
+  if(LEGAL_T.has(u.t))return `<path d="M${x} ${y-8}L${x+7.5} ${y+5.5}L${x-7.5} ${y+5.5}Z" fill="${col}" ${st} opacity="${op}"/>`+flw(9);
   return `<circle cx="${x}" cy="${y}" r="6.2" fill="${col}" ${st} opacity="${op}"/>`+flw(10.5);
 }
 /* ---------- Cluster map (A) and cluster graph (B) in 3D, interactive (v1.5.0) ----------
@@ -80,7 +81,7 @@ function v3Canvas(box,h){
 }
 function v3Col(u,ci,l){if(CV.mode==='db'){const n=(u&&u.db||[])[0];return n?`var(--db-${n})`:'#8d97b3'}return cvCol(ci,l||48)}
 function v3Css(c){if(!c.startsWith('var('))return c;const n=c.slice(4,-1);return getComputedStyle(document.documentElement).getPropertyValue(n).trim()||'#8d97b3'}
-function v3Shape(g,t,x,y,r){g.beginPath();if(t==='research_project'){g.moveTo(x,y-r*1.6);g.lineTo(x+r*1.6,y);g.lineTo(x,y+r*1.6);g.lineTo(x-r*1.6,y);g.closePath()}else if(t==='research_paper')g.rect(x-r,y-r,2*r,2*r);else g.arc(x,y,r,0,Math.PI*2)}
+function v3Shape(g,t,x,y,r){g.beginPath();if(LEGAL_T.has(t)){g.moveTo(x,y-r*1.4);g.lineTo(x+r*1.25,y+r*.9);g.lineTo(x-r*1.25,y+r*.9);g.closePath()}else if(t==='research_project'){g.moveTo(x,y-r*1.6);g.lineTo(x+r*1.6,y);g.lineTo(x,y+r*1.6);g.lineTo(x-r*1.6,y);g.closePath()}else if(t==='research_paper')g.rect(x-r,y-r,2*r,2*r);else g.arc(x,y,r,0,Math.PI*2)}
 /* generic pointer handling: orbit / drag a handle / click */
 function v3Wire(st,cv,api){
   if(cv._v3)return;cv._v3=1;let drag=null;
@@ -276,11 +277,12 @@ function mountGraph3D(units,cls,box=$('#cvGraph'),key='graph',GH=350){ // key/GH
     const mx=Math.max(1,...L.map(l=>l.n));
     L.forEach(l=>{const p=P(l.a),q=P(l.b);if(!p||!q)return;g.strokeStyle='rgba(217,72,15,.45)';g.lineWidth=1+3*l.n/mx;g.beginPath();g.moveTo(p.x,p.y);g.lineTo(q.x,q.y);g.stroke()});
     if(LAY){   // document layer: the cluster's documents below it, joined by a thin stem
-      const tc={research_paper:css.getPropertyValue('--t-paper').trim()||'#6b4fa3',research_notes:css.getPropertyValue('--t-notes').trim()||'#2e7d4f',research_project:css.getPropertyValue('--t-project').trim()||'#1f5f8b'};
+      const tc={research_paper:css.getPropertyValue('--t-paper').trim()||'#6b4fa3',research_notes:css.getPropertyValue('--t-notes').trim()||'#2e7d4f',research_project:css.getPropertyValue('--t-project').trim()||'#1f5f8b',
+        legal_project:css.getPropertyValue('--t-legal').trim()||'#a23b2a',legal_guideline:css.getPropertyValue('--t-guideline').trim()||'#9a6a00',standard:css.getPropertyValue('--t-standard').trim()||'#3f6f7a',guidance:css.getPropertyValue('--t-guidance').trim()||'#5b6b1f'};
       nodes.forEach(d=>{const ds=docsOf(d);if(!ds.length)return;const dim=cvOff(d.c.id),top=P({x:d.x,y:Y_DOC[1]-1,z:d.z}),q=P(d);if(top&&q){g.globalAlpha=dim?.12:.35;g.strokeStyle=cvCol(d.c.id);g.lineWidth=1;g.beginPath();g.moveTo(q.x,q.y);g.lineTo(top.x,top.y);g.stroke()}
         ds.forEach((u,k)=>{const col=k%DCOLS,row=Math.floor(k/DCOLS),w=P({x:d.x+(col-(Math.min(DCOLS,ds.length)-1)/2)*DOCSP,y:Y_DOC[1]-3-row*DOCSP,z:d.z});if(!w)return;
           const r=Math.max(1.6,1.25*w.s);g.globalAlpha=dim?.2:.9;g.fillStyle=CG.mode==='db'&&(u.db||[])[0]?(getComputedStyle(document.documentElement).getPropertyValue('--db-'+u.db[0]).trim()||muted):(tc[u.t]||muted);g.beginPath();
-          if(u.t==='research_project'){g.moveTo(w.x,w.y-r*1.3);g.lineTo(w.x+r*1.3,w.y);g.lineTo(w.x,w.y+r*1.3);g.lineTo(w.x-r*1.3,w.y);g.closePath()}else g.arc(w.x,w.y,r,0,Math.PI*2);g.fill();
+          if(u.t==='research_project'){g.moveTo(w.x,w.y-r*1.3);g.lineTo(w.x+r*1.3,w.y);g.lineTo(w.x,w.y+r*1.3);g.lineTo(w.x-r*1.3,w.y);g.closePath()}else if(LEGAL_T.has(u.t)){g.moveTo(w.x,w.y-r*1.4);g.lineTo(w.x+r*1.25,w.y+r*.9);g.lineTo(w.x-r*1.25,w.y+r*.9);g.closePath()}else g.arc(w.x,w.y,r,0,Math.PI*2);g.fill();
           st.hits.push({kind:'doc',u,x:w.x,y:w.y,r:r+2})});g.globalAlpha=1});
       if(PA.length){const pp=tc.research_paper;PA.forEach(a=>{const t=P(a),q=P(a.d);if(!t||!q)return;g.globalAlpha=cvOff(a.d.c.id)?.1:.45;g.strokeStyle=pp;g.lineWidth=1.2;g.beginPath();g.moveTo(t.x,t.y);g.lineTo(q.x,q.y);g.stroke();g.globalAlpha=1;
         const r=Math.max(4,5.5*t.s);g.fillStyle=pp;g.fillRect(t.x-r,t.y-r,2*r,2*r);g.strokeStyle='rgba(255,255,255,.9)';g.lineWidth=1.5;g.strokeRect(t.x-r,t.y-r,2*r,2*r);
@@ -291,8 +293,8 @@ function mountGraph3D(units,cls,box=$('#cvGraph'),key='graph',GH=350){ // key/GH
       PJ.forEach(p=>{const a=P(p);if(!a)return;p.to.forEach(t=>{const b=P(t.d);if(!b)return;g.globalAlpha=anyS&&!cvHas(t.d.c.id)?.1:.5;g.strokeStyle=pc;g.lineWidth=1+5*t.cnt/mxp;g.beginPath();g.moveTo(a.x,a.y);g.lineTo(b.x,b.y);g.stroke()});g.globalAlpha=1});
       PJ.forEach(p=>{const a=P(p);if(!a)return;const r=Math.max(8,11*a.s);g.fillStyle=pc;g.beginPath();g.arc(a.x,a.y,r,0,Math.PI*2);g.fill();g.strokeStyle='rgba(255,255,255,.9)';g.lineWidth=2;g.stroke();
         g.fillStyle='#fff';g.beginPath();g.moveTo(a.x,a.y-r*.45);g.lineTo(a.x+r*.45,a.y);g.lineTo(a.x,a.y+r*.45);g.lineTo(a.x-r*.45,a.y);g.closePath();g.fill();
-        const nx=PJ.map(q=>P(q)).filter(q=>q&&q.x>a.x+1).reduce((m,q)=>Math.min(m,q.x),W),room=nx-a.x-r-14;   // name fits up to the next project
-        g.fillStyle=fg;g.font='600 12px "IBM Plex Sans",sans-serif';let nm=p.pn;while(nm.length>4&&g.measureText(nm).width>room)nm=nm.slice(0,-2)+'…';if(nm!==p.pn&&!nm.endsWith('…'))nm+='…';g.fillText(nm,a.x+r+5,a.y-1);g.fillStyle=muted;g.font='10.5px "IBM Plex Sans",sans-serif';g.fillText(`${p.n} docs · ${p.by.size} clusters`,a.x+r+5,a.y+12);
+        const nx=[...PJ,...PA].map(q=>P(q)).filter(q=>q&&q.x>a.x+1).reduce((m,q)=>Math.min(m,q.x-8),W),room=nx-a.x-r-14;   // name fits up to the next project or paper
+        g.fillStyle=fg;g.font='600 12px "IBM Plex Sans",sans-serif';let nm=p.pn;while(nm.length>4&&g.measureText(nm).width>room)nm=nm.slice(0,-2)+'…';if(nm!==p.pn&&!nm.endsWith('…'))nm+='…';g.fillText(nm,a.x+r+5,a.y-1);g.fillStyle=muted;g.font='10.5px "IBM Plex Sans",sans-serif';const sub=`${p.n} docs · ${p.by.size} clusters`;if(g.measureText(sub).width<=room)g.fillText(sub,a.x+r+5,a.y+12);
         const pr=PROJECTS.find(x=>x.name===p.pn);((pr&&pr.db)||[]).filter(n=>DB_FLOWER[n]).forEach((n,k)=>cvFlowerBadge(g,n,a.x-r*.8-k*11,a.y-r*.8,5.5));
         st.hits.push({kind:'project',p,x:a.x,y:a.y,r:r+3})})}
     nodes.map(d=>({d,p:P(d)})).filter(x=>x.p).sort((a,b)=>b.p.z-a.p.z).forEach(({d,p})=>{const dim=cvOff(d.c.id),r=Math.max(6,rad(d)*p.s*1.1);
@@ -492,9 +494,9 @@ function renderClusterGraph(units,cls,o={}){
   N.forEach(n=>{
     const c=n.c,r=R(c),dim=anyS&&!isSel(c.id),op=dim?.25:1;
     if(showDocs)c.on.forEach((u,i)=>{const a=i/c.on.length*2*Math.PI-Math.PI/2,ring=r+(big?14:7),ux=n.x+Math.cos(a)*ring,uy=n.y+Math.sin(a)*ring;
-      const col=colorDb?`var(--db-${(u.db||[])[0]||'none'},var(--muted))`:u.t==='research_paper'?'var(--t-paper)':u.t==='research_notes'?'var(--t-notes)':'var(--t-project)';
+      const col=colorDb?`var(--db-${(u.db||[])[0]||'none'},var(--muted))`:(TYPE_COLOR[u.t]||'var(--t-project)');
       const sz=big?5.5:2.6,attrs=big?` class="cnode doc" data-u="${esc(u.id||'')}" data-pn="${u.t==='research_project'?esc(u.pn):''}" data-c="${c.id}"`:'';
-      g+=`<g${attrs} opacity="${op}">`+(u.t==='research_project'?`<path d="M${ux} ${uy-sz*1.6}L${ux+sz*1.6} ${uy}L${ux} ${uy+sz*1.6}L${ux-sz*1.6} ${uy}Z" fill="${col}" stroke="var(--panel)"/>`:u.t==='research_paper'&&big?`<rect x="${ux-sz}" y="${uy-sz}" width="${sz*2}" height="${sz*2}" rx="1.5" fill="${col}" stroke="var(--panel)"/>`:`<circle cx="${ux}" cy="${uy}" r="${sz}" fill="${col}" stroke="var(--panel)" stroke-width="${big?1:0}"/>`)+'</g>'});
+      g+=`<g${attrs} opacity="${op}">`+(u.t==='research_project'?`<path d="M${ux} ${uy-sz*1.6}L${ux+sz*1.6} ${uy}L${ux} ${uy+sz*1.6}L${ux-sz*1.6} ${uy}Z" fill="${col}" stroke="var(--panel)"/>`:LEGAL_T.has(u.t)?`<path d="M${ux} ${uy-sz*1.5}L${ux+sz*1.35} ${uy+sz}L${ux-sz*1.35} ${uy+sz}Z" fill="${col}" stroke="var(--panel)"/>`:u.t==='research_paper'&&big?`<rect x="${ux-sz}" y="${uy-sz}" width="${sz*2}" height="${sz*2}" rx="1.5" fill="${col}" stroke="var(--panel)"/>`:`<circle cx="${ux}" cy="${uy}" r="${sz}" fill="${col}" stroke="var(--panel)" stroke-width="${big?1:0}"/>`)+'</g>'});
     const nm=cvName(c,info),title=big||nm.length<=26?nm:nm.slice(0,25).replace(/\s+\S*$/,'')+'…';
     const words=(c.label||'').split(' · ').slice(0,2).join(' · ');   // distinctive terms as a detail line (big graph)
     const ly=n.y+r+(big?(showDocs?34:22):19);
@@ -582,7 +584,7 @@ function renderClusterPage(){
   const run=(!LIVE&&DEMO&&DEMO.clusters&&DEMO.clusters.run)||'';
   $('#cgMeta').textContent=`${r.act.length} clusters · ${units.filter(u=>u.on).length} documents · ${r.links.length} bridges${SEL_DB.length?' · '+dbNames(SEL_DB).join('+'):''}${run?' · run '+run.slice(0,10):''}`;
   const dbs=DATABASES.filter(n=>units.some(u=>u.on&&(u.db||[]).includes(n)));
-  $('#cgLegend').innerHTML=(CG.mode==='db'?dbs.map(n=>`<span><i style="--c:var(--db-${n})"></i>${esc(dbName(n))}</span>`).join(''):`<span><i style="--c:var(--t-paper);border-radius:2px"></i>Paper</span><span><i style="--c:var(--t-notes)"></i>Note</span><span><i style="--c:var(--t-project);transform:rotate(45deg);border-radius:1px"></i>Project</span>`)+
+  $('#cgLegend').innerHTML=(CG.mode==='db'?dbs.map(n=>`<span><i style="--c:var(--db-${n})"></i>${esc(dbName(n))}</span>`).join(''):`<span><i style="--c:var(--t-paper);border-radius:2px"></i>Paper</span><span><i style="--c:var(--t-notes)"></i>Note</span><span><i style="--c:var(--t-project);transform:rotate(45deg);border-radius:1px"></i>Project</span>`+[...new Set(units.filter(u=>LEGAL_T.has(u.t)).map(u=>u.t))].map(t=>`<span><i style="--c:${TYPE_COLOR[t]};border-radius:0;clip-path:polygon(50% 0,100% 100%,0 100%)"></i>${esc(CV_TYPE[t])}</span>`).join(''))+
     (dbs.length>1?`<span class="cg-flw">${dbs.map(n=>`<i style="color:var(--db-${n})">${DB_FLOWER[n]||''}</i>${esc(dbName(n))}`).join(' ')}</span>`:'')+
     `<span>Node = cluster (size = documents) · line = documents whose second-closest cluster is the other node (number on the line) · click a cluster for details, a document to open it</span>`;
   const dbsAll=DATABASES.filter(x=>units.some(u=>(u.db||[]).includes(x)));

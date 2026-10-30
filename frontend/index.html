@@ -14,6 +14,8 @@
 <link rel="stylesheet" href="css/desert.css">
 <link rel="stylesheet" href="css/outside.css">
 <link rel="stylesheet" href="css/progress.css">
+<link rel="stylesheet" href="css/citations.css">
+<link rel="stylesheet" href="css/legal.css">
 <link rel="stylesheet" href="css/pages.css">
 </head>
 <body><!--BODY-->
@@ -21,7 +23,7 @@
   <header class="top">
     <div class="brand">
       <h1>ALITA PROTOTYPE</h1>
-      <button class="ver" id="appVersion" type="button" title="Open release notes">v2.1.0</button>
+      <button class="ver" id="appVersion" type="button" title="Open release notes">v3.6.1</button>
       <span class="mode" id="mode" title="">Demo</span>
     </div>
     <nav class="nav" role="tablist" aria-label="Sections">
@@ -40,6 +42,11 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
       </div>
+      <label for="dbPass">Password</label>
+      <div class="field">
+        <input id="dbPass" type="password" placeholder="show all databases" spellcheck="false" autocomplete="off" title="Without the password only the databases EU AI Act and Wachter are shown">
+      </div>
+      <button type="button" class="btn" id="dbLock" hidden title="Hide the other databases again (only EU AI Act and Wachter stay visible)">Lock</button>
       <span class="pill model-fixed" id="modelInfo" title="The language model of ALITA (fixed): OpenAI GPT-6 Luna via OpenRouter">Model: GPT-6 Luna</span>
       <button class="btn primary" type="submit">Save</button>
       <span class="pill" id="keyStatus"><span class="dot"></span>no key</span>
@@ -139,7 +146,6 @@
     <div class="dbs" id="dbs"></div>
     <span class="unas" id="dbUnassigned"></span>
     <button class="clear" id="dbClear" type="button" hidden title="Deselect all databases and clusters">Clear selection</button>
-    <button class="db-add" id="dbAdd" type="button" title="Upload new papers, notes or a research project (ZIP) – the selected databases are preset"><span aria-hidden="true">＋</span> Add new data</button>
   </section>
 
   <!-- ============ PAGE: CHAT ============ -->
@@ -185,6 +191,15 @@
           <button class="chip" aria-pressed="true" data-v="research_project">Project</button>
           <button class="chip" aria-pressed="true" data-v="research_paper">Paper</button>
           <button class="chip" aria-pressed="true" data-v="research_notes">Notes</button>
+          <button class="chip" aria-pressed="true" data-v="legal_project" title="Laws and other legal texts (legal projects)">Law</button>
+          <button class="chip" aria-pressed="true" data-v="legal_guideline">Guideline</button>
+          <button class="chip" aria-pressed="true" data-v="standard">Standard</button>
+          <button class="chip" aria-pressed="true" data-v="guidance" title="Guidance &amp; FAQ: Q&amp;A pages, FAQs, factsheets of authorities">FAQ</button>
+        </div>
+        <div class="frow">
+          <span class="flabel">Legal texts as of</span>
+          <input type="date" id="rAsOf" aria-label="Legal texts as of (date)" title="Laws, guidelines and standards in the version valid on this day. Empty: from the question (e.g. 'on 1 September 2026'), otherwise today.">
+          <span class="srcnote">empty = date in the question, else today</span>
         </div>
         <div class="frow">
           <span class="flabel">Narrow</span>
@@ -251,6 +266,11 @@
           <select id="gYear" aria-label="Period"><option value="">Any period</option><option>2021</option><option>2020</option><option>2019</option></select>
         </div>
         <div class="frow">
+          <span class="flabel">Legal texts as of</span>
+          <input type="date" id="gAsOf" aria-label="Legal texts as of (date)" title="Laws, guidelines and standards in the version valid on this day. Empty: from the question, otherwise today.">
+          <span class="srcnote">empty = date in the question, else today</span>
+        </div>
+        <div class="frow">
           <span class="flabel">Discourse</span>
           <select id="gDeo" aria-label="Discourse element (DEO)" title="Which rhetorical part of the documents should answer (Discourse Elements Ontology); empty = derived from the question"><option value="">From the question</option><option value="Introduction">Introduction</option><option value="Background">Background</option><option value="Motivation">Motivation</option><option value="ProblemStatement">ProblemStatement</option><option value="RelatedWork">RelatedWork</option><option value="Model">Model</option><option value="Methods">Methods</option><option value="Materials">Materials</option><option value="Data">Data</option><option value="Results">Results</option><option value="Evaluation">Evaluation</option><option value="Discussion">Discussion</option><option value="Conclusion">Conclusion</option><option value="FutureWork">FutureWork</option><option value="Contribution">Contribution</option><option value="BibliographicReference">BibliographicReference</option></select>
         </div>
@@ -295,9 +315,11 @@
           <div class="cv-mode" id="cgMode" role="group" aria-label="Color documents by"><button type="button" data-m="type" aria-pressed="true">Document type</button><button type="button" data-m="db" aria-pressed="false">Database</button></div>
           <button class="mini v3-toggle" type="button">2D</button><button class="mini v3-reset" type="button" title="Back to the start view: zoom, rotation and moved clusters">⟲ Reset view</button>
           <button class="mini s3btn" type="button" data-open3d title="Walk through the clusters in 3D, with the years as depth">3D · time</button>
+          <button class="mini cg-cite" type="button" id="cgCite" aria-pressed="false" title="Show which papers cite each other (found in their reference lists)">⇄ Citations</button>
           <button class="mini cg-max" type="button" id="cgMax" aria-pressed="false" title="Enlarge the knowledge map">⤢ Enlarge</button>
           <span class="meta" id="cgMeta"></span><span class="cv-basis emb" id="cgBasis">semantic · embeddings</span></div>
-        <div class="cg-body"><div id="cgGraph"></div><div class="cv-tip" id="cgTip" hidden></div></div>
+        <div class="cg-body"><div id="cgGraph"></div><div class="cv-tip" id="cgTip" hidden></div>
+          <div class="cite-view" id="cgCiteView" hidden aria-label="Citation network: which documents cite which papers of the collection"></div></div>
         <div class="cg-legend" id="cgLegend"></div>
       </section>
       <section class="bq bq-cluster" aria-label="Project and cluster view">
@@ -426,6 +448,7 @@
       <button class="dtab" role="tab" aria-selected="false" data-t="research_project"><b id="cProject">0</b><span><i class="sw" style="background:var(--t-project)"></i>Research Projects · <span id="cProjN">0</span> project(s)</span></button>
       <button class="dtab" role="tab" aria-selected="false" data-t="research_paper"><b id="cPaper">0</b><span><i class="sw" style="background:var(--t-paper)"></i>Research Papers</span></button>
       <button class="dtab" role="tab" aria-selected="false" data-t="research_notes"><b id="cNotes">0</b><span><i class="sw" style="background:var(--t-notes)"></i>Research Notes</span></button>
+      <button class="dtab" role="tab" aria-selected="false" data-t="legal"><b id="cLegal">0</b><span><i class="sw" style="background:var(--t-legal);border-radius:0;clip-path:polygon(50% 0,100% 100%,0 100%)"></i>Laws, Guidelines &amp; Standards</span></button>
       <button class="dtab dstat" type="button" id="cClustersBtn" title="Read about all clusters from all databases"><b id="cClusters">0</b><span><i class="sw" style="background:linear-gradient(135deg,var(--c1),var(--c2))"></i>Clusters · all databases <u>read more</u></span></button>
       <span class="spacer"></span>
       <button class="btn primary" id="openUpload">+ Upload</button>
@@ -490,6 +513,10 @@
       <label><input type="radio" name="utype" value="research_project" checked> Research Project</label>
       <label><input type="radio" name="utype" value="research_paper"> Research Paper</label>
       <label><input type="radio" name="utype" value="research_notes"> Research Notes</label>
+      <label><input type="radio" name="utype" value="legal_project"> Legal Project</label>
+      <label><input type="radio" name="utype" value="legal_guideline"> Guideline</label>
+      <label><input type="radio" name="utype" value="standard"> Standard</label>
+      <label><input type="radio" name="utype" value="guidance"> Guidance &amp; FAQ</label>
     </div>
     <p id="uHint">Upload the project folder as a ZIP. The folder name becomes the project name, and every file inside is linked to the project. The "Literatur" folder is skipped.</p>
     <label id="uProjWrap" hidden>Link to project (optional)<input type="text" id="uProject" list="projList" placeholder="e.g. 11-MentalModelProcesses"></label>
@@ -511,6 +538,10 @@
         <label class="ad-type"><input type="radio" name="adtype" value="research_project"><i aria-hidden="true">◆</i><b>Research project</b><span>a project folder as ZIP – manuscripts, data, analyses, submissions</span></label>
         <label class="ad-type"><input type="radio" name="adtype" value="research_paper"><i aria-hidden="true">■</i><b>Research papers</b><span>published or own papers, one or more files</span></label>
         <label class="ad-type"><input type="radio" name="adtype" value="research_notes"><i aria-hidden="true">●</i><b>Research notes</b><span>notes, minutes, idea collections, web articles</span></label>
+        <label class="ad-type"><input type="radio" name="adtype" value="legal_project"><i aria-hidden="true" style="color:var(--t-legal)">▲</i><b>Legal project</b><span>a ZIP with the versions of a law (proposal, adopted, consolidated) – add _legal.yaml for dates</span></label>
+        <label class="ad-type"><input type="radio" name="adtype" value="legal_guideline"><i aria-hidden="true" style="color:var(--t-guideline)">▲</i><b>Legal guidelines</b><span>formally adopted guidelines of authorities, e.g. Commission guidelines C(2025) …</span></label>
+        <label class="ad-type"><input type="radio" name="adtype" value="guidance"><i aria-hidden="true" style="color:var(--t-guidance)">▲</i><b>Guidance &amp; FAQ</b><span>Q&amp;A pages, FAQs, factsheets and explanations of authorities (not binding)</span></label>
+        <label class="ad-type"><input type="radio" name="adtype" value="standard"><i aria-hidden="true" style="color:var(--t-standard)">▲</i><b>Standards</b><span>ISO, IEC, CEN, DIN … one file per standard</span></label>
       </div></fieldset>
     <fieldset class="ad-step"><legend><b>3</b> <span id="adDateQ">Which overall date should the data get?</span></legend>
       <div class="ad-date"><input type="date" id="adDate" aria-describedby="adDateHint"><button type="button" class="mini" id="adDateClear">no date</button></div>
@@ -568,6 +599,8 @@
 <script src="js/chat.js"></script>
 <script src="js/people.js"></script>
 <script src="js/progress.js"></script>
+<script src="js/citations.js"></script>
+<script src="js/legal.js"></script>
 <script src="js/space3d-time.js"></script>
 <script src="js/space3d.js"></script>
 <script src="js/sealife.js"></script>

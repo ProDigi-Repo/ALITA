@@ -15,7 +15,7 @@ function s3Flower(n){
 /* preload so the flowers are ready when the cluster views first draw */
 setTimeout(()=>{try{(typeof DATABASES!=='undefined'?DATABASES:[]).forEach(s3Flower)}catch(e){}},0);
 /* mark outline: ■ paper, ◆ project (file or project start), ● note */
-function s3Mark(g,t,x,y,r){g.beginPath();if(t==='research_paper')g.rect(x-r,y-r,2*r,2*r);else if(t==='research_project'){g.moveTo(x,y-r);g.lineTo(x+r,y);g.lineTo(x,y+r);g.lineTo(x-r,y);g.closePath()}else g.arc(x,y,r,0,Math.PI*2)}
+function s3Mark(g,t,x,y,r){g.beginPath();if(typeof LEGAL_T!=='undefined'&&LEGAL_T.has(t)){g.moveTo(x,y-r*1.2);g.lineTo(x+r*1.1,y+r*.8);g.lineTo(x-r*1.1,y+r*.8);g.closePath()}else if(t==='research_paper')g.rect(x-r,y-r,2*r,2*r);else if(t==='research_project'){g.moveTo(x,y-r);g.lineTo(x+r,y);g.lineTo(x,y+r);g.lineTo(x-r,y);g.closePath()}else g.arc(x,y,r,0,Math.PI*2)}
 function s3DrawFlower(g,i,x,y,r){if(r<5)return;const img=s3Flower((i.db||[])[0]);if(img){const f=r*(i.t==='research_paper'?1.55:1.4);g.drawImage(img,x-f/2,y-f/2,f,f)}}
 function s3Data(){
   const all=cvUnits(),units=SEL_DB.length?all.filter(u=>u.on):all;   // a database selection shows only its own data

@@ -123,8 +123,8 @@ Mit W/A/S/D, Q/E, Mausrad oder Steuerkreuz durchlaufen, mit Ziehen umsehen; „F
 Ringe mit Linie zeigen den Cluster-Schwerpunkt je Jahr, Balken die Laufzeit von Projekten.
 
 
-Qdrant speichert die Vektoren, clustert aber nicht selbst. Nach jeder Ingestion (abschaltbar mit `AUTO_CLUSTER=false`)
-clustert das Backend die **Structured Summaries** – eine Einheit je Werk, nicht je Datei:
+Qdrant speichert die Vektoren, clustert aber nicht selbst. Nach jeder Ingestion (abschaltbar mit `AUTO_CLUSTER=false`; seit 3.0.2 nur die Datenbanken, in die eingelesen wurde – jede für sich,
+mit ihrer bisherigen Einheit: Projekte oder Projektdateien; die übrigen Datenbanken behalten ihre Cluster) clustert das Backend die **Structured Summaries** – eine Einheit je Werk, nicht je Datei:
 
 | Datenpunkt | Vektor |
 |---|---|
@@ -191,6 +191,26 @@ Summary-Elemente, DEO-Klassen, Personen, Datenbanken, Methoden, Cluster und Zita
 Kachel B nutzt den Graphen für Graph RAG (`POST /api/graph/stream`). Ausführlich: Tab „Technical Documentation“ › Ontology
 bzw. `docs/technical/ontology/`.
 
+**Zitationsnetz und BIBO (seit 2.2.0, REQ-35):** Nach jedem Einlesen gleicht `app/citations.py` die Literaturverzeichnisse
+aller Papers, Notes und aktuellen Projektdateien mit den Research Papers der Sammlung ab (DOI oder Titel, bestätigt durch
+Erstautor:in und Jahr) – regelbasiert, ohne LLM und ohne neue Embeddings. Ergebnis: `cites`/`cited_by` im Qdrant-Payload,
+`(:Document)-[:CITES]->(:Document)` mit `bibo:cites` im Graphen, dazu `bibo_type` und die geordnete Autor:innenliste
+(`bibo:authorList`). Anzeige: „⇄ Citations“ in der Wissenslandkarte. Neu berechnen: `docker compose run --rm ingest citations`
+oder `POST /api/citations/rebuild`; abrufen: `GET /api/citations?databases=JSW`. Abschalten: `AUTO_CITATIONS=false`.
+
+**Gesetze, Leitlinien und Standards (seit 3.0.0, REQ-37/38):** Neue Dokumenttypen `legal_project` (Ordner
+`research/<DB>/legal/<Projekt>/`, Upload als ZIP – die Gesetzesfassungen sind die Stufen), `legal_guideline`
+(`research/<DB>/guidelines/`), `standard` (`research/<DB>/standards/`) und seit 3.3.0 `guidance` – Guidance & FAQ
+(`research/<DB>/guidance/`: Q&A-Seiten, FAQs, Factsheets von Behörden, gegliedert in Themen und Fragen „Q 2.1“). `app/legal.py` zerlegt die Texte in
+Bestandteile (Artikel/§, Absatz, Nummer, Erwägungsgrund, Anhang, Clause) und baut nach dem SAT-Graph RAG von
+de Martim (2025) datierte Fassungen mit Aggregation sowie Actions (Änderungen mit eingebettetem Beschreibungstext);
+im Graphen an ELI ausgerichtet (`Norm`, `Component`, `TemporalVersion`, `LanguageVersion`, `Action`). Daten zu
+Inkrafttreten und Anwendungsbeginn stehen in `_legal.yaml`. Beide Chats wählen per Stichtag die damals gültige
+Fassung (aus der Frage oder „Legal texts as of“; sonst heute) und legen die Regel offen. Einlesen:
+`docker compose run --rm ingest legal <Ordner>` bzw. `ingest guideline|standard <Ordner/Datei>` oder `ingest all /research`;
+API: `GET /api/legal/norms`, `/api/legal/norms/{id}?as_of=…`, `/api/legal/norms/{id}/actions`, `/api/legal/plan?q=…`.
+Ausführlich: `docs/technical/ontology/08-legal-ontology.md`.
+
 ## Sprachmodelle
 
 | Aufgabe | Modell (Standard) | Einstellung |
@@ -239,7 +259,24 @@ und `APP_VERSION` im Frontend angleichen. Der Test `test_changelog_follows_keepa
 
 | Version | Datum | Inhalt | früher |
 |---|---|---|---|
-| **2.1.0** | 2026-10-17 | **Minor Release – Arbeitsfläche und Zeitstrahl:** B-Seite über die volle Bildschirmbreite (Karte links in voller Höhe, rechts „Projects & clusters“ und Graph Chat), Karte füllt ihre Kachel und lässt sich vergrößern, 3D-Zeitansicht mit genauen Dokumentdaten und Zeit-Zoom bis auf Tage; Anforderungen REQ-22 – REQ-34 (inkl. Feedback von Dustin) in `docs/requirements-status.md` und `docs/requirements-log.xlsx`; nur Frontend | |
+| **3.6.1** | 2026-10-30 | **Patch Release – Wachter öffentlich (REQ-56):** ohne Passwort sind jetzt EU AI Act und Wachter sichtbar; die übrigen Datenbanken weiter nur mit Passwort. | 3.6.0 |
+| 3.6.0 | 2026-10-30 | **Minor Release – neue Datenbank „Wachter“ (REQ-55):** ID `WACHTER`, Schild-Symbol, Farbe Violett; zwei Paper (Laux, Wachter & Mittelstadt 2024; Ho & Caals 2024) mit kuratierten Summaries in `research/WACHTER/papers/`; zunächst nur mit Passwort sichtbar (seit 3.6.1 öffentlich). | 3.5.1 |
+| 3.5.1 | 2026-10-30 | **Patch Release – kein Upload-Button in der Datenbankleiste (REQ-54):** „+ Add new data“ entfernt; Hochladen in bestehende Datenbanken weiter über Documents → + Upload. REQ-53 (drei Paper für EU AI Act) zurückgezogen. | 3.5.0 |
+| 3.5.0 | 2026-10-30 | **Minor Release – nur „EU AI Act“ öffentlich (REQ-52):** ohne Passwort zeigt die Oberfläche nur die Datenbank EU AI Act, beide Chats suchen nur dort; die übrigen Datenbanken erscheinen nach Eingabe des Passworts im Feld „Password“ neben dem OpenRouter-Key („Lock“ blendet sie wieder aus). Nur Anzeige-Filter im Frontend, kein Zugriffsschutz der API. | 3.4.0 |
+| 3.4.0 | 2026-10-30 | **Minor Release – Weißbuch als Begleitdokument (REQ-51):** Weißbuch der Kommission zur KI (COM(2020) 65, 19.2.2020) im Legal project EU-AI-Act; neue Projektrolle `white_paper`; Abschnitt `documents:` in `_legal.yaml` legt Rolle, Datum und Titel von Begleitdokumenten fest. | 3.3.2 |
+| 3.3.2 | 2026-10-30 | **Patch Release – NIST SP 800-18 Rev. 2 (REQ-50):** zweiter Standard in „EU AI Act“; „Appendix A.“ gilt als Anhang, „References“/„Bibliography“ als eigene Anlage statt Ende des letzten Abschnitts. | 3.3.1 |
+| 3.3.1 | 2026-10-30 | **Patch Release – erste Norm (REQ-49):** DIN SPEC 92005:2024-03 (Uncertainty quantification in machine learning) als erster Standard in „EU AI Act“; personalisierte Lizenzstempel von Normen-Downloads (Name, Kundennummer, Download-ID) werden beim Auslesen entfernt; Normen: Begriffe als eigene Bestandteile, Anhangstatus, Anhang-Gliederung „C.1.2“, Tabellenzeilen in Anhängen bleiben Text. | 3.3.0 |
+| 3.3.0 | 2026-10-29 | **Minor Release – neue Dokumentklasse „Guidance & FAQ“ (REQ-48):** Q&A-Seiten, FAQs und Factsheets von Behörden (unverbindlich, ohne Aktenzeichen) als eigener Typ `guidance` neben Legal guidelines; erste Seite: „AI Literacy – Questions & Answers“ des AI Office (Stand 29.10.2026) in EU AI Act; Gliederung in Themen und Fragen, Stufe `snapshot` für Webseitenstände. | 3.2.2 |
+| 3.2.2 | 2026-10-29 | **Patch Release – Leitlinien zu verbotenen KI-Praktiken (REQ-47):** zweite Legal guideline (C(2025) 5052 final, 134 Seiten, 433 Randnummern, 114 Gliederungspunkte); Inhaltsverzeichnis wird übersprungen, Gliederung und Randnummern müssen fortlaufen (Aufzählungen und zitierte Artikel im Text bleiben Text), Überschriften dürfen mit Klammer oder Anführungszeichen beginnen. | 3.2.1 |
+| 3.2.1 | 2026-10-29 | **Patch Release – Leitlinien der Kommission (REQ-46):** Leitlinien zur Definition eines KI-Systems (C(2025) 5053 final, 29.7.2025) als erste Legal guideline in „EU AI Act“; Parser für Kommissionsleitlinien: Abschnitte „I.“–„III.“, Gliederung „1.“/„5.1.“, Randnummern „(1)“–„(64)“, Fußnoten ausgelassen. | 3.2.0 |
+| 3.2.0 | 2026-10-29 | **Minor Release – Änderungsverordnungen anwenden (REQ-45):** Digital Omnibus on AI (Verordnung (EU) 2026/1744) als vierte Fassung des AI Act; `apply_amendments` in `_legal.yaml` wendet die Änderungsbefehle auf die Vorfassung an (`app/legal_amend.py`) – 63 von 72 Befehlen exakt, 5 angenähert, 4 offen gemeldet; neue Artikel 4a, 60a, 75a–75d, Anhang XIV; Anwendungsdaten des geänderten Art. 113; Bericht je Befehl in den Dokumentdetails. | 3.1.1 |
+| 3.1.1 | 2026-10-29 | **Patch Release – Verordnung (EU) 2024/1689 aus dem Amtsblatt (REQ-44):** dritte Fassung des AI Act; Amtsblatt-PDFs: Fußnoten werden nicht mehr als Erwägungsgründe gelesen (236 → 180), Abschnittsüberschriften „SECTION 1“ bleiben erhalten (16 Abschnitte), Verweise „Article 49“ in Anhängen sind keine Artikel (115 → 113); Anwendungsregeln: die Regel für einen Artikel schlägt die für sein Kapitel (Art. 101 ab 2.8.2026). | 3.1.0 |
+| 3.1.0 | 2026-10-29 | **Minor Release – Teilfassungen und Ausschussstufe (REQ-43):** Kompromissänderungen der Parlamentsausschüsse IMCO/LIBE (9.5.2023) als zweite Fassung des AI Act; `partial: true` in `_legal.yaml` übernimmt nicht enthaltene Teile unverändert aus der Vorfassung; neue Stufe `committee`; Parser für Kompromissblöcke (CA 1–12), Artikelnummern wie „54 a“/„28(a)“, Erwägungsgründe „(65a)“; Fassungsvergleich unabhängig von Leerzeichen, Bindestrichen und Satzzeichen der PDF-Extraktion. | 3.0.2 |
+| 3.0.2 | 2026-10-29 | **Patch Release – Clustering nach dem Einlesen (REQ-42):** Das automatische Neu-Clustern nach einer Ingestion betrifft nur noch die eingelesenen Datenbanken (jede für sich, mit Projekten bzw. Projektdateien wie zuvor) statt alle gemeinsam; ein Legal project ist eine Einheit statt zwei; eine Datenbank mit nur einem Werk bekommt einen eigenen Cluster; Projektnamen in der Wissenskarte überdecken keine Paper mehr. | 3.0.1 |
+| 3.0.1 | 2026-10-29 | **Patch Release – erstes echtes Gesetz (REQ-41):** Kommissionsvorschlag des AI Act (COM(2021) 206, Hauptdokument + Anhänge) als erstes Legal project in „EU AI Act“; Segmentierung von Kommissionsvorschlägen (TITLE/CHAPTER, alle Anhänge, Begriffsbestimmungen, Finanzbogen als Anlage, Seitenfüße, umbrochene Verweise), `file:` als Liste in `_legal.yaml`, Rückfall auf den jüngsten Entwurf, wenn kein Gesetz gilt. | 3.0.0 |
+| 3.0.0 | 2026-10-29 | **Major Release – Legal-Ontologie (REQ-37/38/39):** Gesetze, Leitlinien und Standards als neue Dokumenttypen (`legal_project`, `legal_guideline`, `standard`), strukturbewusst in Artikel/Absätze/Anhänge bzw. Clauses zerlegt, mit datierten Fassungen (unveränderte Teile wiederverwendet), Änderungen als eigene, eingebettete Actions und Stichtag-Suche mit offengelegter Regel – nach dem SAT-Graph RAG von de Martim (2025), an ELI ausgerichtet; neue Datenbank „EU AI Act“ (Kornblume); `fabio:Note` korrigiert. Major, weil sich Datenmodell (neue Typen und Felder) und Suchverhalten (Stichtag für Rechtstexte) ändern; bestehende Daten müssen nicht neu eingelesen werden | |
+| 2.2.0 | 2026-10-29 | Minor Release – Zitationsnetz und BIBO (REQ-35): Literaturverzeichnisse werden mit den Papers der Sammlung abgeglichen (DOI oder Titel mit Erstautor:in und Jahr, ohne LLM, ohne neue Embeddings); „⇄ Citations“ in der Wissenslandkarte zeigt, wer wen zitiert; „Cites / Cited by“ in den Dokumentdetails; Graph Chat beantwortet Zitationsfragen; BIBO im Graphen (`bibo_type`, `author_list`, `(:Document)-[:CITES]->(:Document)`); Literaturverzeichnisse, die durch Seitenkopfzeilen getrennt waren, werden wieder vollständig als `deo:BibliographicReference` erkannt. Backend-Update nötig, kein Neu-Einlesen | |
+| 2.1.0 | 2026-10-17 | Minor Release – Arbeitsfläche und Zeitstrahl: B-Seite über die volle Bildschirmbreite (Karte links in voller Höhe, rechts „Projects & clusters“ und Graph Chat), Karte füllt ihre Kachel und lässt sich vergrößern, 3D-Zeitansicht mit genauen Dokumentdaten und Zeit-Zoom bis auf Tage; Anforderungen REQ-22 – REQ-34 (inkl. Feedback von Dustin) in `docs/requirements-status.md` und `docs/requirements-log.xlsx`; nur Frontend | |
 | 2.0.0 | 2026-10-11 | Major Release – Meilenstein Anforderungen: alle 21 Anforderungen (REQ-01 – REQ-21) adressiert, Übersicht mit Status, Release und Umsetzung in `docs/requirements-status.md` und in den Release Notes; API bleibt kompatibel | |
 | 1.16.2 | 2026-10-11 | Code-Aufräumen vor dem Major Release, ohne sichtbare Änderungen (Module für Personen/Erkenntnisstufen, Lint sauber, CSS-Überschreibungen zusammengeführt) | |
 | 1.16.1 | 2026-10-11 | Korrektur B-Seite: Eingabefeld des Graph Chat auf breiten Bildschirmen wieder sichtbar; rechte Spalte („Your questions“ + Eingabe) weniger gequetscht | |
@@ -301,7 +338,7 @@ Backend (`app/query_meta.py`); im Live-Betrieb ergänzt das LLM beides in dersel
 
 ## Datenbanken (AL, DL, JSW, LDK, ML, UM)
 
-Jede Datei trägt das Metadatum `databases` (eine oder mehrere). Die Liste ist in `.env` konfigurierbar: `DATABASES=AL,DL,JSW,LDK,ML,UM,OTH`. `OTH` („Others“) nimmt alles auf, was in keine andere Datenbank gehört.
+Jede Datei trägt das Metadatum `databases` (eine oder mehrere). Die Liste ist in `.env` konfigurierbar: `DATABASES=AL,CNN_DM,DL,JSW,LDK,ML,UM,EUAIA,WACHTER,OTH`. `OTH` („Others“) nimmt alles auf, was in keine andere Datenbank gehört. Seit 3.0.0 gibt es `EUAIA` („EU AI Act“, Kornblume) für Gesetzestexte, Leitlinien und Standards rund um die KI-Verordnung. **Wer `DATABASES` in der `.env` gesetzt hat, muss `EUAIA` dort ergänzen**, sonst erscheint die Datenbank nicht. Seit 3.6.0 gibt es `WACHTER` („Wachter“, Schild-Symbol): wissenschaftliche Paper zu vertrauenswürdiger KI und zum EU AI Act (`research/WACHTER/papers/`).
 
 Zuordnung (Priorität von oben nach unten):
 

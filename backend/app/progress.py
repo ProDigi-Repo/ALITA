@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 
 log = logging.getLogger("progress")
 
-SPINE_ROLES = {"manuscript"}
+SPINE_ROLES = {"manuscript", "legal_text"}          # REQ-38: in Legal projects sind die Gesetzesfassungen das Rückgrat
 ANALYSIS_ROLES = {"analysis_output", "analysis_script", "model_file", "data"}
 SKIP_ROLES = {"reference"}                           # zitierte Fremdliteratur gehört nicht zur Projektgeschichte
 RESULT_DEO = {"Results", "Discussion", "Conclusion"}

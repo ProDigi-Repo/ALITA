@@ -19,6 +19,288 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 - Require an explicit Neo4j password instead of a committed default; restrict CORS, downloads and ZIP expansion, and cap HTTP uploads at 50 MiB.
 - Keep keys and chat history in page memory only, with Access logout. Export existing chats before upgrading: old browser-persisted keys/history are removed on first load.
 
+## [3.6.1] - 2026-10-30
+
+> **Patch release – Wachter is public.** Without the password the interface now shows two databases, EU AI Act and Wachter; both chats search these two when nothing is selected. The other databases still appear only after entering the password.
+
+### Requirements
+- **REQ-56 Wachter visible by default like EU AI Act** – ✅ done; checked in a headless browser (locked: EU AI Act and Wachter, empty selection sends both to the backend; unlocked: all ten).
+
+### Changed
+- Public databases (shown without the password): EU AI Act and Wachter (`PUBLIC_DBS` in `frontend/js/databases.js`).
+
+## [3.6.0] - 2026-10-30
+
+> **Minor release – new database "Wachter".** A tenth database with the ID `WACHTER` and the display name "Wachter" (symbol: a shield with a check mark, colour violet) for scientific papers on trustworthy AI and the EU AI Act. First content, with curated summaries so that no LLM summary is needed: Laux, Wachter & Mittelstadt (2024), "Trustworthy artificial intelligence and the European Union AI act: On the conflation of trustworthiness and acceptability of risk" (Regulation & Governance 18(1), 3–32), and Ho & Caals (2024), "How the EU AI Act Seeks to Establish an Epistemic Environment of Trust" (Asian Bioethics Review 16, 345–372). Like every database except EU AI Act, it is shown only after entering the password (REQ-52).
+
+### Requirements
+- **REQ-55 New database "Wachter" with two papers** – ✅ prepared and checked offline (database detected from the folder, curated title, authors, date and summary applied; 69 and 34 text segments); files in `research/WACHTER/papers/`; the ingestion runs in Docker.
+
+### Added
+- Database `WACHTER` ("Wachter") in the default `DATABASES` and `DATABASE_NAMES` (backend) and in the front end (list, name, shield icon, colours for light and dark theme and the 3D view). `.env.example` lists `EUAIA` and `WACHTER`. If `DATABASES` is set in your `.env`, add `WACHTER` there.
+
+## [3.5.1] - 2026-10-30
+
+> **Patch release – no upload button in the database bar.** The button "+ Add new data" in the database bar is gone, so the bar no longer suggests that databases can be added from the interface (the list of databases is fixed in the backend configuration, `DATABASES`). Papers, notes and projects are still uploaded into the existing databases via Documents → + Upload.
+
+### Requirements
+- **REQ-53 Add three scientific papers to "EU AI Act"** – withdrawn by the requester; prepared files and summaries were removed again, nothing changed.
+- **REQ-54 Remove the option to add new databases in the interface** – ✅ done; the only entry that looked like it, "+ Add new data" in the database bar, was removed. Checked in a headless browser: button gone, Documents → + Upload still offers only the visible databases.
+
+### Removed
+- Button "+ Add new data" in the database bar (the dialog behind it is no longer reachable); user manual and Quick Reference point to Documents → + Upload.
+
+## [3.5.0] - 2026-10-30
+
+> **Minor release – only "EU AI Act" is public.** Without a password the interface shows only the database "EU AI Act": the database bar, document list, projects, clusters, 3D/time view, people and citations contain only its documents, and both chats search only it (an empty selection no longer means "all databases"). The other databases appear once the password is entered in the new field "Password" next to the OpenRouter key; "Lock" hides them again. The unlock is remembered in this browser only.
+
+### Requirements
+- **REQ-52 Hide all databases except EU AI Act behind a password** – ✅ done in the front end; checked in a headless browser (locked: only EU AI Act; wrong password: unchanged; correct password: all nine databases; Lock: back to EU AI Act).
+
+### Added
+- Header: field "Password" next to the OpenRouter key and a "Lock" button; the password is checked when "Save" is pressed.
+
+### Security
+- The gate is a display filter in the front end, not access control: the backend API (`/api/documents`, `/api/chat` without a database filter, …) still answers for all databases, and the password is visible in the front-end code. For real protection the API would need its own check (e.g. a header checked by the backend or a reverse proxy with authentication).
+
+## [3.4.0] - 2026-10-30
+
+> **Minor release – the White Paper as an accompanying document.** The Commission's White Paper on Artificial Intelligence – A European approach to excellence and trust (COM(2020) 65 final, 19 February 2020, 27 pages) is the policy precursor of the AI Act: the proposal of 2021 builds on its "ecosystem of trust". It has no articles and is not a version of the law, so it goes into the legal project EU-AI-Act as an accompanying document with the new role "White paper", dated 19 February 2020 – before the proposal in the project's timeline. Accompanying documents can now be described in `_legal.yaml`. One new requirement (REQ-51). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest legal /research/EUAIA/legal/EU-AI-Act`. Roll back with `git checkout v3.3.2`.
+
+### Requirements
+- **REQ-51 Add the White Paper on AI** – ✅ prepared and checked offline; file in `research/EUAIA/legal/EU-AI-Act/`, entry under `documents:` in its `_legal.yaml`; the ingestion runs in Docker.
+
+### Added
+- Project role `white_paper` ("White paper"), summarised like a manuscript.
+- `_legal.yaml`: section `documents:` with `{file, role, date, title}` for accompanying documents of a legal project (white papers, impact assessments, opinions …); listed files are never taken as versions of the norm, even if they contain lines starting with "Article".
+
+## [3.3.2] - 2026-10-30
+
+> **Patch release – NIST SP 800-18 Rev. 2.** Second standard of the database "EU AI Act": NIST Special Publication 800-18 Revision 2, "Developing Security, Privacy, and Cybersecurity Supply Chain Risk Management Plans for Systems" (June 2026, 70 pages, free of charge). NIST documents have "Appendix A." instead of "Annex A" and an unnumbered "References" section; the appendices were not found and the reference list ended up in section 4.7. Checked on the real file: sections 1–4.7 (28 clauses), References, Appendices A–D; DIN SPEC 92005 and all other documents are split as before. One new requirement (REQ-50). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest standard /research/EUAIA/standards` (reads both standards – check the DIN licence first, see 3.3.1). Roll back with `git checkout v3.3.1`.
+
+### Requirements
+- **REQ-50 Add another standard (NIST SP 800-18 Rev. 2)** – ✅ prepared and checked offline; second entry in `research/EUAIA/standards/_legal.yaml`; ingestion runs in Docker. (The first upload for this request was the DIN SPEC 92005 file again; nothing was changed for it.)
+
+### Fixed
+- Standards: "Appendix A. …" is recognised as an annex (NIST); an unnumbered "References", "Bibliography" or "Literaturhinweise" heading starts a supplement of its own (cited as "References") instead of continuing the last clause.
+
+## [3.3.1] - 2026-10-30
+
+> **Patch release – the first standard.** DIN SPEC 92005:2024-03 "Artificial Intelligence – Uncertainty quantification in machine learning" (46 pages, text in English) as the first standard of the database "EU AI Act". The file is a personal DIN Media download: every page carries a stamp with the buyer's name, customer number, download ID and time. ALITA now removes such licence stamps when reading a PDF, so they reach neither the index nor the language model. Checked on the real file: no stamp left; sections 1–7 with all subclauses, 28 terms, Annexes A–C with clauses C.1 … C.2.x – 92 parts, 174 text units. One new requirement (REQ-49). **Licence:** a standard bought from DIN Media is usually licensed to one person; storing its full text in a shared ALITA instance and sending it to an external AI service (summaries, embeddings) may not be covered – check before ingesting. **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest standard /research/EUAIA/standards`. Roll back with `git checkout v3.3.0`.
+
+### Requirements
+- **REQ-49 Add a standard (DIN SPEC 92005:2024-03)** – ✅ prepared and checked offline; file and `_legal.yaml` in `research/EUAIA/standards/`; ingestion runs in Docker after the licence is checked.
+
+### Added
+- Licence stamps of standards downloads ("Normen-Download-DIN Media-<name>-KdNr.<n>-ID.<id>-<date time>") are removed from the text of every PDF (`extract.strip_licence_stamps`).
+- Standards: terms in "Terms and definitions" are parts of their own (`3.1` on its own line followed by the term; type `term`, cited as "Clause 3.1", title = the term).
+
+### Fixed
+- Standards: the annex status "(informative)" / "(normative)" was taken as the annex title; now the real title follows ("Use cases (informative)").
+- Standards: clauses inside annexes ("C.1.2 Solution via uncertainty quantification") are recognised, and numbered table rows inside annexes ("3 GPS Outage") no longer become clause 3 again.
+
+## [3.3.0] - 2026-10-29
+
+> **Minor release – new document class "Guidance & FAQ".** Authorities explain the AI Act not only in formally adopted guidelines (Communications with a reference number such as C(2025) 5052) but also on Q&A pages, in FAQs and factsheets – not binding, without reference number, and changing over time. These now have their own document type `guidance` ("Guidance & FAQ"), next to legal guidelines. First document: "AI Literacy – Questions & Answers" of the European Commission / AI Office (digital-strategy.ec.europa.eu, printed 29 October 2026, 15 pages, already reflecting the Digital Omnibus): 5 topics, 34 questions. One new requirement (REQ-48). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest guidance /research/EUAIA/guidance`. Roll back with `git checkout v3.2.2`.
+
+### Requirements
+- **REQ-48 New document class for the EU AI Act database (Q&A page on AI literacy)** – ✅ prepared and checked offline: type "Guidance & FAQ", folder `research/EUAIA/guidance/` with `_legal.yaml`; the ingestion runs in Docker.
+
+### Added
+- Document type `guidance` – "Guidance & FAQ": folders `research/<DB>/guidance/` (also `faq/`, `faqs/`), CLI `ingest guidance`, upload option in "Add new data" and "Documents → Upload", filter chip "FAQ", ▲ in olive in the map and lists; knowledge graph `fabio:WebPage` / `bibo:Webpage`; clustering unit like guidelines.
+- Q&A parsing (`parse_faq`, kind `faq`): topics (`tp_2`, "Topic 2") and questions (`q_2.1`, "Q 2.1", numbered as the page itself refers to them – "question 2.1"); a question starts with a question word at the start of a line and ends with "?" within three lines; questions listed inside an answer ("a) … What is AI?") stay part of the answer; two question sentences without an answer in between are one question; the page footer ("Source URL", "© European Union") is left out.
+- Stage `snapshot` ("Web page snapshot"): a printed state of a web page, valid from the day of the snapshot; a later snapshot of the same page is the next version, so changes of an FAQ become visible over time.
+
+### Changed
+- "Legal guidelines" now means formally adopted guidelines (upload text and documentation); FAQs and Q&A pages belong to "Guidance & FAQ".
+
+## [3.2.2] - 2026-10-29
+
+> **Patch release – the guidelines on prohibited AI practices.** Second legal guideline of the database "EU AI Act": Commission Guidelines on prohibited artificial intelligence practices established by Regulation (EU) 2024/1689, C(2025) 5052 final of 29 July 2025 (134 pages). It has a table of contents, quotes provisions of the AI Act and contains numbered lists – all of which the parser took for headings, so most headings appeared twice. Checked on the real file: 114 headings (down to "10.2.2.5"), all 433 margin numbers without gaps or duplicates, each under its heading; the first guideline and the four AI Act versions are split as before. One new requirement (REQ-47). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest guideline /research/EUAIA/guidelines` (reads both guidelines). Roll back with `git checkout v3.2.1`.
+
+### Requirements
+- **REQ-47 Add a second legal guideline (Commission Guidelines on prohibited AI practices)** – ✅ prepared and checked offline; file in `research/EUAIA/guidelines/`, second entry in its `_legal.yaml`; the ingestion runs in Docker.
+
+### Fixed
+- Tables of contents (lines with dot leaders, also when an entry wraps over two lines) are skipped.
+- Commission guidelines: a heading must continue the outline ("4" after "3", "3.2" after "3.1" or inside "3"), so numbered lists in the text and quoted provisions ("1. The following AI practices shall be prohibited:") stay text; margin numbers must follow each other, so "(2022) doi:…" is no margin number; headings that wrap after a comma or start with a quotation mark or bracket ("‘Social scoring’: …", "(Reasonably likely to) cause significant harm") are recognised.
+
+## [3.2.1] - 2026-10-29
+
+> **Patch release – Commission guidelines.** First legal guideline of the database "EU AI Act": the Commission Guidelines on the definition of an artificial intelligence system established by Regulation (EU) 2024/1689, C(2025) 5053 final of 29 July 2025 (13 pages). Commission guidelines are structured by sections "I.", "II.", headings "1." and "5.1." and margin numbers "(1)" … "(64)" – the parser expected margin numbers "1." and took the footnotes ("4 For overview …") for headings. Checked on the real file: 3 sections, 9 headings, all 64 margin numbers, no footnotes in the text; 138 text units. One new requirement (REQ-46). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest guideline /research/EUAIA/guidelines`. Roll back with `git checkout v3.2.0`.
+
+### Requirements
+- **REQ-46 Add a legal guideline (Commission Guidelines on the AI system definition)** – ✅ prepared and checked offline; file and `_legal.yaml` in `research/EUAIA/guidelines/` (stage `published`, valid from 2025-07-29); the ingestion runs in Docker.
+
+### Fixed
+- Commission guidelines: margin numbers in brackets ("(13)") are recognised as margin numbers (cited as "Para. 13"); sections "I." – "III." group the headings and margin numbers ("Section II"); headings need a dot ("1. Machine-based system"); footnote blocks ("4 For overview …", after a blank line, numbers ascending) are left out, so a margin number continues across the page. ISO-style standards ("4 Context of the organization") are not affected – the footnote rule applies only to documents with margin numbers in brackets.
+
+### Open points
+- The guideline is not yet linked to the provisions it explains (Art. 3(1), Art. 96(1)(f) AI Act); ALITA finds it by content and database, not through a link in the graph.
+- Inline footnote markers stay in the text ("(‘the AI Act’)1 entered into force").
+
+## [3.2.0] - 2026-10-29
+
+> **Minor release – applying an amending act.** Fourth version of the AI Act legal project: the Digital Omnibus on AI, Regulation (EU) 2026/1744 of 8 July 2026 (OJ L, 24.7.2026, in force 27 July 2026). It is an amending act – 72 instructions such as "in Article 6, the following paragraphs are inserted: ‘1a. …’" – not a consolidated text. ALITA now applies such instructions to the previous version and builds the consolidated version itself, as the actions "commanded by" the amending act in SAT-Graph RAG. On the real files: 63 of 72 instructions applied exactly, 5 approximately (first subparagraph / introductory part), 4 reported as not applied (two later subparagraphs, two point deletions inside annexes); new Articles 4a, 60a, 75a–75d and Annex XIV; the Regulation of 2024 is valid until 26 July 2026, the consolidated version from 27 July 2026. One new requirement (REQ-45). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest legal /research/EUAIA/legal/EU-AI-Act`. Roll back with `git checkout v3.1.1`.
+
+### Requirements
+- **REQ-45 Add the Digital Omnibus on AI to the AI Act project** – ✅ prepared and checked offline; file placed, `_legal.yaml` version 4 (`consolidated`, in force 2026-07-27, `apply_amendments: Regulation (EU) 2024/1689`, application dates of the amended Article 113); the ingestion runs in Docker.
+
+### Added
+- `app/legal_amend.py`: reads the article of an amending act that amends the norm, splits it into instructions (target, operation, quoted new text) and applies them to the previous version: replace / insert / add / delete for articles, paragraphs ("1a."), points ("(ba)"), definitions ("(14a)"), headings, subparagraphs (added; first subparagraph and introductory part replaced approximately) and whole annexes; a report per instruction (`applied`, `approximate`, `not_applied` with a reason).
+- `_legal.yaml`: `apply_amendments: <amended act as named in the amending act>` for a version whose file is an amending act; its document is titled "AI Act – Consolidated version (…)".
+- Document details: "Amendments – generated from the amending act: n of m instructions applied …" with the list of instructions that were applied only approximately or not at all.
+- Paragraph numbers with letters ("1a.", "1b.") are recognised.
+
+### Fixed
+- An ELI link inside a text ("… (OJ L 165, …, ELI: http://data.europa.eu/eli/reg/2023/1230/oj).") was taken for the page footer of an Official Journal page, and the following lines were dropped as footnotes. Only footer lines with a page counter ("15/41") count now.
+
+### Open points
+- Instructions on later subparagraphs (Art. 11(1) second subparagraph, Art. 96(1) second subparagraph) and on points inside Annexes I and VIII are not applied – the consolidated text on EUR-Lex has them.
+- Article 113(c) now has two dates for Chapter III Sections 1–3 (2 December 2027 for Annex III systems, 2 August 2028 for Annex I systems); ALITA keeps one date per part: the sections and Annex III from 2 December 2027, Article 6(1) and Annex I from 2 August 2028.
+- The summary of the current version is made from the amending act's text (the file of that version).
+
+## [3.1.1] - 2026-10-29
+
+> **Patch release – the adopted AI Act from the Official Journal.** Third version of the AI Act legal project: Regulation (EU) 2024/1689 (OJ L, 12.7.2024, 144 pages), in force since 1 August 2024. It was the first Official Journal PDF ALITA read, and three things went wrong: footnotes were read as recitals, section headings disappeared and references in annexes became articles. Fixed and checked on the real file: 180 recitals, 113 articles, 13 chapters with 16 sections, 13 annexes – exactly the structure of the regulation. The application dates of Article 113 are now right for every provision, including the exception for Article 101. One new requirement (REQ-44). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest legal /research/EUAIA/legal/EU-AI-Act` (reads all three versions; unchanged passages keep their vectors). Roll back with `git checkout v3.1.0`.
+
+### Requirements
+- **REQ-44 Add the final law (Regulation (EU) 2024/1689, OJ)** – ✅ prepared and checked offline; file placed under the name `_legal.yaml` expects (version 3 of 4, stage `adopted`, in force 2024-08-01, application dates of Art. 113); the ingestion runs in Docker.
+
+### Fixed
+- Official Journal PDFs: the footnotes of a page ("(1) OJ C 517, 22.12.2021, p. 56.") were read as recitals – 236 recitals instead of 180, with duplicates. They follow the page footer "ELI: … n/144" as one block and are now left out.
+- Section headings ("SECTION 1", "SECTION 2") occur on several pages and were removed as running page headers – 8 instead of 16 sections, and the articles of sections 1 and 2 hung directly under their chapter.
+- After the first annex, a line starting with "Article 49" or "Article 17." (a wrapped annex title or a reference) started a new article – 115 instead of 113 articles.
+- A wrapped reference "… in / Article 58. The Board may …" started a false article in the Commission proposal.
+- Application dates: with two matching rules, the longer component ID won, so "Chapter XII from 2 August 2025" and "Article 101 from 2 August 2026" tied and Article 101 got the wrong date. Now the rule naming the component itself (or its nearest ancestor) wins.
+
+### Open points
+- Between the proposal and the regulation most articles were renumbered (e.g. transparency: Art. 52 → Art. 50). ALITA compares by article number, as SAT-Graph RAG does, so "Article 52 modified" means the provision with that number; 24 renumberings with almost the same text are recognised as such.
+- Still missing: the consolidated version after the Digital Omnibus (version 4 in `_legal.yaml`), the Parliament's plenary position and the Council's general approach.
+
+## [3.1.0] - 2026-10-29
+
+> **Minor release – partial versions and the committee stage.** Second version of the AI Act legal project: the European Parliament's IMCO/LIBE *draft compromise amendments* of 9 May 2023 (144 pages). The document is a consolidated text of 12 compromise blocks, not a full regulation – Articles 13, 14, 52, 55, 69, Annex IX and many recitals are missing. Read as a normal version, all of them would have counted as deleted; as a *partial* version they are taken unchanged from the proposal. Checked offline on the real PDFs: 104 articles (24 new, e.g. 4a, 28a, 28b, 54a), 129 recitals, nothing reported as deleted; the smallest reported changes are real (fines EUR 250 000 → 750 000, "user" → "deployer"). One new requirement (REQ-43). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest legal /research/EUAIA/legal/EU-AI-Act` – the comparison of texts changed, so the units of the proposal are embedded once more. Roll back with `git checkout v3.0.2`.
+
+### Requirements
+- **REQ-43 Add the next version of the AI Act (IMCO/LIBE draft compromise amendments, 9.5.2023)** – ✅ prepared and checked offline; file placed and `_legal.yaml` extended (version 2 of 4, stage `committee`, `partial: true`); the ingestion runs in Docker.
+
+### Added
+- `_legal.yaml`: `partial: true` for a version whose document contains only the amended parts; `merge_partial` takes missing components from the previous version, aligns chapters and articles with its structure and orders the result in reading order. Document details show "Scope: only the amended parts".
+- Drafting stage `committee` ("Committee amendments (Parliament)"); the temporal planner recognises "IMCO", "LIBE", "compromise amendments", "committee text/vote", "Ausschuss", "Kompromissänderungen".
+- Segmentation of compromise-amendment documents: block headers "… CA 1" … "CA 12" (also over several lines) restart the structure with recitals; a recital repeated word for word in two blocks counts once; article numbers "28a", "54 a", "28(a)"; recitals and definitions with letters ("(65a)", "(44a)"); "TITLE X - Confidentiality …" headings.
+
+### Changed
+- Versions are compared by letters and digits only (`cmp_key`): spaces, hyphens (including Word's non-breaking hyphens) and punctuation that differ between PDF extractions no longer count as changes. Existing legal units are embedded once more on the next ingestion.
+- A second article heading with the same number no longer merges into an article that already has paragraphs (the IMCO/LIBE text has "Article 57b" twice).
+
+### Open points
+- The plenary position of the Parliament (14 June 2023), the Council's general approach (6 December 2022), the adopted Regulation (EU) 2024/1689 and the consolidated version are not in the collection yet.
+- Footnote markers glued to words ("Council63") and two different "Article 57b" in the committee document are kept as they are.
+
+## [3.0.2] - 2026-10-29
+
+> **Patch release – clustering after an ingestion.** After the AI Act proposal was ingested, the automatic re-clustering ran over *all* databases together: with the CNN/DailyMail news in the collection the silhouette chose three clusters (two of news, one with all 74 research works and the law), and the clusters of AL, DL, JSW, LDK and ML (by project file) were overwritten. Now only the databases that received data are re-clustered, each on its own and with its previous unit. One new requirement (REQ-42). **Update:** `docker compose up -d --build backend frontend`, then restore the clusters once per database: `docker compose run --rm -e OPENROUTER_API_KEY=… ingest cluster --db <DB>` for AL, DL, JSW, LDK, CNN_DM and EUAIA, and `… ingest cluster --db ML --files` (or `POST /api/clusters/recompute?database=<DB>`, for ML with `&project_files=true`). Roll back with `git checkout v3.0.1`.
+
+### Requirements
+- **REQ-42 Knowledge map after ingesting the AI Act looked wrong** – ✅ fixed: cause was the global re-clustering after the ingestion (see Fixed); the clusters of the existing databases have to be computed again once (see Update).
+
+### Fixed
+- Automatic clustering after an ingestion (`AUTO_CLUSTER=true`) clustered all databases together and replaced the per-database clusters (`ingest cluster --db …`, `--files`). It now re-clusters only the databases of the ingested data, one after the other, with projects or project files as units as in their last run; `ingest all` collects the databases it touched and clusters them once at the end.
+- A legal project counted twice in clustering (as project and as its current version); now the law is the unit and the project takes its cluster.
+- A database with a single work (e.g. "EU AI Act" with only the proposal) got no cluster ("Too few documents"); it now gets one cluster of its own.
+- Knowledge map (B page): the name and "n docs · m clusters" of a project ran over the next paper in the "Projects & papers" row; the name is now shortened up to the next node and the second line is left out when it does not fit.
+
+## [3.0.1] - 2026-10-29
+
+> **Patch release – first real law: the Commission proposal of the AI Act.** Tested against COM(2021) 206 final (108 pages) and its "Annexes 1 to 9" (17 pages) as the first legal project of the database "EU AI Act". The segmentation now handles the structure of Commission proposals, one version can consist of several files, and answers no longer come back empty when only drafts of a law are in the collection. One new requirement (REQ-41). **Update:** `docker compose up -d --build backend frontend`, put the proposal files into `research/EUAIA/legal/EU-AI-Act/`, then `docker compose run --rm ingest legal /research/EUAIA/legal/EU-AI-Act`. Roll back with `git checkout v3.0.0`.
+
+### Requirements
+- **REQ-41 Ingest the first legal project (AI Act proposal, main document + annexes)** – ✅ prepared and checked offline: files placed, `_legal.yaml` lists both files as one version, the full model (699 parts, 889 text units) is built from the real PDFs; the ingestion itself runs in Docker on the server.
+
+### Added
+- `_legal.yaml`: `file:` may be a list – a main document and its separately published annexes form one version and one document (`legal.files` in the document details).
+- Chats: if no law in scope has a version in force at the reference date but drafts exist, the answer uses the latest drafting stage up to that date and says so ("no version in force on …, showing the latest draft").
+- Segmentation: `TITLE I`–`XII` of Commission proposals with their `CHAPTER 1`… below (`tit_III/chp_1`, "Title III, Chapter 1"), headings over two lines, numbered definitions `(1)`–`(44)` as points with their own points `(a)` ("Art. 3(14)(a)"), and the legislative financial statement as a supplement (`lfs`) instead of the end of the last article.
+
+### Fixed
+- Only the first annex was recognised; all following annexes ended up in its text (the AI Act proposal: 1 instead of 9 annexes).
+- Page footers of Commission documents ("EN 23 EN") were kept in the text.
+- A wrapped cross-reference at the start of a line ("… referred to in / Article 61.") started a false article and moved the following paragraphs into it.
+- Chapters with the same number in different titles (Chapter 1 of Title III and of Title VI) got numbered duplicates.
+
+### Open points
+- The adopted Regulation (EU) 2024/1689 and the consolidated version are still missing in `research/EUAIA/legal/EU-AI-Act/`; when they are added, ingest the project again with `--force` (a legal project that already exists is skipped by `ingest all`).
+- Two duplicate numbers are in the source PDF itself (two points "(a)" in Art. 1, two definitions "(1)" in Art. 3); ALITA keeps both (`~2`).
+
+## [3.0.0] - 2026-10-29
+
+> **Major release – legal ontology: laws, guidelines and standards over time.** ALITA now handles legal texts as structured, versioned norms, following the Structure-Aware Temporal Graph RAG (SAT-Graph RAG) of de Martim (2025, arXiv:2505.00039), LRMoo-inspired and aligned with ELI (European Legislation Identifier). Three new kinds of data – legal projects (the versions of a law are their stages), legal guidelines and standards – are split into articles, paragraphs, points, annexes or clauses; every part has dated versions (unchanged parts are reused, not copied), and every change is an action with its own searchable description. Both chats answer with the version valid at the date asked about and disclose the rule they used. New database "EU AI Act" (cornflower). Four new requirements (REQ-37 – REQ-40), all done; see "Requirements", `docs/requirements-status.md` and `docs/requirements-log.xlsx`. **Why major:** the data model gains new document types and fields, and retrieval of legal texts is now time-scoped by default (today's version unless the question names a date or stage). The REST API is extended, existing calls keep working; existing data does not need to be re-ingested. **Update:** `docker compose up -d --build backend frontend`, `POST /api/graph/setup` (constraints, ELI import); if `DATABASES` is set in `.env`, add `EUAIA`. Roll back with `git checkout v2.2.0`.
+
+### Requirements
+- **REQ-37 Temporal extension after the SAT-Graph RAG paper** – ✅ done for legal texts: point-in-time retrieval, impact analysis and provenance (the paper's three query patterns) with a rule-based temporal planner and disclosed policies (current, point in time, SnapshotLast, stage, all versions); action nodes with embedded change texts as described in the paper.
+- **REQ-38 Legal ontology and new document types** – ✅ done: legal projects, legal guidelines and standards; norm → component → temporal version → language version → text unit, actions; ELI classes in the graph; `_legal.yaml` for dates; upload, ingestion, API, map, documents, chats.
+- **REQ-39 Database "EU AI Act" with its flower** – ✅ done: `EUAIA`, shown as "EU AI Act" with a cornflower in EU blue; folder `research/EUAIA/` with `legal/EU-AI-Act/_legal.yaml` (AI Act: proposal, adopted text, consolidated version after the AI Omnibus) as template.
+- **REQ-40 Ontologies that can be cited correctly** – ✅ done: documents of type notes were typed `fabio:Note`, a class FaBiO does not define – now `fabio:Expression`; the documentation no longer lists C4O, which ALITA never used.
+
+### Added
+- Document types `legal_project`, `legal_guideline`, `standard` and project role `legal_text`; folders `research/<DB>/legal/<Project>/`, `guidelines/`, `standards/`; upload of legal projects as one ZIP each, guidelines and standards as files ("Add new data" and "Documents → Upload").
+- Structure-aware segmentation (`app/legal.py`): EU law in English (recitals, chapters, sections, articles, paragraphs, points, sub-points, annexes), German statutes and EU law in German (§/Artikel, Absätze, Nummern, Buchstaben), standards (clauses 6 / 6.1 / 6.1.2, annexes; table-of-contents entries replaced) and guidelines (clauses, margin numbers); repeated page headers and markers on their own line (Official Journal PDFs) are handled.
+- Versioning after the paper: temporal versions per component with validity (`valid_from`, `valid_to`), application date per component (`applicable_from`, inherited between versions) and drafting stages without validity; parent versions aggregate the versions of their parts; actions `enacted`, `added`, `modified`, `removed`, `applicability_changed`, `renumbered` with a descriptive text (source, effective date, before/after). Unchanged temporal versions are embedded only once, also across re-ingestion.
+- `_legal.yaml` per folder: norm id, title, ELI, versions with stage, dates, entry into force, application dates per component, amending act.
+- Temporal planner (`app/legal_time.py`): reads dates (ISO, German, English), periods, "since/before/between", drafting stages, named components (Art. 6(1), § 26 Abs. 2, Annex III, recital 12, clause 6.1.2) and quoted terms; the chosen policy is shown under every answer ("⏱ Legal texts …"). New field "Legal texts as of" in the parameters of both chats overrides the question.
+- Chat context from the legal ontology (`app/legal_chat.py`): the complete text of a named component at the date (reconstructed from the aggregation), the changes in a period grouped by component, and the origin of a term – shown as tables under the answer; sources of legal passages show component, validity and application date.
+- Knowledge graph: `Norm` (`eli:LegalResource`), `Component` (`eli:LegalResourceSubdivision`), `TemporalVersion` (LRMoo F2 Expression), `LanguageVersion` (`eli:LegalExpression`), `Action`; relations `HAS_PART`, `HAS_VERSION`, `AGGREGATES`, `HAS_LANGUAGE`, `REALIZES`, `TERMINATES`, `PRODUCES`, `COMMANDED_BY`, `DESCRIBES`, `IS_VERSION_OF`; BIBO types `bibo:Legislation`, `bibo:Bill` (drafts), `bibo:LegalDocument`; ELI ontology import via neosemantics; `GET /api/graph/status` lists the norms.
+- REST API: `GET /api/legal/norms`, `GET /api/legal/norms/{id}` (structure at `as_of` / `stage` / `seq`, optionally full text), `GET /api/legal/norms/{id}/actions`, `GET /api/legal/plan`; search filters `as_of`, `legal_stage`, `legal_from`, `legal_all_versions`; Graph Chat request field `as_of`; CLI `ingest legal|guideline|standard`.
+- Interface: new types as ▲ in the knowledge map (law, guideline, standard in their own colours) and as a tab "Laws, Guidelines & Standards" in Documents; document details of a version with stage, validity, application date, amending act, all versions and "Show the changes of this version"; legal projects show their versions as stages in the project card.
+- Database "EU AI Act" (`EUAIA`) with a cornflower in EU blue.
+- Technical documentation "Legal ontology" (`docs/technical/ontology/08-legal-ontology.md`); tests `tests/test_legal.py` and – run inside the backend container – `tests/test_legal_qdrant.py` (time filters against an in-memory Qdrant).
+
+### Changed
+- Retrieval: legal passages are chosen by validity at the reference date (default today); year, "latest version" and archive filters do not apply to them. Other documents are unaffected.
+- Clustering: guidelines, standards and the current version of each law are clustering units (one point each).
+- Diversification of sources: legal passages are limited per article/clause instead of per file.
+- Documentation: ontology overview, graph model, ingestion, Graph RAG, operations, user manual, Quick Reference (page 6), README, AI system description.
+
+### Fixed
+- FaBiO type of research notes: `fabio:Note` does not exist in FaBiO – now `fabio:Expression` (REQ-40).
+- Ontology overview listed "C4O / Collections Ontology", which ALITA does not use (and C4O is the Citation Counting and Context Characterization Ontology) – removed.
+
+### Open points
+- No real law has been ingested in this release: please put the AI Act files into `research/EUAIA/legal/EU-AI-Act/` (file names as in `_legal.yaml`) and run `ingest all /research`; the segmentation is tested on structured samples, not yet on the Official Journal PDF.
+- The time filter in Qdrant is covered by `tests/test_legal_qdrant.py`, which needs the backend container (`docker compose run --rm backend pytest tests/test_legal_qdrant.py`).
+- Links from research documents to provisions ("Art. 6 AI Act" in a paper or manuscript) and the temporal model for manuscript versions (REQ-37 for research projects) are not built yet.
+- Standards: check the licence before storing full texts of ISO/DIN standards.
+- Quick Reference: the ontology page (6) now lists ELI and the corrected FaBiO types and all pages are re-rendered for 3.0.0; the interface screenshots on pages 3 and 4 do not show the new types yet.
+
+## [2.2.0] - 2026-10-29
+
+> **Minor release – citation network and BIBO:** ALITA now sees which papers of the collection cite each other. The reference lists that are already in the index are matched with the research papers of the collection (by DOI, or by title confirmed with first author and year) – rule-based, without a language model and without new embeddings. "⇄ Citations" in the knowledge map shows the network over time, the document details list "Cites" and "Cited by", and the Graph Chat answers citation questions. The knowledge graph describes documents with the Bibliographic Ontology (BIBO). Two new requirements: REQ-35 done, REQ-36 answered and open; see "Requirements" below, `docs/requirements-status.md` and `docs/requirements-log.xlsx`. **Backend and frontend changed:** rebuild with `docker compose up -d --build backend frontend`, then `POST /api/graph/setup` (loads BIBO) and `docker compose run --rm ingest citations` (or "⟳ Recompute" in the view) – nothing is re-ingested or re-embedded. The REST API is extended, not changed. Roll back with `git checkout v2.1.0`.
+
+### Requirements
+- **REQ-35 BIBO for research papers and the citation network between them** – ✅ done: citations between documents of the collection are found in their reference lists and shown as a network in the knowledge map ("⇄ Citations"), in the document details and in Graph Chat answers; BIBO type, ordered author list and `bibo:cites` in the knowledge graph. Checked on the 21 papers of Aster, Jasmine and Peony: all 7 citations between them found, no false link.
+- **REQ-36 Apply ontology changes without re-embedding** – ◯ open, answered: the vectors do not depend on the DEO roles or the ontology (only the chunk text with a short header is embedded), and changes of the graph model only need `POST /api/graph/setup` and `POST /api/graph/rebuild`. In 2.2.0 this is used for the reference lists (labels corrected via the payload, no embeddings); a general `relabel` command for changed DEO rules is still to be built.
+
+### Added
+- Knowledge map (B page): "⇄ Citations" switches the map to the citation network of the collection and back. Papers, notes and projects (one node per project) are placed by year from left to right, the size shows how often a work is cited inside the collection, shape and colour follow "Document type" / "Database"; an arrow points from the citing to the cited work (solid = DOI or title with first author, dashed = title only). Hover an arrow to see the entry of the reference list it was found in; click a node to highlight its citations and open it under "Projects & clusters"; drag to pan, wheel to zoom. The database selection applies; papers without citations sit in a strip at the bottom (can be hidden). "⟳ Recompute" reads the reference lists again.
+- Document details: section "Citations in this collection" with "Cites" (and how each citation was found) and "Cited by", each entry opens the document.
+- Graph Chat: questions about citations ("Which papers build on …?", "most cited", "zitiert", "Referenzen" …) get the citation network in scope as context; the graph path ends with "cites → Paper"; with 2 or more hops directly citing or cited documents are added as neighbours.
+- Citation network in the backend (`app/citations.py`): after each ingestion (`AUTO_CITATIONS=true`) every paper, note and current project file is matched against the research papers of the collection; stored as `cites` (`doc_id`, `via`, `confidence`, `evidence`), `cited_by`, `refs_chars` and `citations_run` on each document. Versions of the same work count once; an older document cannot cite a newer one.
+- REST API: `GET /api/citations?databases=…&min_confidence=0.6` (nodes and edges of the network) and `POST /api/citations/rebuild`; CLI: `ingest citations`.
+- Knowledge graph, BIBO: every document has `bibo_type` (`bibo:AcademicArticle` paper, `bibo:Note` notes, `bibo:Manuscript` project file), `author_list` (`bibo:authorList`) and `cited_by_count`; `AUTHORED` carries the author's `position`; `(:Document)-[:CITES {via, confidence, evidence}]->(:Document)` with `bibo:cites` / `cito:cites`. `POST /api/graph/setup` also imports BIBO via neosemantics (purl.org, else the DCMI copy); `GET /api/graph/status` counts the document citations.
+- Tests for reading reference lists, matching and the graph statements (`tests/test_citations.py`).
+
+### Changed
+- Documentation: user manual, Quick Reference (pages 3, 4, 6, 7 – BIBO is no longer "not implemented"), technical documentation (overview, graph model, ingestion step 7, Graph RAG, operations) and README describe the citation network and BIBO.
+
+### Fixed
+- Reference lists that were cut off by running page headers (e.g. "Management Learning", "L. T. DO KHAC ET AL." – the extractor takes them for headings) lost their `deo:BibliographicReference` label after the first page, so the knowledge graph missed most cited DOIs there. The citation step follows the list across such headers and labels the continuation passages (`deo_source = bibliography`; payload only, the vectors stay unchanged). DOIs broken across lines ("https://doi. org/10.…") are recognised as well.
+
+### Open points
+- Only works *inside* the collection are linked; journals, volumes, pages and citations to outside literature are not looked up (would need Crossref/OpenAlex via the DOI).
+- REQ-36: a general "relabel" command that applies changed DEO rules without re-embedding is not built yet (the vectors do not depend on the DEO roles).
+- Push `main` and the tags `v2.1.0` and `v2.2.0` to origin and deploy to alita.prodigi-marburg.de.
+
 ## [2.1.0] - 2026-10-17
 
 > **Minor release – workspace and time line:** the B Interaction Interface uses the whole screen (map on the left over the full height, "Projects & clusters" and the Graph Chat on the right), the knowledge map fills its tile and can be enlarged, and the 3D · time view shows every document at its exact date with a time zoom down to days. 13 new requirements from the review of 2.0.0 (REQ-22 – REQ-34, incl. feedback from Dustin) – all done; see "Requirements" below, `docs/requirements-status.md` and `docs/requirements-log.xlsx` (each request with its original wording and as a requirement). Frontend only: the REST API and the backend are unchanged – a browser reload is enough, no rebuild. Roll back with `git checkout v2.0.0`.
@@ -622,6 +904,9 @@ First stable release. From here on, incompatible changes to the REST API, the CL
 - Chat history per tile, metadata backup (`GET /api/export`), Docker Compose setup.
 
 [Unreleased]: #unreleased
+[3.0.0]: #300---2026-10-29
+[2.2.0]: #220---2026-10-29
+[2.1.0]: #210---2026-10-17
 [2.0.0]: #200---2026-10-11
 [1.16.2]: #1162---2026-10-11
 [1.16.1]: #1161---2026-10-11

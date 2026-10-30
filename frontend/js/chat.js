@@ -46,11 +46,11 @@ function botMsg(chat,a){
   const text=mdLite(a.answer).replace(/\[(\d+)\]/g,(m,n)=>`<sup class="cite" data-t="${id}-${n}">[${n}]</sup>`);
   const pathHtml=a.path?`<div class="path"><span class="lbl">Graph path</span>${a.path.map(p=>Array.isArray(p)?`<span class="node">${esc(p[0])}<i>${esc(p[1])}</i></span>`:`<span class="edge">—${esc(p)}→</span>`).join('')}</div>`:'';
   const srcHtml=a.sources.map(s=>{
-    const tags=[TYPE_LABEL[s.doc_type]||s.doc_type,s.project_name,s.filetype&&'.'+s.filetype,s.year,ROLE_LABEL[s.role]||s.role,s.locator,...(s.methods||[]).map(m=>METHOD_LABEL[m]||m)].filter(Boolean);
+    const tags=[TYPE_LABEL[s.doc_type]||s.doc_type,s.project_name,s.filetype&&'.'+s.filetype,s.legal?null:s.year,ROLE_LABEL[s.role]||s.role,s.legal&&typeof legalSrcTag==='function'?legalSrcTag(s.legal):s.locator,...(s.methods||[]).map(m=>METHOD_LABEL[m]||m)].filter(Boolean);
     const href=LIVE?s.url.replace(/^\//,''):'#';
     return `<details class="src" id="${id}-${s.n}"><summary><span class="n">[${s.n}]</span><span class="stt"><a href="${esc(href)}" ${LIVE?'target="_blank" rel="noopener"':'data-demo="1"'}>${esc(s.title)}</a><span class="sub">${esc([TYPE_LABEL[s.doc_type]||s.doc_type,s.project_name,s.year,s.locator].filter(Boolean).join(' · '))}</span></span><span class="score">${(+s.score).toFixed(2)}</span><span class="chev" aria-hidden="true">▸</span></summary><div class="sbody"><div class="tags">${tags.map(t=>`<span>${esc(t)}</span>`).join('')}</div><p class="snip">${esc(s.snippet)}</p></div></details>`}).join('');
   const d=document.createElement('div');d.className='msg bot';
-  d.innerHTML=`<div class="bubble">${text}</div>${a.progress&&typeof progressBlockHtml==='function'?progressBlockHtml(a.progress):''}${pathHtml}
+  d.innerHTML=`<div class="bubble">${text}</div>${a.progress&&typeof progressBlockHtml==='function'?progressBlockHtml(a.progress):''}${a.temporal&&typeof legalBlockHtml==='function'?legalBlockHtml(a):''}${pathHtml}
    ${a.sources.length?`<details class="sources"><summary><span class="chev" aria-hidden="true">▸</span><b>${a.sources.length} source${a.sources.length>1?'s':''} used</b><span class="srctoggle"></span><span class="sfilter">Filter: ${esc(filterSummary(a.applied_filters||{}))}</span><span class="speek">${a.sources.map(x=>`[${x.n}] ${esc(x.title)}`).join(' · ')}</span></summary><div class="sbar"><button type="button" class="mini" data-sall="1">Expand all</button><button type="button" class="mini" data-sall="0">Collapse all</button></div>${srcHtml}</details>`:''}
    <div class="actions"><button class="mini" data-copy>Copy</button><span class="meta-line" style="align-self:center">${esc(a.model||CHAT_MODEL_ID)}${LIVE?'':a.llm==='claude-sample'?' · demo without backend (GPT-6 Luna needs the backend)':a.llm==='extractive'?' · extractive demo answer':' · sample answer'}${a.truncated?' · cut short':''}${a.memory_turns!=null?` · <span class="memchip" title="${esc(a.retrieval_query&&a.retrieval_query!==a.question?'Search query with conversation context: '+a.retrieval_query:'Earlier turns sent with this question')}">memory: ${a.memory_turns?a.memory_turns+' earlier turn'+(a.memory_turns>1?'s':''):'none'}</span>`:''}</span></div>`;
   chat.appendChild(d);chat.scrollTop=chat.scrollHeight;
@@ -288,7 +288,7 @@ async function askGraph(q){
   if(LIVE){
     const sc=chatScope();
     const body={message:q,history:priorG,system_prompt:sysPrompt('graph'),databases:plan.databases,clusters:sc.kind==='project'?[]:plan.clusters,projects:sc.project,persons:sc.person,overview:sc.overview,deo:$('#gDeo').value?[$('#gDeo').value]:[],
-      entity_types:plan.entity_types,relation:plan.relation||null,year_from:plan.year,year_to:plan.year,hops:plan.hops};
+      entity_types:plan.entity_types,relation:plan.relation||null,year_from:plan.year,year_to:plan.year,hops:plan.hops,as_of:($('#gAsOf')&&$('#gAsOf').value)||null};
     try{
       const res=await streamChat(body,chat,t,'api/graph/stream');
       if(res.fallback){const a={...demoGraphAnswer(q,priorG),memory_turns:priorG.length,model:'graph endpoint missing'};return finish(a)}

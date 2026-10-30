@@ -11,7 +11,7 @@ def diversify(payloads: list[dict], top_k: int, project_filtered: bool) -> list[
     cap = max(2, (top_k + 1) // 2)
     out = []
     for i, p in enumerate(payloads):
-        d = p["doc_id"]
+        d = p.get("div_key") or p["doc_id"]      # REQ-38: Rechtstexte je Artikel/Clause statt je Datei begrenzen
         proj = p.get("project_name") if p.get("doc_type") == "research_project" else None
         if per_doc.get(d, 0) >= 2 or (proj and not project_filtered and per_proj.get(proj, 0) >= cap):
             continue

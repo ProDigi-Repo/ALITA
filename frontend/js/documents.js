@@ -8,8 +8,26 @@ function renderKey(){
   if(apiKey){s.className='pill ok';s.innerHTML='<span class="dot"></span>Key …'+esc(apiKey.slice(-4));$('#apiKey').value=apiKey}
   else{s.className='pill';s.innerHTML='<span class="dot"></span>no key'}
 }
+function renderDbLock(){
+  const p=$('#dbPass'),l=$('#dbLock');if(!p)return;
+  p.placeholder=DB_UNLOCKED?'all databases unlocked':'show all databases';p.disabled=DB_UNLOCKED;l.hidden=!DB_UNLOCKED;
+}
+/* lock/unlock without a page reload: the OpenRouter key lives in page memory only and would be lost */
+function setDbUnlocked(on){
+  DB_UNLOCKED=on;try{on?localStorage.setItem('db_unlocked','1'):localStorage.removeItem('db_unlocked')}catch(e){}
+  DATABASES=[...DB_ALL];applyDbGate();renderDbLock();if(typeof loadDocs==='function')loadDocs();
+}
+$('#dbLock').addEventListener('click',()=>{setDbUnlocked(false);toast('Locked · only the public databases are shown')});
+renderDbLock();
 $('#keyForm').addEventListener('submit',e=>{
   e.preventDefault();
+  const pw=$('#dbPass').value;
+  if(pw){
+    $('#dbPass').value='';
+    if(pw===DB_PASSWORD){setDbUnlocked(true);toast('Password correct · all databases are shown')}
+    else toast('Wrong password');
+    if(!$('#apiKey').value.trim()||$('#apiKey').value.trim()===apiKey)return;
+  }
   const v=$('#apiKey').value.trim();
   if(v && !v.startsWith('sk-or-')){toast('The key should start with "sk-or-"');return}
   apiKey=v;
@@ -26,7 +44,7 @@ let DOCS=[], PROJECTS=[];
 const D={t:'',sort:'d',dir:-1,shown:100,sel:null};
 
 function normLive(r){ // API-Zeile -> internes Kurzformat
-  return {id:r.doc_id,t:r.doc_type,ti:r.title,fn:r.filename,ft:r.filetype,d:(r.date||'').slice(0,10),ds:r.date_source,y:r.year,sz:r.size_bytes,
+  return {leg:r.legal||null,id:r.doc_id,t:r.doc_type,ti:r.title,fn:r.filename,ft:r.filetype,d:(r.date||'').slice(0,10),ds:r.date_source,y:r.year,sz:r.size_bytes,
     pn:r.project_name,rp:r.rel_path,ro:r.role,ve:r.venue,st:r.stage,v:r.version,la:r.is_latest,ar:r.archived,ix:r.indexed,no:r.index_note,me:r.method_ids||[],lg:r.language,pg:r.pages,db:r.databases||[],doi:r.doi,au:r.authors||[],ed:r.editors||[],ci:r.cluster_id,cl:r.cluster_label,cs:r.cluster_score,cb:r.cluster_basis,cx:r.cluster_x,cy:r.cluster_y,ca:r.cluster_alt_id,cas:r.cluster_alt_score,ct:r.cluster_title,cd:r.cluster_description,cc:r.cluster_contribution,can:r.cluster_anchor};
 }
 async function loadDocs(){
@@ -42,6 +60,7 @@ async function loadDocs(){
     PROJECTS=[{...DEMO.project,db:DEMO.project.db||[]}];
   }
   
+  DOCS=dbGateFilter(DOCS);PROJECTS=dbGateFilter(PROJECTS);
   [...DOCS,...PROJECTS].forEach(x=>{x.cl=dbRelabel(x.cl);if(x.ct)x.ct=dbRelabel(x.ct);if(x.cd)x.cd=dbRelabel(x.cd)});
   if(!LIVE&&DEMO&&DEMO.clusters&&DEMO.clusters.desc&&!DEMO.clusters._relabeled){Object.values(DEMO.clusters.desc).forEach(v=>{v.title=dbRelabel(v.title);v.description=dbRelabel(v.description)});DEMO.clusters._relabeled=true}
   fillFacetSelects();renderDbBar();renderDocs();renderClusterViz();renderClusterPage();loadClusterProfiles();
@@ -64,6 +83,7 @@ function fillFacetSelects(){
   $('#projList').innerHTML=projs.map(p=>`<option value="${esc(p)}">`).join('');
   // counters
   const c=t=>DOCS.filter(d=>d.t===t).length;
+  $('#cLegal').textContent=DOCS.filter(d=>LEGAL_T.has(d.t)).length;
   $('#cAll').textContent=DOCS.length;$('#cClusters').textContent=new Set(DOCS.filter(d=>d.ci!=null).map(d=>d.ci)).size;$('#cProject').textContent=c('research_project');$('#cPaper').textContent=c('research_paper');$('#cNotes').textContent=c('research_notes');
   $('#cProjN').textContent=projs.length;$('#navCount').textContent=DOCS.length;
 }
@@ -73,7 +93,7 @@ function currentDocFilter(){
     yf:+$('#dFrom').value||null,yt:+$('#dTo').value||null,latest:$('#dLatest').checked,nodup:$('#dNoDup').checked};
 }
 function filterDocs(f){
-  return DOCS.filter(d=>(!f.db.length||(d.db||[]).some(x=>f.db.includes(x)))&&(!f.t||d.t===f.t)&&(!f.pn||d.pn===f.pn)&&(!f.ro||d.ro===f.ro)&&(!f.ft||d.ft===f.ft)&&(!f.me||(d.me||[]).includes(f.me))&&(f.ci==null||d.ci===f.ci)
+  return DOCS.filter(d=>(!f.db.length||(d.db||[]).some(x=>f.db.includes(x)))&&(!f.t||d.t===f.t||(f.t==='legal'&&LEGAL_T.has(d.t)))&&(!f.pn||d.pn===f.pn)&&(!f.ro||d.ro===f.ro)&&(!f.ft||d.ft===f.ft)&&(!f.me||(d.me||[]).includes(f.me))&&(f.ci==null||d.ci===f.ci)
     &&(!f.yf||(d.y&&d.y>=f.yf))&&(!f.yt||(d.y&&d.y<=f.yt))&&(!f.latest||d.la)&&(!f.nodup||!d.du)
     &&(!f.q||(d.ti||'').toLowerCase().includes(f.q)||(d.fn||'').toLowerCase().includes(f.q)||(d.rp||'').toLowerCase().includes(f.q)));
 }
@@ -164,7 +184,7 @@ async function openDoc(id){
   let d=DOCS.find(x=>x.id===id);if(!d)return;
   D.sel=id;$$('#dbody tr').forEach(tr=>tr.classList.toggle('sel',tr.dataset.id===id));
   let full=d;
-  if(LIVE){try{const r=await fetch('api/documents/'+encodeURIComponent(id)).then(r=>r.json());full={...d,su:r.summary,kw:r.keywords,mfull:r.methods,au:r.authors,ed:r.editors,cr:r.created,mo:r.modified,du:(r.project||{}).duplicate_of,tc:r.text_chars}}catch(e){}}
+  if(LIVE){try{const r=await fetch('api/documents/'+encodeURIComponent(id)).then(r=>r.json());full={...d,su:r.summary,kw:r.keywords,mfull:r.methods,au:r.authors,ed:r.editors,cr:r.created,mo:r.modified,du:(r.project||{}).duplicate_of,tc:r.text_chars,cites:r.cites,cited_by:r.cited_by}}catch(e){}}
   const p=PROJECTS.find(x=>x.name===d.pn);
   const siblings=d.vg||d.v?DOCS.filter(x=>x.pn===d.pn&&(x.vg?x.vg===d.vg:false)).sort((a,b)=>verKey(b.v)-verKey(a.v)||(b.d||'').localeCompare(a.d||'')):[];
   const hasOwn=full.su&&SUM_FIELDS.some(([k])=>full.su[k]);
@@ -207,10 +227,14 @@ async function openDoc(id){
       <div class="mchips">${methods.map(m=>`<span class="mchip" title="Source: ${m[3]==='llm'?'LLM':'keyword'}">${esc(METHOD_LABEL[m[0]]||m[1])}${m[2]!=null?`<i>${Math.round(m[2]*100)}%</i>`:''}</span>`).join('')||'<span class="srcnote">none detected</span>'}</div>
     </section>
     ${full.kw&&full.kw.length?`<section><h4>Keywords</h4><div class="mchips">${full.kw.map(k=>`<span class="tagl">${esc(k)}</span>`).join('')}</div></section>`:''}
+    ${typeof legalDocHtml==='function'?legalDocHtml(full):''}
+    ${typeof citesHtml==='function'?citesHtml(full):''}
     ${siblings.length>1?`<section><h4>Versions (${siblings.length})</h4><div class="vlist">${siblings.map(s=>`<button type="button" data-id="${esc(s.id)}" class="${s.id===id?'cur':''}"><span><b>v${esc(s.v||'–')}</b>${s.la?'<span class="latest">latest</span>':''}<div class="rp">${esc(s.rp)}</div></span><span class="num">${esc(s.d||'')}</span></button>`).join('')}</div></section>`:''}
   `;
   wireDbPicker('drDb',async dbs=>{const all=d.pn&&$('#drDbAll')&&$('#drDbAll').checked;await assignDbs(all?{project:d.pn}:{doc:id},dbs);openDoc(id)});
   $('#drBody').querySelectorAll('.vlist button').forEach(b=>b.addEventListener('click',()=>openDoc(b.dataset.id)));
+  if(typeof wireLegalDoc==='function')wireLegalDoc($('#drBody'));
+  $('#drBody').querySelectorAll('.ci-list [data-open]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();openDoc(b.dataset.open)}));   // REQ-35
   const inB=!$('#page-graph').hidden&&$('#cgDocSlot');
   $('#drAsk').addEventListener('click',()=>{
     if(inB){const g=$('#graphInput');g.value=`What is in "${d.fn||d.ti}"${d.pn?` (project ${d.pn})`:''}? `;g.focus();return}   // B page: ask the Graph Chat, stay on the page
@@ -234,6 +258,9 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeDrawer();$('#u
 function fmtSize(b){if(b==null)return '–';return b<1024?b+' B':b<1048576?(b/1024).toFixed(0)+' KB':(b/1048576).toFixed(1)+' MB'}
 
 /* ---------- Upload ---------- */
+const KIND_N=(t,n)=>({research_paper:'paper',research_notes:'note',legal_guideline:'guideline',standard:'standard',guidance:'guidance page',legal_project:'legal project'}[t]||'file')+(n>1?'s':'');
+const ZIP_T=t=>t==='research_project'||t==='legal_project';   // one ZIP per project (REQ-38: legal projects too)
+const LEGAL_HINT={guidance:'One or more Q&A pages, FAQs or factsheets of authorities (one file each, e.g. a web page printed as PDF). ALITA splits them into topics and questions (Q 2.1). A _legal.yaml can give the date of the snapshot; a later snapshot of the same page becomes a new version.',legal_project:'Upload the folder of a law as a ZIP: its versions (proposal, adopted text, consolidated versions) and accompanying documents. A _legal.yaml in the folder gives stages, entry into force and application dates.',legal_guideline:'One or more guidelines (one file each). Versions of the same guideline can be grouped with a _legal.yaml.',standard:'One or more standards (one file each). Check that the licence allows storing the full text.'};
 function openUpload(t){
   if(LIVE&&!IS_ADMIN){toast('Admin access required');return}
   if(t)$$('input[name=utype]').forEach(r=>r.checked=r.value===t);
@@ -241,12 +268,12 @@ function openUpload(t){
 }
 function syncUpload(){
   const t=$('input[name=utype]:checked').value;
-  $('#uProjWrap').hidden=t==='research_project';
-  $('#uFiles').accept=t==='research_project'?'.zip':'.pdf,.docx,.doc,.txt,.md,.pptx';
-  $('#uFiles').multiple=t!=='research_project';
-  $('#uHint').textContent=t==='research_project'
+  $('#uProjWrap').hidden=ZIP_T(t)||LEGAL_T.has(t);
+  $('#uFiles').accept=ZIP_T(t)?'.zip':'.pdf,.docx,.doc,.txt,.md,.pptx';
+  $('#uFiles').multiple=!ZIP_T(t);
+  $('#uHint').textContent=ZIP_T(t)
     ?'Upload the project folder as a ZIP. The folder name becomes the project name, and every file inside is linked to the project. The "Literatur" folder is skipped.'
-    :t==='research_paper'?'One or more papers. Optionally link them to a project.':'Notes, minutes, idea collections. Optionally link them to a project.';
+    :LEGAL_HINT[t]||(t==='research_paper'?'One or more papers. Optionally link them to a project.':'Notes, minutes, idea collections. Optionally link them to a project.');
 }
 $$('input[name=utype]').forEach(r=>r.addEventListener('change',syncUpload));
 $('#openUpload').addEventListener('click',()=>openUpload());
@@ -265,18 +292,18 @@ function adOpen(){
 }
 function adSync(){
   const t=AD.type,files=[...$('#adFiles').files];
-  $('#adFiles').accept=t==='research_project'?'.zip':'.pdf,.docx,.doc,.txt,.md,.pptx';
+  $('#adFiles').accept=ZIP_T(t)?'.zip':'.pdf,.docx,.doc,.txt,.md,.pptx';
   $('#adFiles').multiple=true;
-  $('#adProjWrap').hidden=!t||t==='research_project';
-  $('#adDateQ').textContent=t==='research_project'?'Which overall date should the project get?':t==='research_paper'?'Which date should the papers get (e.g. publication)?':t==='research_notes'?'Which date should the notes get?':'Which overall date should the data get?';
-  $('#adDateHint').textContent=t==='research_project'?'Optional. Files with their own document date keep it (the version history needs it); files without a reliable date and the project itself get this date.'
+  $('#adProjWrap').hidden=!t||ZIP_T(t)||LEGAL_T.has(t);
+  $('#adDateQ').textContent=ZIP_T(t)?'Which overall date should the project get?':t==='research_paper'?'Which date should the papers get (e.g. publication)?':t==='research_notes'?'Which date should the notes get?':'Which overall date should the data get?';
+  $('#adDateHint').textContent=ZIP_T(t)?'Optional. Files with their own document date keep it (the version history needs it); files without a reliable date and the project itself get this date.'
     :'Optional. Leave empty to take the dates from the files.';
   $('#adDropText').innerHTML=files.length?`<b>${files.length} file${files.length>1?'s':''}</b>: ${esc(files.slice(0,3).map(f=>f.name).join(', '))}${files.length>3?' …':''}`
-    :t==='research_project'?'Drop the projects here – <b>one ZIP per project</b> – or <u>choose files</u>':'Drop files here or <u>choose files</u>';
+    :ZIP_T(t)?'Drop the projects here – <b>one ZIP per project</b> – or <u>choose files</u>':'Drop files here or <u>choose files</u>';
   const ok=AD.db&&t&&files.length;$('#adGo').disabled=!ok;
   $('#adGo').textContent=AD.db?`Add to ${dbName(AD.db)}`:'Add data';
   $('#adSum').textContent=!AD.db?'Choose a database.':!t?'Choose the kind of data.':!files.length?'Choose the files.'
-    :`${files.length} ${t==='research_project'?(files.length>1?'projects (one ZIP each)':'project (ZIP)'):t==='research_paper'?'paper'+(files.length>1?'s':''):'note'+(files.length>1?'s':'')} → ${dbName(AD.db)}${$('#adDate').value?' · dated '+$('#adDate').value:' · dates from the files'}`;
+    :`${files.length} ${ZIP_T(t)?(files.length>1?'projects (one ZIP each)':'project (ZIP)'):KIND_N(t,files.length)} → ${dbName(AD.db)}${$('#adDate').value?' · dated '+$('#adDate').value:' · dates from the files'}`;
 }
 $$('input[name=adtype]').forEach(r=>r.addEventListener('change',()=>{AD.type=r.value;adSync()}));
 ['change','input'].forEach(ev=>{$('#adFiles').addEventListener(ev,adSync);$('#adDate').addEventListener(ev,adSync)});
@@ -288,30 +315,31 @@ adDrop.addEventListener('drop',e=>{e.preventDefault();if(e.dataTransfer.files.le
 $$('[data-adclose]').forEach(b=>b.addEventListener('click',()=>$('#addData').hidden=true));
 $('#addData').addEventListener('click',e=>{if(e.target===$('#addData'))$('#addData').hidden=true});
 document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(!$('#adConfirm').hidden){$('#adConfirm').hidden=true;return}$('#addData').hidden=true});
-$('#dbAdd').addEventListener('click',adOpen);
+/* 3.6.0 (REQ-54): the "+ Add new data" button was removed from the database bar; uploads go via Documents → + Upload */
+if($('#dbAdd'))$('#dbAdd').addEventListener('click',adOpen);
 /* Second window before the upload: confirms the choice; for projects it checks that every project is one ZIP */
 $('#addForm').addEventListener('submit',e=>{
   e.preventDefault();const files=[...$('#adFiles').files];
   if(!AD.db||!AD.type||!files.length){adSync();return}
   const t=AD.type,date=$('#adDate').value,zip=f=>/\.zip$/i.test(f.name);
-  const list=fs=>`<ul class="adc-files">${fs.map(f=>`<li class="${t==='research_project'?(zip(f)?'ok':'bad'):''}"><span>${t==='research_project'?(zip(f)?'✓':'✗'):'•'}</span>${esc(f.name)}${t==='research_project'&&zip(f)?` <small>→ project “${esc(f.name.replace(/\.zip$/i,''))}”*</small>`:''}</li>`).join('')}</ul>`;
+  const list=fs=>`<ul class="adc-files">${fs.map(f=>`<li class="${ZIP_T(t)?(zip(f)?'ok':'bad'):''}"><span>${ZIP_T(t)?(zip(f)?'✓':'✗'):'•'}</span>${esc(f.name)}${ZIP_T(t)&&zip(f)?` <small>→ project “${esc(f.name.replace(/\.zip$/i,''))}”*</small>`:''}</li>`).join('')}</ul>`;
   let body,ok=true,need=false;
-  if(t==='research_project'){
+  if(ZIP_T(t)){
     const bad=files.filter(f=>!zip(f));ok=!bad.length;need=ok;
     body=`<p class="adc-q"><b>Is every project delivered as its own ZIP file?</b></p>
-      <p>Each ZIP becomes <b>one research project</b> in <b>${esc(dbName(AD.db))}</b>; the folder inside the ZIP gives the project its name. Several projects = several ZIP files, never several projects in one ZIP.</p>
+      <p>Each ZIP becomes <b>one ${t==='legal_project'?'legal project':'research project'}</b> in <b>${esc(dbName(AD.db))}</b>; the folder inside the ZIP gives the project its name. Several projects = several ZIP files, never several projects in one ZIP.</p>
       ${list(files)}
       ${bad.length?`<p class="adc-warn">${bad.length===1?'This file is':'These files are'} not a ZIP: ${esc(bad.map(f=>f.name).join(', '))}. Pack each project folder into its own ZIP, then try again.</p>`
         :`<label class="check adc-check"><input type="checkbox" id="adcSure"> Yes – ${files.length===1?'this ZIP contains exactly one project':`these ${files.length} ZIPs contain one project each`}</label>
           <p class="adc-note">* The final name comes from the folder inside the ZIP. Date: ${date?esc(date)+' for the project and its files without a date of their own':'taken from the files'}.</p>`}`;
   }else{
     const zips=files.filter(zip);
-    body=`<p class="adc-q"><b>Upload ${files.length} ${t==='research_paper'?'paper':'note'}${files.length>1?'s':''} to ${esc(dbName(AD.db))}?</b></p>${list(files)}
+    body=`<p class="adc-q"><b>Upload ${files.length} ${KIND_N(t,files.length)} to ${esc(dbName(AD.db))}?</b></p>${list(files)}
       <p>Date: ${date?esc(date):'taken from the files'}${$('#adProject').value.trim()?` · linked to project ${esc($('#adProject').value.trim())}`:''}</p>
       ${zips.length?`<p class="adc-warn">${esc(zips.map(f=>f.name).join(', '))} ${zips.length>1?'are ZIP files':'is a ZIP file'}. If it is a project folder, go back and choose “Research project”.</p>`:''}`;
   }
   $('#adcBody').innerHTML=body;
-  const go=$('#adcGo');go.hidden=!ok;go.disabled=need;go.textContent=t==='research_project'?`Upload ${files.length} project${files.length>1?'s':''}`:'Upload';
+  const go=$('#adcGo');go.hidden=!ok;go.disabled=need;go.textContent=ZIP_T(t)?`Upload ${files.length} project${files.length>1?'s':''}`:'Upload';
   const sure=$('#adcSure');if(sure)sure.addEventListener('change',()=>go.disabled=!sure.checked);
   $('#adConfirm').hidden=false;(sure||go.hidden?$('#adcBack'):go).focus();
 });
@@ -322,7 +350,7 @@ $('#adcGo').addEventListener('click',async()=>{
   const fd=new FormData();
   fd.append('doc_type',AD.type);files.forEach(f=>fd.append('files',f));fd.append('databases',AD.db);
   if($('#adDate').value)fd.append('date',$('#adDate').value);
-  if(AD.type!=='research_project'&&$('#adProject').value.trim())fd.append('project_name',$('#adProject').value.trim());
+  if(!ZIP_T(AD.type)&&$('#adProject').value.trim())fd.append('project_name',$('#adProject').value.trim());
   fd.append('use_llm',$('#adLlm').checked);
   $('#adGo').disabled=true;$('#adGo').textContent='Uploading…';
   try{

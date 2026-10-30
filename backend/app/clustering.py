@@ -394,7 +394,7 @@ SUMMARY_FIELDS = [
     ("research_limitations_implications", "Research limitations/implications"),
     ("originality_value", "Originality/value"),
 ]
-UNIT_TYPES = ("research_paper", "research_notes")
+UNIT_TYPES = ("research_paper", "research_notes", "legal_guideline", "standard", "guidance")   # + aktuelle Gesetzesfassungen (REQ-38)
 
 
 def summary_text(title: str | None, summary: dict | None) -> str:
@@ -417,18 +417,26 @@ def select_units(docs: list[dict], projects: list[dict], project_files: bool = F
     project_files=True: statt der Projekte als Ganzes jede aktuelle Projektdatei mit eigener Summary
     (neueste Version, nicht archiviert) – Clustering nach dem Inhalt der Dokumente im Projekt."""
     units = []
+    legal_projects = {d.get("project_name") for d in docs if d.get("doc_type") == "legal_project"}
     for d in docs:
         if d.get("duplicate_of"):
             continue
+        lg = d.get("legal") or {}
+        if lg and not lg.get("current"):
+            continue                              # REQ-38: nur die aktuelle Fassung einer Norm ist eine Einheit
         if d.get("doc_type") == "research_project":
             if not project_files or d.get("is_latest") is False or d.get("archived"):
                 continue
+        elif d.get("doc_type") == "legal_project" and lg.get("current"):
+            pass                                  # das Gesetz selbst (aktuelle Fassung) liegt als Punkt in der Karte
         elif d.get("doc_type") not in UNIT_TYPES:
             continue
         t = summary_text(d.get("title"), d.get("summary"))
         if t:
             units.append({"kind": "doc", "id": d["doc_id"], "text": t, "authors": d.get("authors") or []})
     for p in ([] if project_files else projects):
+        if p.get("name") in legal_projects:
+            continue                              # Legal project: das Gesetz (aktuelle Fassung) ist die Einheit, nicht doppelt
         t = summary_text(p.get("title") or p.get("name"), p.get("summary"))
         if t:
             units.append({"kind": "project", "id": p["project_id"], "name": p["name"], "text": t,
@@ -590,7 +598,7 @@ async def recompute(k: int | None = None, api_key: str | None = None, databases:
     units = select_units(docs, projects, project_files=project_files)
     skipped = await _fill_vectors(units, api_key)
     units = [u for u in units if u.get("vec") is not None]
-    if len(units) < 2:
+    if not units:
         return {"k": 0, "documents": 0, "basis": "summary", "skipped": skipped,
                 "note": "Too few documents with a structured summary and summary vector for clustering."}
     X = np.array([u["vec"] for u in units], dtype=np.float32)
@@ -600,6 +608,12 @@ async def recompute(k: int | None = None, api_key: str | None = None, databases:
     run = datetime.now(timezone.utc).isoformat(timespec="seconds")
     descs = name_clusters(await describe_clusters(units, res, names, api_key), res)
     doc_meta, proj_meta = assign(units, res, docs, run, project_files=project_files)
+    pid = {p["name"]: p.get("project_id") for p in projects}
+    for d in docs:                                # Legal project übernimmt den Cluster seiner aktuellen Fassung
+        n = d.get("project_name")
+        if d.get("doc_type") == "legal_project" and n in pid and n not in proj_meta and d["doc_id"] in doc_meta \
+                and (d.get("legal") or {}).get("current"):
+            proj_meta[n] = {**doc_meta[d["doc_id"]], "project_id": pid[n]}
     for m in [*doc_meta.values(), *proj_meta.values()]:
         d = descs.get(m["cluster_id"]) or {}
         m["cluster_title"], m["cluster_description"] = d.get("title"), d.get("description")

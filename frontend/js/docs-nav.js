@@ -40,7 +40,7 @@ function graphPlan(q){
   const ql=q.toLowerCase(),names=new Set();DOCS.forEach(d=>(d.au||[]).forEach(a=>names.add(a)));
   const persons=chips.includes('person')?[...names].filter(a=>{const last=a.split(/\s+/).pop();return last.length>2&&new RegExp('\\b'+last.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\b','i').test(q)}):[];
   const methods=chips.includes('method')?Object.entries(METHOD_LABEL).filter(([id,l])=>l&&ql.includes(String(l).toLowerCase())).map(([id])=>id):[];
-  return {deo,persons,methods,databases:[...SEL_DB],clusters:[...CV.sels],year:+$('#gYear').value||null,hops:+$('#gHops').value||2,relation:rel,entity_types:chips};
+  return {deo,persons,methods,databases:dbScope(),clusters:[...CV.sels],year:+$('#gYear').value||null,hops:+$('#gHops').value||2,relation:rel,entity_types:chips};
 }
 function demoGraphAnswer(q,prior=[]){
   const plan=graphPlan(q),fields=deoFields(plan.deo);
