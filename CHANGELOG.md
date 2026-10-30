@@ -8,6 +8,16 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [Unreleased]
 
+## [3.6.0] - 2026-10-30
+
+> **Minor release – new database "Wachter".** A tenth database with the ID `WACHTER` and the display name "Wachter" (symbol: a shield with a check mark, colour violet) for scientific papers on trustworthy AI and the EU AI Act. First content, with curated summaries so that no LLM summary is needed: Laux, Wachter & Mittelstadt (2024), "Trustworthy artificial intelligence and the European Union AI act: On the conflation of trustworthiness and acceptability of risk" (Regulation & Governance 18(1), 3–32), and Ho & Caals (2024), "How the EU AI Act Seeks to Establish an Epistemic Environment of Trust" (Asian Bioethics Review 16, 345–372). Like every database except EU AI Act, it is shown only after entering the password (REQ-52).
+
+### Requirements
+- **REQ-55 New database "Wachter" with two papers** – ✅ prepared and checked offline (database detected from the folder, curated title, authors, date and summary applied; 69 and 34 text segments); files in `research/WACHTER/papers/`; the ingestion runs in Docker.
+
+### Added
+- Database `WACHTER` ("Wachter") in the default `DATABASES` and `DATABASE_NAMES` (backend) and in the front end (list, name, shield icon, colours for light and dark theme and the 3D view). `.env.example` lists `EUAIA` and `WACHTER`. If `DATABASES` is set in your `.env`, add `WACHTER` there.
+
 ## [3.5.1] - 2026-10-30
 
 > **Patch release – no upload button in the database bar.** The button "+ Add new data" in the database bar is gone, so the bar no longer suggests that databases can be added from the interface (the list of databases is fixed in the backend configuration, `DATABASES`). Papers, notes and projects are still uploaded into the existing databases via Documents → + Upload.

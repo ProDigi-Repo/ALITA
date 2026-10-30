@@ -1,4 +1,4 @@
-# ALITA – User Manual (front-end, v3.5.1)
+# ALITA – User Manual (front-end, v3.6.0)
 
 ALITA lets you ask questions of your research documents and get answers with numbered, clickable sources.
 The quick visual version is [`ALITA-Cheat-Sheet-Comic.pdf`](ALITA-Cheat-Sheet-Comic.pdf).
@@ -34,7 +34,7 @@ Keep the invitation code confidential; it is sent separately and not printed in 
 
 1. Log in as described in [Access ALITA](#access-alita).
 2. Paste your **OpenRouter API key** (`sk-or-v1-…`) in the header and click **Save**. It stays in your browser. No key yet? See [Get an OpenRouter API key](#get-an-openrouter-api-key).
-3. Pick one or more **databases** in the database bar (Aster, Camellia, Dahlia, Jasmine, Peony, Magnolia, Orchid, Others). No selection = all databases are searched.
+3. Pick one or more **databases** in the database bar (Aster, Camellia, Dahlia, Jasmine, Peony, Magnolia, Orchid, EU AI Act, Wachter, Others). No selection = all databases are searched. Without the password only EU AI Act is shown, and an empty selection then means EU AI Act only.
 
 ## The tabs
 

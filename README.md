@@ -251,7 +251,8 @@ und `APP_VERSION` im Frontend angleichen. Der Test `test_changelog_follows_keepa
 
 | Version | Datum | Inhalt | früher |
 |---|---|---|---|
-| **3.5.1** | 2026-10-30 | **Patch Release – kein Upload-Button in der Datenbankleiste (REQ-54):** „+ Add new data“ entfernt; Hochladen in bestehende Datenbanken weiter über Documents → + Upload. REQ-53 (drei Paper für EU AI Act) zurückgezogen. | 3.5.0 |
+| **3.6.0** | 2026-10-30 | **Minor Release – neue Datenbank „Wachter“ (REQ-55):** ID `WACHTER`, Schild-Symbol, Farbe Violett; zwei Paper (Laux, Wachter & Mittelstadt 2024; Ho & Caals 2024) mit kuratierten Summaries in `research/WACHTER/papers/`; wie alle Datenbanken außer EU AI Act nur mit Passwort sichtbar. | 3.5.1 |
+| 3.5.1 | 2026-10-30 | **Patch Release – kein Upload-Button in der Datenbankleiste (REQ-54):** „+ Add new data“ entfernt; Hochladen in bestehende Datenbanken weiter über Documents → + Upload. REQ-53 (drei Paper für EU AI Act) zurückgezogen. | 3.5.0 |
 | 3.5.0 | 2026-10-30 | **Minor Release – nur „EU AI Act“ öffentlich (REQ-52):** ohne Passwort zeigt die Oberfläche nur die Datenbank EU AI Act, beide Chats suchen nur dort; die übrigen Datenbanken erscheinen nach Eingabe des Passworts im Feld „Password“ neben dem OpenRouter-Key („Lock“ blendet sie wieder aus). Nur Anzeige-Filter im Frontend, kein Zugriffsschutz der API. | 3.4.0 |
 | 3.4.0 | 2026-10-30 | **Minor Release – Weißbuch als Begleitdokument (REQ-51):** Weißbuch der Kommission zur KI (COM(2020) 65, 19.2.2020) im Legal project EU-AI-Act; neue Projektrolle `white_paper`; Abschnitt `documents:` in `_legal.yaml` legt Rolle, Datum und Titel von Begleitdokumenten fest. | 3.3.2 |
 | 3.3.2 | 2026-10-30 | **Patch Release – NIST SP 800-18 Rev. 2 (REQ-50):** zweiter Standard in „EU AI Act“; „Appendix A.“ gilt als Anhang, „References“/„Bibliography“ als eigene Anlage statt Ende des letzten Abschnitts. | 3.3.1 |
@@ -328,7 +329,7 @@ Backend (`app/query_meta.py`); im Live-Betrieb ergänzt das LLM beides in dersel
 
 ## Datenbanken (AL, DL, JSW, LDK, ML, UM)
 
-Jede Datei trägt das Metadatum `databases` (eine oder mehrere). Die Liste ist in `.env` konfigurierbar: `DATABASES=AL,DL,JSW,LDK,ML,UM,EUAIA,OTH`. `OTH` („Others“) nimmt alles auf, was in keine andere Datenbank gehört. Seit 3.0.0 gibt es `EUAIA` („EU AI Act“, Kornblume) für Gesetzestexte, Leitlinien und Standards rund um die KI-Verordnung. **Wer `DATABASES` in der `.env` gesetzt hat, muss `EUAIA` dort ergänzen**, sonst erscheint die Datenbank nicht.
+Jede Datei trägt das Metadatum `databases` (eine oder mehrere). Die Liste ist in `.env` konfigurierbar: `DATABASES=AL,CNN_DM,DL,JSW,LDK,ML,UM,EUAIA,WACHTER,OTH`. `OTH` („Others“) nimmt alles auf, was in keine andere Datenbank gehört. Seit 3.0.0 gibt es `EUAIA` („EU AI Act“, Kornblume) für Gesetzestexte, Leitlinien und Standards rund um die KI-Verordnung. **Wer `DATABASES` in der `.env` gesetzt hat, muss `EUAIA` dort ergänzen**, sonst erscheint die Datenbank nicht. Seit 3.6.0 gibt es `WACHTER` („Wachter“, Schild-Symbol): wissenschaftliche Paper zu vertrauenswürdiger KI und zum EU AI Act (`research/WACHTER/papers/`).
 
 Zuordnung (Priorität von oben nach unten):
 

@@ -1,7 +1,7 @@
 /* ---------- Databases ---------- */
-let DATABASES=['AL','CNN_DM','DL','JSW','LDK','ML','UM','EUAIA','OTH'];
+let DATABASES=['AL','CNN_DM','DL','JSW','LDK','ML','UM','EUAIA','WACHTER','OTH'];
 /* Display names (flowers). The IDs above stay the internal keys: folders research/<ID>/, Qdrant payload, API filters, CSS colors. */
-const DB_NAME={AL:'Aster',CNN_DM:'Camellia',DL:'Dahlia',JSW:'Jasmine',LDK:'Peony',ML:'Magnolia',UM:'Orchid',EUAIA:'EU AI Act',OTH:'Others'};
+const DB_NAME={AL:'Aster',CNN_DM:'Camellia',DL:'Dahlia',JSW:'Jasmine',LDK:'Peony',ML:'Magnolia',UM:'Orchid',EUAIA:'EU AI Act',WACHTER:'Wachter',OTH:'Others'};
 const dbName=n=>DB_NAME[n]||n;
 const dbNames=l=>(l||[]).map(dbName);
 /* Database IDs inside texts that come from the server (cluster labels "JSW · …", cluster titles and
@@ -59,6 +59,8 @@ const DB_FLOWER=(()=>{
       +Array.from({length:8},(_,i)=>`<path d="M12 10.6L11.2 7.4L12 8L12.8 7.4Z" transform="rotate(${22.5+i*45} 12 12)" fill="currentColor" fill-opacity=".55"/>`).join('')
       +'<circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r=".7" fill="#fff" fill-opacity=".8" stroke="none"/>'),
     // Others: a snapping flytrap – two toothed jaws on a curved stem, ready to catch whatever does not fit elsewhere
+    // Wachter (3.6.0): a guardian's shield with a check mark – not a flower, the database is named after a person
+    WACHTER:svg('<path d="M12 2.8L19.4 5.6V11.4C19.4 16 16.2 19.6 12 21.2C7.8 19.6 4.6 16 4.6 11.4V5.6Z" fill="currentColor" fill-opacity=".25"/><path d="M8.4 11.8L11 14.4L15.8 9.2" fill="none" stroke-width="1.8" stroke-linecap="round"/>'),
     OTH:svg('<path d="M12 22.4C12.6 19.6 11.4 17.2 12 14.6" fill="none"/><path d="M11.9 19.4C9.6 19.6 8 18.4 7.4 16.6C9.4 16.2 11 17.2 11.9 19.4Z" fill="currentColor" fill-opacity=".3"/>'
       +'<path d="M12 14.6C8 14.2 5 10.8 5.4 6.2C8.6 7 11.2 10.2 12 14.6Z" fill="currentColor" fill-opacity=".3"/><path d="M12 14.6C16 14.2 19 10.8 18.6 6.2C15.4 7 12.8 10.2 12 14.6Z" fill="currentColor" fill-opacity=".3"/>'
       +'<path d="M5.4 6.2L4.4 4.6M6.5 6.5L6.1 4.7M7.7 7.1L7.8 5.3M9 8L9.6 6.4M18.6 6.2L19.6 4.6M17.5 6.5L17.9 4.7M16.3 7.1L16.2 5.3M15 8L14.4 6.4" stroke-linecap="round"/>'
