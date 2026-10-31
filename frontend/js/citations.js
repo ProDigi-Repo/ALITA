@@ -204,3 +204,13 @@ function citesHtml(full){
     ${c.length?`<div class="srcnote">Cites (${c.length})</div><ul class="ci-list">${c.map(x=>row(x.doc_id,` <span class="srcnote" title="${esc(x.evidence||'')}">· ${esc(CI_VIA[x.via]||x.via)}</span>`)).join('')}</ul>`:''}
     ${b.length?`<div class="srcnote">Cited by (${b.length})</div><ul class="ci-list">${b.map(id=>row(id)).join('')}</ul>`:''}</section>`;
 }
+
+/* REQ-68 document details: articles of a law the paper discusses (number as cited, version, today's number) */
+function provisionsHtml(full){
+  const a=full.discusses||[];if(!a.length)return '';
+  const row=x=>`<li><b>${esc(x.label)}</b>${x.title?' '+esc(x.title):''}${x.parts&&x.parts.length?` <span class="srcnote">${esc(x.parts.slice(0,4).join(', '))}</span>`:''}
+    <span class="srcnote">· ${esc(x.law||x.norm_id)}${x.stage?', '+esc((STAGE_LABEL[x.stage]||x.stage).toLowerCase())+(x.stage_date?' '+esc(String(x.stage_date).slice(0,4)):''):''} · ${x.count}×</span>
+    ${x.renumbered&&x.current_label?`<div class="srcnote">now ${esc(x.current_label)}${x.current_title?' – '+esc(x.current_title):''}</div>`:''}</li>`;
+  return `<section><h4>Discusses <span class="prov">ELI · references in the text</span></h4><ul class="ci-list">${a.slice(0,30).map(row).join('')}</ul>
+    ${a.length>30?`<div class="srcnote">… and ${a.length-30} more</div>`:''}</section>`;
+}

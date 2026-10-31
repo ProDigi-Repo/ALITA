@@ -230,6 +230,7 @@ async function openDoc(id){
     </section>
     ${full.kw&&full.kw.length?`<section><h4>Keywords</h4><div class="mchips">${full.kw.map(k=>`<span class="tagl">${esc(k)}</span>`).join('')}</div></section>`:''}
     ${typeof legalDocHtml==='function'?legalDocHtml(full):''}
+    ${typeof provisionsHtml==='function'?provisionsHtml(full):''}
     ${typeof citesHtml==='function'?citesHtml(full):''}
     ${siblings.length>1?`<section><h4>Versions (${siblings.length})</h4><div class="vlist">${siblings.map(s=>`<button type="button" data-id="${esc(s.id)}" class="${s.id===id?'cur':''}"><span><b>v${esc(s.v||'–')}</b>${s.la?'<span class="latest">latest</span>':''}<div class="rp">${esc(s.rp)}</div></span><span class="num">${esc(s.d||'')}</span></button>`).join('')}</div></section>`:''}
   `;

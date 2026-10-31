@@ -1,4 +1,4 @@
-# ALITA – User Manual (front-end, v3.9.0)
+# ALITA – User Manual (front-end, v3.10.0)
 
 ALITA lets you ask questions of your research documents and get answers with numbered, clickable sources.
 The quick visual version is [`ALITA-Cheat-Sheet-Comic.pdf`](ALITA-Cheat-Sheet-Comic.pdf).
@@ -85,6 +85,10 @@ Each database is clustered on its own, so the map normally shows no lines betwee
 **Ask about what the map shows (since 3.9.0)**
 
 Name the clusters in your question – *"Describe the link between C8 and C9"*, *"Was verbindet C8 und C9?"*, *"What does cluster 9 say about notified bodies?"*. The Graph Chat then searches exactly these clusters (also across databases, and even if a project is selected), cluster by cluster. For two or more clusters it also looks for **bridging passages**: for the best passages of one cluster the most similar passage in the other one. The answer gets the cluster descriptions, their similarity and these passage pairs, and compares what each side says. The **graph path** under the answer shows the way through the ontology: cluster → document → section (its DEO role, or the article of a law) ↔ section → document → cluster; **Clusters across databases** lists the passage pairs with their source numbers.
+
+**Papers and the articles they discuss (since 3.10.0)**
+
+ALITA reads the references in papers, notes and project files ("Art. 33(4) AI Act", "Article 5(1)(c)", "Annex III", "Recital 27") and links each paper to the articles of the law it discusses. Papers cite the version their authors had in front of them, so ALITA works out that version and gives today's number as well: Laux, Wachter & Mittelstadt discuss Art. 33 of the 2021 proposal ("Notified bodies"), which is **Art. 31** today. References to other acts (GDPR, the Treaties, the Charter) are left out. You see the links in the **document details** (section **Discusses**) and in the Graph Chat: ask *"What do the papers say about Art. 31?"* or *"Describe the link between C8 and C9"*, and the answer uses the papers' passages together with the wording of the article in force; **Provisions discussed** under the answer shows paper → article (→ today's number) and the cluster of the law, and the graph path reads cluster → paper → discusses → article → part of → law → cluster.
 
 ## Document Chat (A) and Graph Chat (B)
 

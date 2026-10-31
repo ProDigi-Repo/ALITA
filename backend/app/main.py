@@ -187,6 +187,25 @@ def citations_rebuild():
     return rebuild()
 
 
+@app.get("/api/provisions")
+def provisions_links(databases: Annotated[list[str] | None, Query()] = None, norm_id: str | None = None, article: str | None = None):
+    """REQ-68: Welche Paper diskutieren welche Bestimmungen (zitierte Nummer, Fassung, geltende Nummer).
+    article = geltende ID (z. B. art_31) – „Wer schreibt über Art. 31?“"""
+    from .provisions import links
+    try:
+        dbs = get_settings().normalize_databases([x for v in databases or [] for x in v.split(",") if x])
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return {"links": links(store.scroll_documents(), dbs, norm_id, article)}
+
+
+@app.post("/api/provisions/rebuild")
+def provisions_rebuild():
+    """REQ-68: Verweise der Paper auf Artikel, Anhänge und Erwägungsgründe neu auflösen (ohne LLM, ohne Embeddings)."""
+    from .provisions import rebuild
+    return rebuild()
+
+
 # ------------------------------------------------------------- Legal-Ontologie (REQ-37/38)
 @app.get("/api/legal/norms")
 def legal_norms(databases: Annotated[list[str] | None, Query()] = None):

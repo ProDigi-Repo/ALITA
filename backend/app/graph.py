@@ -307,7 +307,10 @@ def rebuild_from_store() -> dict:
         sync_clusters(meta, projs, info)
     cites = {d["doc_id"]: d.get("cites") or [] for d in store.scroll_documents() if d.get("cites")}
     sync_citations(cites)
-    return {"documents": n_docs, "chunks": n_chunks, "clusters": len(info), "citations": sum(len(v) for v in cites.values())}
+    provs = {d["doc_id"]: d["discusses"] for d in store.scroll_documents() if d.get("discusses")}
+    sync_provisions(provs, store.scroll_chunk_provisions())
+    return {"documents": n_docs, "chunks": n_chunks, "clusters": len(info), "citations": sum(len(v) for v in cites.values()),
+            "provisions": sum(len(v) for v in provs.values())}
 
 
 def build_cites_statement(cites: dict[str, list[dict]]) -> tuple[str, dict]:
@@ -329,6 +332,26 @@ def sync_citations(cites: dict[str, list[dict]]) -> None:
     run_all([("MATCH (:Document)-[r:CITES]->(:Document) DELETE r", {}),
              build_cites_statement(cites),
              ("MATCH (d:Document) SET d.cited_by_count = coalesce($n[d.doc_id], 0)", {"n": counts})])
+
+
+def build_provision_statements(edges: dict[str, list[dict]], chunk_edges: dict[str, list[str]]) -> list[tuple[str, dict]]:
+    """REQ-68: (:Document)-[:DISCUSSES {count, cited_as, stage, seq}]->(:Component) und (:Chunk)-[:REFERS_TO]->(:Component).
+    Ziel ist der Bestandteil der geltenden Fassung (Art. 33 des Vorschlags -> Art. 31); die zitierte Nummer steht an der Kante."""
+    rows = [{"doc": d, "comp": f"{a['norm_id']}#{a['current_article']}", "label": a["label"], "count": a["count"],
+             "parts": a.get("parts") or [], "stage": a.get("stage"), "renumbered": bool(a.get("renumbered"))}
+            for d, arts in edges.items() for a in arts if a.get("current_article")]
+    crow = [{"chunk": k, "comp": p} for k, ps in chunk_edges.items() for p in ps]
+    return [("MATCH (:Document)-[r:DISCUSSES]->(:Component) DELETE r", {}),
+            ("MATCH (:Chunk)-[r:REFERS_TO]->(:Component) DELETE r", {}),
+            ("UNWIND $rows AS r MATCH (d:Document {doc_id: r.doc}), (c:Component {id: r.comp}) MERGE (d)-[x:DISCUSSES]->(c) "
+             "SET x.cited_as = r.label, x.count = r.count, x.parts = r.parts, x.stage = r.stage, x.renumbered = r.renumbered", {"rows": rows}),
+            ("UNWIND $rows AS r MATCH (c:Component {id: r.comp}) MERGE (k:Chunk {chunk_id: r.chunk}) MERGE (k)-[:REFERS_TO]->(c)",
+             {"rows": crow})]
+
+
+def sync_provisions(edges: dict[str, list[dict]], chunk_edges: dict[str, list[str]]) -> None:
+    ensure_setup()
+    run_all(build_provision_statements(edges, chunk_edges))
 
 
 def build_legal_statements(model: dict) -> list[tuple[str, dict]]:

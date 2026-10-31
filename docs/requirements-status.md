@@ -1,4 +1,4 @@
-# ALITA – requirements status (3.9.0, 2026-10-31)
+# ALITA – requirements status (3.10.0, 2026-10-31)
 
 Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wording, the request as a requirement, acceptance criterion).
 
@@ -71,6 +71,7 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 | REQ-65 | Extend the first box (database bar) | ✅ done – needs deploy (frontend) | 3.7.3 | Top row on the B page uses the three columns of the page: database bar over the map. |
 | REQ-66 | Default OpenRouter key; another key can still be entered | ❌ withdrawn by the requester (built as 3.8.0, reverted) | – | Every person keeps entering their own key; a key in `.env` is not used for chats. |
 | REQ-67 | Ask about the connections visible on the cluster image; reach the text passages via the ontology | ✅ done – needs deploy (backend + frontend) | 3.9.0 | `cluster_query.py`: named clusters → cluster mode (no project filter, per-cluster retrieval), bridging passages across the cluster boundary, cluster profiles and pairs in the prompt, ontology path in the answer. |
+| REQ-68 | Edges in the knowledge graph from papers to the provisions they discuss (e.g. Laux et al. → Art. 33 of the proposal = Art. 31 today) | ✅ done – needs deploy (backend + frontend) and `ingest provisions` | 3.10.0 | `provisions.py`: references found in the text, version of the paper determined, mapped to today's numbering; `discusses`/`provisions` payloads, DISCUSSES/REFERS_TO edges, Graph Chat context and path, document details. |
 
 ## Open points for the requirement owners
 - REQ-10, REQ-15 – REQ-18: main document chain per project, inferred links between versions and analyses, threshold for "substantive", AI stage texts automatic or on demand, versions without full text.
@@ -83,5 +84,5 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 - REQ-43: ingest again (`ingest legal /research/EUAIA/legal/EU-AI-Act` with the key); later add the plenary position (14.6.2023), the Council general approach, Regulation (EU) 2024/1689 and the consolidated version.
 - REQ-42: recompute the clusters once per database after deploying 3.0.2 (`ingest cluster --db AL|DL|JSW|LDK|CNN_DM|EUAIA`, `--db ML --files`).
 - REQ-41: add the adopted Regulation (EU) 2024/1689 and the consolidated version, then ingest again with `--force`.
-- REQ-37/38: check the segmentation on the Official Journal PDF of the adopted regulation (the proposal is checked); temporal model also for manuscript versions? Links from papers/manuscripts to provisions?
+- REQ-37/38: check the segmentation on the Official Journal PDF of the adopted regulation (the proposal is checked); temporal model also for manuscript versions? Links from papers to provisions: done in 3.10.0 (REQ-68); manuscripts of research projects are linked too.
 - Date quality (seen with REQ-32): many documents only carry the file date (last saved / copied), so they share one day in the time view – better dates (file properties, text, curation) would make the time line more telling.

@@ -204,6 +204,15 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
         if not hits and filters.deo:                   # DEO-Filter zu eng: ohne Rolle erneut
             hits = await retrieve(search_q, creq.model_copy(update={"filters": filters.model_copy(update={"deo": []})}), key)
         rel_head, rel_links = "", []
+    prov, prov_head = {"links": []}, ""
+    try:                                               # REQ-68: Paper -[:DISCUSSES]-> Artikel eines Gesetzes
+        from .provisions import chat_passages, chat_scope
+        prov = chat_scope(req.message, all_docs, plan["clusters"] if cluster_mode else [], plan["databases"], db_name)
+        if prov["links"]:
+            hits += await chat_passages(prov, search_q, key, {str(h.id) for h in hits})
+            prov_head = prov["context"]
+    except Exception as e:                             # Zusatz: nie die Antwort blockieren
+        log.warning("Bestimmungen nicht verfügbar: %s", e)
     sources = to_sources(hits)
     top = next((d for d in graph_docs if any(h.payload["doc_id"] == d["doc_id"] for h in hits)), graph_docs[0] if graph_docs else None)
     path = path_for(plan, top)
@@ -214,6 +223,8 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
         prof_head += bridges_context(bridges, lambda h: pos.get(str(h.id), "?"))
         if bridges:
             path = bridge_path(bridges[0], prof)       # Weg über die Ontologie: Cluster → Dokument → Abschnitt ↔ …
+    if prov["links"] and (not bridges or any(x["law_clusters"] for x in prov["links"]) or prov.get("asked")):
+        path = prov["path"]                            # Paper → diskutiert → Artikel → Teil von → Gesetz → Cluster
     from .citations import CITE_Q_RX, short_label
     from .citations import chat_context as citation_context
     by_id = {d["doc_id"]: d for d in all_docs}
@@ -231,6 +242,8 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
         meta["cluster_scope"] = {"by_database": groups, "relations": rel_links, "named": named,
                                  "bridges": [{"a": b["a"], "b": b["b"], "similarity": b["similarity"],
                                               "left": pos.get(str(b["left"].id)), "right": pos.get(str(b["right"].id))} for b in bridges]}
+    if prov["links"]:
+        meta["provisions"] = prov["links"]
     if temporal:
         meta["temporal"] = temporal
     if legal_table:
@@ -248,7 +261,7 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
     if req.overview:
         from .rag import scope_overview
         overview = scope_overview(plan["databases"])
-    if not sources and not graph_docs and not overview and not prog_head and not legal_head and not rel_head and not prof_head:
+    if not sources and not graph_docs and not overview and not prog_head and not legal_head and not rel_head and not prof_head and not prov_head:
         text = "I found nothing in the knowledge graph or the documents that answers this question with the current settings."
         yield "delta", {"t": text}
         yield "done", {**meta, "answer": text, "sources": [], "intent": plan["intent"], "entities": plan["entities"], "usage": await usage.summary_async(meter)}
@@ -263,7 +276,7 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
     cite_ctx = citation_context(req.message if req.relation != "cites" else req.message + " cites", all_docs,
                                 [d["doc_id"] for d in graph_docs], plan["databases"])
     who = people_context([r.project_name for r in sources] + list(req.projects), plan["persons"] if req.persons else None)
-    prompt = (f"Overview of the whole knowledge map (all projects and clusters in scope):\n{overview}\n\n" if overview else "") + rel_head + prof_head + who + prog_head + cite_ctx + legal_head + (f"Graph path: {' '.join(x if isinstance(x, str) else f'{x[0]} [{x[1]}]' for x in path) or '–'}\n"
+    prompt = (f"Overview of the whole knowledge map (all projects and clusters in scope):\n{overview}\n\n" if overview else "") + rel_head + prof_head + prov_head + who + prog_head + cite_ctx + legal_head + (f"Graph path: {' '.join(x if isinstance(x, str) else f'{x[0]} [{x[1]}]' for x in path) or '–'}\n"
               f"Discourse elements asked for: {', '.join(plan['deo']) or 'any'}\n\n"
               f"Knowledge graph context:\n{graph_ctx or '–'}\n\nSources for this question:\n{ctx or '–'}\n\nQuestion: {req.message}")
     from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart

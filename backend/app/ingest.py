@@ -492,6 +492,7 @@ async def ingest_project(folder: Path, opts: IngestOptions) -> ProjectRecord:
     store.upsert_project(project)
     await maybe_recluster(opts, dbs)
     maybe_citations(opts)
+    maybe_provisions(opts)
     return project
 
 
@@ -538,6 +539,21 @@ def maybe_citations(opts: IngestOptions) -> dict | None:
         return res
     except Exception as e:   # das Zitationsnetz darf die Ingestion nicht scheitern lassen
         log.warning("Zitationsnetz fehlgeschlagen: %s", e)
+        return None
+
+
+def maybe_provisions(opts: IngestOptions) -> dict | None:
+    """REQ-68: Verweise der Paper auf Artikel der Gesetze neu auflösen (Sekunden, ohne LLM und ohne Embeddings)."""
+    if not (opts.recluster and get_settings().auto_provisions):
+        return None
+    from .provisions import rebuild
+
+    try:
+        res = rebuild()
+        log.info("Bestimmungen: %s", res)
+        return res
+    except Exception as e:   # darf die Ingestion nicht scheitern lassen
+        log.warning("Verknüpfung mit Bestimmungen fehlgeschlagen: %s", e)
         return None
 
 
@@ -600,6 +616,7 @@ async def ingest_file(path: Path, doc_type: DocType, opts: IngestOptions, projec
     await index_items([it], opts)
     await maybe_recluster(opts, it.record.databases)
     maybe_citations(opts)
+    maybe_provisions(opts)
     return it.record
 
 
@@ -701,6 +718,7 @@ async def ingest_all(root: Path, opts: IngestOptions, force: bool = False) -> No
     if res:
         print(f"Clustering: {res['documents']} documents in {res['k']} clusters")
     cit = maybe_citations(opts)
+    maybe_provisions(opts)
     if cit:
         print(f"Citation network: {cit['citations']} citations from {cit['citing']} documents to {cit['targets']} papers")
 
@@ -716,10 +734,11 @@ def _dump(project: ProjectRecord | None, items: list[Item], out: Path) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Load documents into the RAG index")
-    ap.add_argument("kind", choices=["project", "paper", "notes", "all", "cluster", "graph", "citations", "delete",
+    ap.add_argument("kind", choices=["project", "paper", "notes", "all", "cluster", "graph", "citations", "provisions", "delete",
                                      "legal", "guideline", "standard", "guidance"],
                     help="all = ingest every subfolder of PATH; cluster = recompute clusters only (--db X: only database X, other clusters stay); graph = (re)build the Neo4j graph; "
                          "citations = recompute the citation network from the reference lists already in the index (no LLM, no embeddings); "
+                         "provisions = link papers to the articles of the laws they discuss (Art. 33 of the 2021 proposal -> Art. 31 today); "
                          "legal / guideline / standard = ingest a legal project folder, guidelines or standards (folder or file, see _legal.yaml); "
                          "delete --db X = remove all data of database X from the index; "
                          "delete --norm ID = remove one law, guideline or standard (all versions) from index, graph and model store")
@@ -750,6 +769,10 @@ def main() -> None:
     if a.kind == "citations":
         from .citations import rebuild
         print(json.dumps(rebuild(), ensure_ascii=False, indent=1, default=str))
+        return
+    if a.kind == "provisions":
+        from .provisions import rebuild as link_provisions
+        print(json.dumps(link_provisions(), ensure_ascii=False, indent=1, default=str))
         return
     if a.kind == "delete" and a.norm:
         from .purge import delete_norm

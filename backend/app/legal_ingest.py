@@ -152,6 +152,7 @@ async def ingest_legal(path: Path, doc_type: DocType, opts):
         enrich_items,
         index_items,
         maybe_citations,
+        maybe_provisions,
         maybe_recluster,
     )
 
@@ -348,6 +349,7 @@ async def ingest_legal(path: Path, doc_type: DocType, opts):
         result = current[-1].record if current else (items[-1].record if items else None)
     await maybe_recluster(opts, dbs)
     maybe_citations(opts)
+    maybe_provisions(opts)
     return result
 
 

@@ -19,6 +19,21 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 - Require an explicit Neo4j password instead of a committed default; restrict CORS, downloads and ZIP expansion, and cap HTTP uploads at 50 MiB.
 - Keep keys and chat history in page memory only, with Access logout. Export existing chats before upgrading: old browser-persisted keys/history are removed on first load.
 
+## [3.10.0] - 2026-10-31
+
+> **Minor release – papers linked to the articles they discuss.** ALITA now reads the references in papers, notes and project files ("Art. 33(4) AI Act", "Article 5(1)(c)", "Annex III", "Recital 27") and turns them into edges of the knowledge graph: Document –discusses→ article of the law. References to other acts (GDPR, TFEU, the Treaty, the Charter …) are skipped. Because papers cite the version they had in front of them, ALITA works out that version (versions up to the paper's date; the one in which the cited provisions exist and quoted wording appears) and maps the number to today's: Laux, Wachter & Mittelstadt cite Art. 33 of the 2021 proposal ("Notified bodies") – today Art. 31 "Requirements relating to notified bodies"; their Recital 27 is today's Recital 46. The Graph Chat uses these edges: questions about an article ("What do the papers say about Art. 31?") or about clusters (C8 Wachter ↔ C9 EU AI Act) get the papers' passages and the wording of the article in force, and the graph path reads cluster → paper → discusses → article → part of → law → cluster. Document details list the articles a paper discusses. No LLM and no embeddings needed.
+
+### Requirements
+- **REQ-68 Edges in the knowledge graph from papers to the provisions they discuss** – ✅ done; checked offline with the four versions of the AI Act and both Wachter papers (Laux et al.: proposal 2021, 10 provisions, Art. 33 → Art. 31, Recitals 27/62/73/81 → 46/123/143/165; Ho & Caals: adopted text 2024, 67 provisions, numbering unchanged; "Article 2 of the Treaty on European Union" and "European Union 2012, Article 114" not taken) and with tests.
+
+### Added
+- `backend/app/provisions.py`: `find_refs`, `aliases`, `Resolver` (version of a paper, concordance to today's numbering by text comparison), `link_document`, `by_article`, `rebuild`, `links`, `chat_scope`, `chat_passages`.
+- Payload: documents `discusses` (per article: number and title as cited, version, today's number and title, parts, count), chunks `provisions` (`["eu-ai-act#art_31", …]`, keyword index).
+- Graph: `(:Document)-[:DISCUSSES {cited_as, count, parts, stage, renumbered}]->(:Component)` and `(:Chunk)-[:REFERS_TO]->(:Component)`; also restored by `POST /api/graph/rebuild`.
+- `GET /api/provisions?databases=&norm_id=&article=` and `POST /api/provisions/rebuild` (admin); CLI `ingest provisions`; runs automatically after every ingestion (`AUTO_PROVISIONS`, default on).
+- Graph Chat: provisions named in the question or discussed by the papers of the selected clusters are added to the prompt with the papers' passages and the wording in force; answer footer **Provisions discussed**.
+- Document details: section **Discusses**.
+
 ## [3.9.0] - 2026-10-31
 
 > **Minor release – ask about what the knowledge map shows.** Questions that name clusters ("Describe the link between C8 and C9") now go through the ontology to the text: the named clusters become the search space (also across databases and even if a project is selected), each cluster is searched on its own, and for every pair of clusters the Graph Chat looks for **bridging passages** – for the best passages of one cluster the most similar passage of the other (reference lists excluded). The language model gets the cluster descriptions, the relation shown on the map and these passage pairs; the graph path shows cluster → document → section (DEO role or article) ↔ section → document → cluster. Before, such a question in the scope of a project searched only that project and found nothing about the other cluster. (3.8.0 was withdrawn, see REQ-66.)
