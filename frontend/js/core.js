@@ -14,7 +14,7 @@ const DATE_SRC={doc_properties:'document properties',pdf_metadata:'PDF metadata'
 const SUM_FIELDS=[['purpose','Purpose'],['design_methodology_approach','Design / Methodology / Approach'],['findings','Findings'],['research_limitations_implications','Research limitations / implications'],['originality_value','Originality / value']];
 
 /* ---------- Backend or demo ---------- */
-const APP_VERSION='3.6.1';let LIVE=false;let BACKEND_VERSION='';let IS_ADMIN=false;let AUTH_MODE='local';
+const APP_VERSION='3.6.3';let LIVE=false;let BACKEND_VERSION='';let IS_ADMIN=false;let AUTH_MODE='local';
 const DEMO = window.DEMO_DATA || null;
 let METHOD_LABEL={lab_experiment:'Lab experiment',simulation_game:'Simulation / business game',survey:'Survey',interview:'Qualitative interviews',case_study:'Case study',literature_review:'Literature review',regression:'Regression analysis',multilevel:'Multilevel analysis (HLM)',sem:'Structural equation modeling',interrater_reliability:'Interrater reliability',mental_model_elicitation:'Mental model elicitation',system_dynamics:'System dynamics',qualitative_content_analysis:'Qualitative content analysis'};
 async function detectBackend(){
@@ -40,7 +40,7 @@ async function detectBackend(){
   }
   const m=$('#mode');
   m.textContent=LIVE?'Live':'Demo';
-  if(LIVE&&BACKEND_VERSION)$('#appVersion').title='Release notes · Frontend v'+APP_VERSION+' · Backend v'+BACKEND_VERSION;m.classList.toggle('live',LIVE);
+  if(LIVE&&BACKEND_VERSION)$('#appVersion').title=(DB_UNLOCKED?'Release notes · ':'')+'Frontend v'+APP_VERSION+' · Backend v'+BACKEND_VERSION;m.classList.toggle('live',LIVE);
   m.title=LIVE?'Connected to the backend':'No backend reachable: the document list shows real metadata from the sample project (without LLM enrichment); chat answers are examples.';
 }
 $('#logout').addEventListener('click',async()=>{
