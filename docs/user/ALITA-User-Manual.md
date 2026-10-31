@@ -2,7 +2,7 @@
 
 ALITA lets you ask questions of your research documents and get answers with numbered, clickable sources.
 The quick visual version is [`ALITA-Cheat-Sheet-Comic.pdf`](ALITA-Cheat-Sheet-Comic.pdf).
-New here? [`ALITA-Getting-Started.md`](ALITA-Getting-Started.md) (🤖 AI-generated): OpenRouter key, guided tour and the first steps on one page.
+New here? [`ALITA-Getting-Started.pdf`](ALITA-Getting-Started.pdf) (🤖 AI-generated): OpenRouter key, guided tour and the first steps on one page.
 
 **Guided tour (since 3.12.0):** the button **▶ Guided tour** next to the version number walks you through ALITA in eleven steps – the collections, the knowledge map, comparing collections, asking about the map, the version history of a law, papers linked to the articles they discuss, and questions that challenge a position. Each step highlights the part of the screen it explains; **Put into Graph Chat** inserts the example question, **Ask now** sends it (needs your OpenRouter key). → / ← move between the steps, Esc ends the tour. A link with `?tour=1` starts it right away.
 

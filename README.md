@@ -16,7 +16,7 @@ The RAG service (`app/rag.py`) does not depend on FastAPI and can be reused by t
 3. **Click ▶ Guided tour** next to the version number: eleven steps through ALITA along the propositions of our research
    submission – refresh memory, make the argument traceable, update one's schemes; explore or exploit.
 
-Step by step: [`docs/user/ALITA-Getting-Started.md`](docs/user/ALITA-Getting-Started.md) · in detail:
+Step by step: [`docs/user/ALITA-Getting-Started.pdf`](docs/user/ALITA-Getting-Started.pdf) · in detail:
 [User Manual](docs/user/ALITA-User-Manual.md).
 
 ## How this software was built – AI disclosure
