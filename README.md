@@ -5,6 +5,20 @@ Version: see `VERSION` (currently **3.12.0**; backend: `app.__version__`, `GET /
 Backend for tile 1 of the ALITA Prototype: FastAPI + Pydantic AI + pydantic-settings, Qdrant as vector database, OpenRouter for the LLM and the embeddings.
 The RAG service (`app/rag.py`) does not depend on FastAPI and can be reused by the Graph Chat (tile 2).
 
+## Getting started as a user
+
+> **🤖 AI-generated** – this section and the linked guide were written entirely by Claude (Anthropic).
+
+1. **Get your own OpenRouter API key** – needed to ask questions in the chats (each user brings their own; a few euros of
+   credit last for many questions): account at [openrouter.ai](https://openrouter.ai), credit under
+   [settings/credits](https://openrouter.ai/settings/credits), key under [settings/keys](https://openrouter.ai/settings/keys).
+2. **Paste it** into **OpenRouter API-Key** at the top of ALITA and click **Save** (kept only in the page's memory).
+3. **Click ▶ Guided tour** next to the version number: eleven steps through ALITA along the propositions of our research
+   submission – refresh memory, make the argument traceable, update one's schemes; explore or exploit.
+
+Step by step: [`docs/user/ALITA-Getting-Started.md`](docs/user/ALITA-Getting-Started.md) · in detail:
+[User Manual](docs/user/ALITA-User-Manual.md).
+
 ## How this software was built – AI disclosure
 
 ALITA was developed **with the AI coding assistant Claude (Anthropic)**, used through Claude Code and claude.ai sessions, in a

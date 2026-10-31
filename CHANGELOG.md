@@ -9,6 +9,7 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 ## [Unreleased]
 
 ### Added
+- User guide `docs/user/ALITA-Getting-Started.md` (marked as AI-generated): what needs an OpenRouter key, how to get and enter one, the guided tour and the propositions of the research submission it follows, everyday use in five points; linked from the README (section "Getting started as a user") and the user manual. The first step of the guided tour mentions the key.
 - MIT licence (`LICENSE`): applies to the code and documentation of this repository; documents loaded into ALITA keep their own licences.
 - Read-only GitHub Actions CI for PRs and main: secret scanning, Python/auth/deployment tests, Ruff, shell/JavaScript/nginx checks and generated frontend data validation. No production credentials or automatic deployment.
 - Reusable manual Hetzner code-deployment script with candidate import/health checks, rollback, private configuration backups and data-count checks; optional 4-GB pilot limits and an operations runbook. No automatic GitHub deployment or production configuration change.
