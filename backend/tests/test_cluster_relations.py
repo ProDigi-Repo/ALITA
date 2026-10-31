@@ -74,3 +74,54 @@ def test_graph_chat_searches_each_database_and_interleaves(monkeypatch):
     assert [h.id for h in hits][:3] == ["EUAIA-0", "WACHTER-0", "EUAIA-1"]       # both databases represented first
     assert calls[0][:4] == (("EUAIA",), (6,), 3, ("e1",))
     assert calls[1][:4] == (("WACHTER",), (8,), 3, ("w1",)) and calls[2][3:] == ((), ())   # retried without path/role
+
+
+# ---------- 3.9.0 (REQ-67): questions about what the knowledge map shows ----------
+def test_named_clusters_in_questions():
+    from app.cluster_query import named_clusters
+    known = {6, 7, 8, 9}
+    assert named_clusters("please describe the link between c8 and c9", known) == [8, 9]
+    assert named_clusters("Zusammenhang zwischen Cluster 9 und C8?", known) == [9, 8]
+    assert named_clusters("Article 8, C12, AC8, 3.C8 and C7.", known) == [7]       # unknown, inside words or numbers: no
+    assert named_clusters("no cluster here", known) == []
+
+
+def test_profiles_and_bridge_context_and_path():
+    from app.cluster_query import bridge_path, bridges_context, profiles, profiles_context
+    docs = [{"doc_id": "w1", "title": "Laux et al.", "cluster_id": 8, "cluster_basis": "summary", "databases": ["WACHTER"],
+             "cluster_title": "Trust", "cluster_description": "Trust in the AI Act.", "cluster_insights": ["Trust ≠ acceptability"]},
+            {"doc_id": "a1", "title": "AI Act", "cluster_id": 9, "cluster_basis": "summary", "databases": ["EUAIA"], "cluster_title": "AI Act"},
+            {"doc_id": "a2", "title": "inherited", "cluster_id": 9, "cluster_basis": "project", "databases": ["EUAIA"]}]
+    prof = profiles([8, 9], docs, {"WACHTER": "Wachter", "EUAIA": "EU AI Act"}.get)
+    assert prof[8]["database_name"] == "Wachter" and prof[9]["members"] == ["AI Act"]
+    ctx = profiles_context(prof)
+    assert "C8 Trust (Wachter): 1 document(s): Laux et al." in ctx and "Insights: Trust ≠ acceptability" in ctx
+    left = SimpleNamespace(id="p1", payload={"deo": ["Discussion"], "section": "Notified bodies", "title": "Laux et al.", "doc_type": "research_paper"})
+    right = SimpleNamespace(id="p2", payload={"deo": [], "component_label": "Article 31", "norm_id": "eu-ai-act", "title": "AI Act"})
+    b = {"a": 8, "b": 9, "left": left, "right": right, "similarity": 0.71}
+    txt = bridges_context([b], {"p1": 3, "p2": 7}.get and (lambda h: {"p1": 3, "p2": 7}[h.id]))
+    assert "[3] C8 deo:Discussion „Notified bodies“ ↔ [7] C9 eli:Article 31 „Article 31“: similarity 0.71" in txt
+    path = bridge_path(b, prof)
+    assert path[0] == ["C8 Trust", "Cluster"] and path[2] == ["Laux et al.", "Paper"] and path[5] == "similar 0.71"
+    assert path[8] == ["AI Act", "Law"] and path[-1] == ["C9 AI Act", "Cluster"]
+
+
+def test_bridge_passages_finds_closest_passage_across_the_cluster_boundary(monkeypatch):
+    from app import cluster_query, store
+    hits = [SimpleNamespace(id="w-1", score=.9, payload={"cluster_id": 8}), SimpleNamespace(id="a-1", score=.8, payload={"cluster_id": 9}),
+            SimpleNamespace(id="w-2", score=.7, payload={"cluster_id": 8})]
+    monkeypatch.setattr(store, "chunk_vectors", lambda ids: {i: [1.0] for i in ids})
+    asked = []
+
+    def fake_search(vec, flt, limit):
+        cl = [c for c in flt.must if getattr(c, "key", None) == "cluster_id"][0].match
+        target = getattr(cl, "any", None) or [getattr(cl, "value", None)]
+        asked.append(target[0])
+        partner = {9: ("a-7", .71), 8: ("w-1", .66)}[target[0]]
+        return [SimpleNamespace(id=partner[0], score=partner[1], payload={"cluster_id": target[0]})]
+    monkeypatch.setattr(store, "search_chunks", fake_search)
+    res = asyncio.run(cluster_query.bridge_passages(hits, [8, 9], {"WACHTER": [8], "EUAIA": [9]}))
+    assert sorted(set(asked)) == [8, 9]
+    assert res[0]["similarity"] == 0.71 and res[0]["left"].id == "w-1" and res[0]["right"].id == "a-7"
+    assert all(r["a"] == 8 and r["b"] == 9 for r in res)
+    assert len({tuple(sorted((r["left"].id, r["right"].id))) for r in res}) == len(res)           # no duplicate pairs

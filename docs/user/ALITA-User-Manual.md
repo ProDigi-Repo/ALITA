@@ -1,4 +1,4 @@
-# ALITA – User Manual (front-end, v3.7.3)
+# ALITA – User Manual (front-end, v3.9.0)
 
 ALITA lets you ask questions of your research documents and get answers with numbered, clickable sources.
 The quick visual version is [`ALITA-Cheat-Sheet-Comic.pdf`](ALITA-Cheat-Sheet-Comic.pdf).
@@ -81,6 +81,10 @@ Each database is clustered on its own, so the map normally shows no lines betwee
 14. **Answer:** the answer with [n] citations, the **graph path** it followed, the **sources used**, and **Copy**.
 15. **Advanced settings and your questions:** databases, parameters (entities, relation, period, hops) and the system prompt. Below, your questions; click one to jump to its answer.
 16. **Scope and question:** shows what the chat searches; **restrict to a person** narrows it. Type your question and click **Send**.
+
+**Ask about what the map shows (since 3.9.0)**
+
+Name the clusters in your question – *"Describe the link between C8 and C9"*, *"Was verbindet C8 und C9?"*, *"What does cluster 9 say about notified bodies?"*. The Graph Chat then searches exactly these clusters (also across databases, and even if a project is selected), cluster by cluster. For two or more clusters it also looks for **bridging passages**: for the best passages of one cluster the most similar passage in the other one. The answer gets the cluster descriptions, their similarity and these passage pairs, and compares what each side says. The **graph path** under the answer shows the way through the ontology: cluster → document → section (its DEO role, or the article of a law) ↔ section → document → cluster; **Clusters across databases** lists the passage pairs with their source numbers.
 
 ## Document Chat (A) and Graph Chat (B)
 

@@ -46,7 +46,7 @@ function botMsg(chat,a){
   const text=mdLite(a.answer).replace(/\[(\d+)\]/g,(m,n)=>`<sup class="cite" data-t="${id}-${n}">[${n}]</sup>`);
   const pathHtml=a.path?`<div class="path"><span class="lbl">Graph path</span>${a.path.map(p=>Array.isArray(p)?`<span class="node">${esc(p[0])}<i>${esc(p[1])}</i></span>`:`<span class="edge">—${esc(p)}→</span>`).join('')}</div>`:'';
   /* REQ-59: clusters from several databases were searched one database at a time */
-  const xs=a.cluster_scope,scopeHtml=xs&&xs.by_database?`<div class="path"><span class="lbl">Clusters across databases</span>${Object.entries(xs.by_database).map(([db,ids])=>`<span class="node">${esc(dbName(db))}<i>${ids.map(i=>'C'+i).join(', ')}</i></span>`).join('<span class="edge">·</span>')}${(xs.relations||[]).map(l=>`<span class="edge">C${l.source} ↔ C${l.target} · ${(+l.similarity).toFixed(2)}</span>`).join('')}</div>`:'';
+  const xs=a.cluster_scope,scopeHtml=xs&&xs.by_database?`<div class="path"><span class="lbl">Clusters across databases</span>${Object.entries(xs.by_database).map(([db,ids])=>`<span class="node">${esc(dbName(db))}<i>${ids.map(i=>'C'+i).join(', ')}</i></span>`).join('<span class="edge">·</span>')}${(xs.relations||[]).map(l=>`<span class="edge">C${l.source} ↔ C${l.target} · ${(+l.similarity).toFixed(2)}</span>`).join('')}${(xs.bridges||[]).length?`<span class="edge">bridging passages: ${xs.bridges.map(b=>`[${b.left}] ↔ [${b.right}] ${(+b.similarity).toFixed(2)}`).join(' · ')}</span>`:''}</div>`:'';
   const srcHtml=a.sources.map(s=>{
     const tags=[TYPE_LABEL[s.doc_type]||s.doc_type,s.project_name,s.filetype&&'.'+s.filetype,s.legal?null:s.year,ROLE_LABEL[s.role]||s.role,s.legal&&typeof legalSrcTag==='function'?legalSrcTag(s.legal):s.locator,...(s.methods||[]).map(m=>METHOD_LABEL[m]||m)].filter(Boolean);
     const href=LIVE?s.url.replace(/^\//,''):'#';
@@ -289,7 +289,7 @@ async function askGraph(q){
   const plan=graphPlan(q);
   if(LIVE){
     const sc=chatScope();
-    const body={message:q,history:priorG,system_prompt:sysPrompt('graph'),databases:plan.databases,clusters:sc.kind==='project'?[]:plan.clusters,projects:sc.project,persons:sc.person,overview:sc.overview,deo:$('#gDeo').value?[$('#gDeo').value]:[],
+    const body={message:q,history:priorG,system_prompt:sysPrompt('graph'),databases:plan.databases,clusters:plan.clusters,projects:sc.project,persons:sc.person,overview:sc.overview,deo:$('#gDeo').value?[$('#gDeo').value]:[],
       entity_types:plan.entity_types,relation:plan.relation||null,year_from:plan.year,year_to:plan.year,hops:plan.hops,as_of:($('#gAsOf')&&$('#gAsOf').value)||null};
     try{
       const res=await streamChat(body,chat,t,'api/graph/stream');

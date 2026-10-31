@@ -196,6 +196,19 @@ def search_chunks(vector: list[float], flt: qm.Filter | None, limit: int):
     ).points
 
 
+def chunk_vectors(ids: list) -> dict[str, list[float]]:
+    """REQ-67: Text-Vektoren gegebener Textstellen (für die Suche nach ähnlichen Stellen in einem anderen Cluster)."""
+    if not ids:
+        return {}
+    pts = client().retrieve(get_settings().col_chunks, ids=list(ids), with_payload=False, with_vectors=["text"])
+    out = {}
+    for p in pts:
+        v = p.vector.get("text") if isinstance(p.vector, dict) else p.vector
+        if v:
+            out[str(p.id)] = list(v)
+    return out
+
+
 def scroll_documents(flt: qm.Filter | None = None, limit: int = 10_000) -> list[dict]:
     s, c = get_settings(), client()
     out, offset = [], None

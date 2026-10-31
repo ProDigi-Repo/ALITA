@@ -8,6 +8,7 @@ $$('.cv-toggle').forEach(b=>b.addEventListener('click',()=>{const c=$('#cviz').c
 const cvHue=c=>(c*67)%360, cvCol=(c,l=45)=>`hsl(${cvHue(c)} 60% ${l}%)`;
 const CV_TYPE={research_paper:'Paper',research_notes:'Note',research_project:'Project',legal_project:'Law',legal_guideline:'Guideline',standard:'Standard',guidance:'FAQ'};
 function cvUnits(){
+  if(typeof DOCS==='undefined'||typeof PROJECTS==='undefined')return [];   // a resize can fire before documents.js has run
   const inDb=x=>!SEL_DB.length||(x.db||[]).some(n=>SEL_DB.includes(n));
   const docs=DOCS.filter(d=>d.cb==='summary'&&d.cx!=null&&d.ci!=null);
   const projs=PROJECTS.filter(p=>p.cx!=null&&p.ci!=null).map(p=>({id:null,t:'research_project',ti:p.title||p.name,pn:p.name,ci:p.ci,cl:p.cl,cx:p.cx,cy:p.cy,ca:p.ca,cas:p.cas,db:p.db||[]}));

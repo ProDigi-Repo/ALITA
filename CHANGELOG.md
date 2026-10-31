@@ -19,6 +19,22 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 - Require an explicit Neo4j password instead of a committed default; restrict CORS, downloads and ZIP expansion, and cap HTTP uploads at 50 MiB.
 - Keep keys and chat history in page memory only, with Access logout. Export existing chats before upgrading: old browser-persisted keys/history are removed on first load.
 
+## [3.9.0] - 2026-10-31
+
+> **Minor release – ask about what the knowledge map shows.** Questions that name clusters ("Describe the link between C8 and C9") now go through the ontology to the text: the named clusters become the search space (also across databases and even if a project is selected), each cluster is searched on its own, and for every pair of clusters the Graph Chat looks for **bridging passages** – for the best passages of one cluster the most similar passage of the other (reference lists excluded). The language model gets the cluster descriptions, the relation shown on the map and these passage pairs; the graph path shows cluster → document → section (DEO role or article) ↔ section → document → cluster. Before, such a question in the scope of a project searched only that project and found nothing about the other cluster. (3.8.0 was withdrawn, see REQ-66.)
+
+### Requirements
+- **REQ-67 Ask questions about the connections visible on the cluster image; reach the text passages via the ontology** – ✅ done; checked with the live index (passages of C8 "AI Act Trustworthiness and Risk" find their closest passages in C9 – e.g. Commission guidelines, para. 191, similarity 0.64) and with tests.
+
+### Added
+- `backend/app/cluster_query.py`: `named_clusters` ("C8", "c9", "cluster 9"), `profiles`, `bridge_passages`, `bridges_context`, `bridge_path`; `store.chunk_vectors`.
+- Graph Chat: cluster mode (named clusters or clusters from several databases) – project scope dropped, retrieval per cluster, bridging passages added as sources, cluster profiles and passage pairs in the prompt, `cluster_scope.bridges` in the answer.
+- Answer footer "Clusters across databases" lists the bridging passages ([n] ↔ [m] and similarity).
+
+### Fixed
+- The Graph Chat request kept the selected clusters when a project was selected only if no project scope was active; clusters are now always sent. Selecting a relation on the map clears a project scope.
+- Rare "DOCS is not defined" at start-up (a resize before `documents.js` had run).
+
 ## [3.7.3] - 2026-10-31
 
 > **Patch release – larger question field, aligned top row.** The question field of both chats shows four lines, grows with the text (up to about eleven lines) and can be dragged taller; after sending it shrinks back. On the B page the database bar now spans the column of the knowledge map, and the "Window to the outside" and the B explainer sit above the other two columns.

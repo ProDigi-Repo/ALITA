@@ -1,4 +1,4 @@
-# ALITA – requirements status (3.7.3, 2026-10-31)
+# ALITA – requirements status (3.9.0, 2026-10-31)
 
 Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wording, the request as a requirement, acceptance criterion).
 
@@ -70,6 +70,7 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 | REQ-64 | Larger question input | ✅ done – needs deploy (frontend) | 3.7.3 | 4 lines, grows to ~11, resizable (both chats). |
 | REQ-65 | Extend the first box (database bar) | ✅ done – needs deploy (frontend) | 3.7.3 | Top row on the B page uses the three columns of the page: database bar over the map. |
 | REQ-66 | Default OpenRouter key; another key can still be entered | ❌ withdrawn by the requester (built as 3.8.0, reverted) | – | Every person keeps entering their own key; a key in `.env` is not used for chats. |
+| REQ-67 | Ask about the connections visible on the cluster image; reach the text passages via the ontology | ✅ done – needs deploy (backend + frontend) | 3.9.0 | `cluster_query.py`: named clusters → cluster mode (no project filter, per-cluster retrieval), bridging passages across the cluster boundary, cluster profiles and pairs in the prompt, ontology path in the answer. |
 
 ## Open points for the requirement owners
 - REQ-10, REQ-15 – REQ-18: main document chain per project, inferred links between versions and analyses, threshold for "substantive", AI stage texts automatic or on demand, versions without full text.
