@@ -11,11 +11,13 @@ function renderKey(){
 function renderDbLock(){
   const p=$('#dbPass'),l=$('#dbLock');if(!p)return;
   p.placeholder=DB_UNLOCKED?'all databases unlocked':'show all databases';p.disabled=DB_UNLOCKED;l.hidden=!DB_UNLOCKED;
+  applyPageGate();
 }
 /* lock/unlock without a page reload: the OpenRouter key lives in page memory only and would be lost */
 function setDbUnlocked(on){
   DB_UNLOCKED=on;try{on?localStorage.setItem('db_unlocked','1'):localStorage.removeItem('db_unlocked')}catch(e){}
   DATABASES=[...DB_ALL];applyDbGate();renderDbLock();if(typeof loadDocs==='function')loadDocs();
+  if(!on&&LOCKED_PAGES.some(x=>!$('#page-'+x).hidden))showPage('graph');   // locked while on a hidden tab
 }
 $('#dbLock').addEventListener('click',()=>{setDbUnlocked(false);toast('Locked · only the public databases are shown')});
 renderDbLock();

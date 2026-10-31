@@ -31,6 +31,10 @@ function applyDbGate(){
   DATABASES=DATABASES.filter(n=>PUBLIC_DBS.includes(n));if(!DATABASES.length)DATABASES=[...PUBLIC_DBS];
   SEL_DB=SEL_DB.filter(n=>DATABASES.includes(n));
 }
+/* 3.6.2 (REQ-57): the tabs "ISO 42001/EUAIACT Docs" and "Technical Documentation" are hidden while locked */
+const LOCKED_PAGES=['compliance','tech'];
+function applyPageGate(){LOCKED_PAGES.forEach(p=>{const b=document.getElementById('tab-'+p);if(b)b.hidden=!DB_UNLOCKED})}
+applyPageGate();
 /* documents/projects visible under the gate: only those in a visible database */
 function dbGateFilter(list){return DB_UNLOCKED?list:(list||[]).filter(x=>(x.db||[]).some(n=>DATABASES.includes(n)))}
 /* databases sent to the backend: the selection, or – while locked – all visible databases (never "all") */

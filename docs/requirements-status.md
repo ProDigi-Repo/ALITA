@@ -1,4 +1,4 @@
-# ALITA – requirements status (3.6.1, 2026-10-30)
+# ALITA – requirements status (3.6.2, 2026-10-31)
 
 Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wording, the request as a requirement, acceptance criterion).
 
@@ -60,6 +60,7 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 | REQ-54 | Remove the option to add new databases in the interface | ✅ done – needs deploy | 3.5.1 | Databases are fixed in the backend config; the button "+ Add new data" in the database bar was removed. Upload into existing databases remains under Documents → + Upload. |
 | REQ-55 | New database "Wachter" with two papers (Laux, Wachter & Mittelstadt 2024; Ho & Caals 2024) | 🔄 in progress – ingestion in Docker pending | 3.6.0 | ID `WACHTER`, name "Wachter", shield icon, violet. Files + curated `_summaries.yaml` in `research/WACHTER/papers/`. Public since 3.6.1 (REQ-56). |
 | REQ-56 | Wachter visible by default like EU AI Act | ✅ done – needs deploy (frontend) | 3.6.1 | `PUBLIC_DBS=['EUAIA','WACHTER']`; empty selection sends both to the backend while locked. |
+| REQ-57 | Hide the tabs "ISO 42001/EU AI Act Docs" and "Technical Documentation" | ✅ done – needs deploy (frontend) | 3.6.2 | Shown only after the database password (`LOCKED_PAGES`); `#compliance`/`#tech` open B while locked. Display only – the doc APIs still answer. |
 
 ## Open points for the requirement owners
 - REQ-10, REQ-15 – REQ-18: main document chain per project, inferred links between versions and analyses, threshold for "substantive", AI stage texts automatic or on demand, versions without full text.
