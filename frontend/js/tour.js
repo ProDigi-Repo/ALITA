@@ -44,7 +44,7 @@ function tourSteps(){
     {page:'graph',target:'#graphForm',title:'Traceability: explicit relations, not only similarity',
      prompt:'Which papers discuss Article 31 of the AI Act, and what do they argue?',
      text:`References in the papers ("Art. 33(4) AI Act") are edges in the graph: paper –discusses→ article. Papers cite the version they had in front of them – Laux, Wachter &amp; Mittelstadt cite Art. 33 of the 2021 proposal, which is Art. 31 today; ALITA maps this. Under the answer: the <b>graph path</b> and the numbered <b>sources</b> – every statement can be checked in its passage.`},
-    {page:'docs',target:'.lg-disc,#drawer',wait:900,
+    {page:'docs',target:'.lg-disc,#drawer',wait:900,keepDrawer:true,
      run:()=>{const d=tourLaw();if(d&&typeof openDoc==='function')openDoc(d.id)},
      title:'The same relation, seen from the law',
      text:`Document details of a law version list, for each article, the papers that discuss it – in the numbering of that version. <b>Ask</b> next to an article puts the question into the Graph Chat. Every document has such details: summary, methods, versions, citations, and for papers the articles they discuss.`},
@@ -76,7 +76,10 @@ function tourPlace(){
     const pw=Math.min(420,W-24),ph=pop.offsetHeight||240;
     let top=r.bottom+14,left=Math.min(Math.max(12,r.left),W-pw-12);
     if(top+ph>H-12)top=r.top-ph-14;
-    if(top<12){top=Math.min(Math.max(12,r.top),H-ph-12);left=r.right+14+pw<W?r.right+14:Math.max(12,r.left-pw-14)}
+    if(top<12){
+      if(r.right+14+pw<W||r.left-pw-14>12){top=Math.min(Math.max(12,r.top),H-ph-12);left=r.right+14+pw<W?r.right+14:r.left-pw-14}
+      else top=(r.top+r.bottom)/2>H/2?12:H-ph-12;      // narrow window: over the far side of the target
+    }
     Object.assign(pop.style,{left:left+'px',top:Math.max(12,top)+'px',width:pw+'px',transform:'none'});
   }else{
     Object.assign(box.style,{display:'block',left:'0',top:'0',width:'0',height:'0'});box.classList.add('center');
@@ -90,9 +93,14 @@ function tourPut(prompt,send){
   if(send){const f=$('#graphForm');if(f&&f.requestSubmit)f.requestSubmit()}
 }
 function tourGo(i){
+  TOUR.steps=tourSteps();                         // data may have loaded since the start (cluster numbers, project)
   const S=TOUR.steps;TOUR.i=Math.max(0,Math.min(S.length-1,i));const st=S[TOUR.i];
+  if(!st.keepDrawer&&typeof closeDrawer==='function'&&$('#drawer')&&!$('#drawer').hidden)closeDrawer();   // document details of an earlier step
   if(st.page)tourShow(st.page);
   try{st.run&&st.run()}catch(e){}
+  const scrollTo=()=>{const el=tourEl(st.target);if(!el)return;const r=el.getBoundingClientRect();
+    if(r.top<0||r.bottom>innerHeight||r.left<0||r.right>innerWidth)el.scrollIntoView({block:r.height>innerHeight*.6?'start':'center',inline:'nearest'})};
+  scrollTo();setTimeout(scrollTo,st.wait||300);
   const key=!!(($('#apiKey')||{}).value||'').trim()||(typeof hasKey==='function'&&hasKey());
   TOUR.pop.innerHTML=`<div class="tour-head"><span class="tour-n">${TOUR.i+1} / ${S.length}</span><b>${st.title}</b><button type="button" class="tour-x" data-t="close" aria-label="Close the tour">✕</button></div>
     <div class="tour-text">${st.text}</div>
@@ -127,6 +135,7 @@ function tourStart(){
   tourGo(0);
 }
 function tourEnd(){
+  if(TOUR.on&&TOUR.steps&&TOUR.steps[TOUR.i]&&TOUR.steps[TOUR.i].keepDrawer&&typeof closeDrawer==='function')closeDrawer();
   TOUR.on=false;[TOUR.box,TOUR.pop].forEach(e=>e&&e.remove());TOUR.box=TOUR.pop=null;
   removeEventListener('resize',tourPlace);removeEventListener('scroll',tourPlace,true);removeEventListener('keydown',tourKey);
   try{localStorage.setItem('tour_seen','1')}catch(e){}
