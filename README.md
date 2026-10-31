@@ -1,451 +1,455 @@
-# ALITA Prototype – Backend für den Dokumenten-Chat
+# ALITA Prototype – backend for the document chat
 
-Version **0.17.1** (siehe `VERSION`; Backend: `app.__version__`, `GET /api/health` → `version`; Frontend: Kopfzeile)
+Version: see `VERSION` (currently **3.12.0**; backend: `app.__version__`, `GET /api/health` → `version`; front end: header)
 
-Backend für Kachel 1 des ALITA Prototype: FastAPI + Pydantic AI + pydantic-settings, Qdrant als Vektordatenbank, OpenRouter für LLM und Embeddings.
-Der RAG-Dienst (`app/rag.py`) hängt nicht an FastAPI und kann später vom Graph Chat (Kachel 2) wiederverwendet werden.
+Backend for tile 1 of the ALITA Prototype: FastAPI + Pydantic AI + pydantic-settings, Qdrant as vector database, OpenRouter for the LLM and the embeddings.
+The RAG service (`app/rag.py`) does not depend on FastAPI and can be reused by the Graph Chat (tile 2).
 
 ```
 research-rag/
 ├─ backend/app/
 │  ├─ config.py        Settings (pydantic-settings, .env)
-│  ├─ schemas.py       Datenmodell: DocumentRecord, ProjectContext, StructuredSummary, MethodTag, API-Modelle
-│  ├─ extract.py       Text + Eigenschaften je Dateityp (pdf, docx, pptx, xlsx, csv, sav, spv, sps …)
-│  ├─ project_meta.py  Regeln: Rolle, Version, Journal/Einreichung, Archiv, Datum, Sprache
-│  ├─ glossary.py      Methoden-Glossar laden + Stichwort-Klassifikation
-│  ├─ enrich.py        Structured Summary: Parser für Emerald-Abstracts + Pydantic-AI-Agent
-│  ├─ llm.py           OpenRouter-Modelle (Agent) und Embedder
-│  ├─ chunking.py      Chunks mit Fundstelle (Seite, Folie, Blatt)
+│  ├─ schemas.py       Data model: DocumentRecord, ProjectContext, StructuredSummary, MethodTag, API models
+│  ├─ extract.py       Text + properties per file type (pdf, docx, pptx, xlsx, csv, sav, spv, sps …)
+│  ├─ project_meta.py  Rules: role, version, journal/submission, archive, date, language
+│  ├─ glossary.py      Load the methods glossary + keyword classification
+│  ├─ enrich.py        Structured Summary: parser for Emerald abstracts + Pydantic AI agent
+│  ├─ llm.py           OpenRouter models (agent) and embedder
+│  ├─ chunking.py      Chunks with location (page, slide, sheet)
 │  ├─ store.py         Qdrant: documents, chunks, projects
-│  ├─ filters.py       UI- und Prompt-Filter (@typ:paper …) -> Qdrant-Filter
-│  ├─ rag.py           Retrieval + Antwort mit Quellen
+│  ├─ filters.py       UI and prompt filters (@typ:paper …) -> Qdrant filters
+│  ├─ rag.py           Retrieval + answer with sources
 │  ├─ ingest.py        Pipeline + CLI
-│  └─ main.py          FastAPI-Endpunkte, liefert auch das Frontend aus
-├─ glossary/methods.yaml   vorläufiges Methoden-Glossar (wird später ersetzt)
-├─ frontend/               ALITA Prototype, ohne Build-Schritt ausgeliefert
-│  ├─ index.html           Markup, bindet css/ und js/ ein
-│  ├─ css/                 base, tiles, clusters, cluster-profile, space3d, pages
-│  └─ js/                  data (generiert), core, databases, release-compliance, clusters, cluster-profile,
-│                          chat-tools, docs-nav, documents, chat, space3d, start – Reihenfolge wie in index.html
-├─ tools/build_frontend.py js/data.js neu erzeugen; Einzeldatei-Seite für die Veröffentlichung bauen
+│  └─ main.py          FastAPI endpoints, also serves the front end
+├─ glossary/methods.yaml   preliminary methods glossary (to be replaced)
+├─ frontend/               ALITA Prototype, served without a build step
+│  ├─ index.html           Markup, includes css/ and js/
+│  ├─ css/                 base, tiles, clusters, cluster-profile, space3d, pages, …
+│  └─ js/                  data (generated), core, databases, release-compliance, clusters, cluster-profile,
+│                          chat-tools, docs-nav, documents, chat, space3d, …, start – order as in index.html
+├─ tools/build_frontend.py regenerate js/data.js; build the single-file page for publishing
 ├─ docker/                 backend.Dockerfile, nginx.conf
-├─ research/               Standard-Ort für eigene Forschungsordner (RESEARCH_DIR)
-└─ docker-compose.yml      Qdrant + Backend + Frontend + Ingest/Test-Jobs
+├─ research/               default location for your own research folders (RESEARCH_DIR)
+└─ docker-compose.yml      Qdrant + backend + front end + ingest/test jobs
 ```
 
-## Start mit Docker Compose
+## Start with Docker Compose
 
 ```bash
-cp .env.example .env        # RESEARCH_DIR setzen; NEO4J_PASSWORD mit eigenem Zufallswert befüllen
-openssl rand -hex 32        # diesen Wert als NEO4J_PASSWORD in .env eintragen (kein OpenRouter-Key in .env)
+cp .env.example .env        # set RESEARCH_DIR; fill NEO4J_PASSWORD with your own random value
+openssl rand -hex 32        # put this value into .env as NEO4J_PASSWORD (no OpenRouter key in .env)
 docker compose up -d --build
 ```
 
-| Dienst | Adresse | Zweck |
+| Service | Address | Purpose |
 |---|---|---|
-| frontend | http://localhost:8080 | ALITA Prototype (nginx, leitet `/api` und `/files` ans Backend) |
-| backend | http://localhost:8000/docs | FastAPI, Swagger-UI |
-| qdrant | http://localhost:6333/dashboard | Vektordatenbank |
+| frontend | http://localhost:8080 | ALITA Prototype (nginx, forwards `/api` and `/files` to the backend) |
+| backend | http://localhost:8000/docs | FastAPI, Swagger UI |
+| qdrant | http://localhost:6333/dashboard | Vector database |
 
-Mitgeliefert sind 28 research notes in `research/LDK/notes/` und 3 research papers in `research/LDK/papers/` (Datenbank LDK) und das research project `research/ML/11-MentalModelProcesses` (ohne Ordner `Literatur`, Datenbank ML über die Ordnerstruktur). Beim Start liest der Dienst `seed` alle Projektordner aus `RESEARCH_DIR` automatisch ein; bereits eingelesene werden übersprungen. Ohne Key landen nur die Metadaten im Index (Dokumentenliste funktioniert). Summaries und Embeddings mit Key für genau diesen Lauf (`-e OPENROUTER_API_KEY=sk-or-v1-…` an `docker compose run` anhängen):
+Included are 28 research notes in `research/LDK/notes/` and 3 research papers in `research/LDK/papers/` (database LDK) and the research project `research/ML/11-MentalModelProcesses` (without the `Literatur` folder; database ML from the folder structure). On start-up the `seed` service ingests all project folders in `RESEARCH_DIR` automatically; folders already ingested are skipped. Without a key only the metadata goes into the index (the document list works). Summaries and embeddings with a key for exactly this run (append `-e OPENROUTER_API_KEY=sk-or-v1-…` to `docker compose run`):
 
 ```bash
-docker compose run --rm -e OPENROUTER_API_KEY=sk-or-v1-… ingest all /research --force   # Zusammenfassungen, Methoden und Embeddings erzeugen
-docker compose logs seed                               # Ergebnis des automatischen Einlesens
+docker compose run --rm -e OPENROUTER_API_KEY=sk-or-v1-… ingest all /research --force   # create summaries, methods and embeddings
+docker compose logs seed                               # result of the automatic ingestion
 ```
 
-Weitere Daten einlesen (Ordner aus `RESEARCH_DIR` liegen im Container unter `/research`):
+Ingest more data (folders from `RESEARCH_DIR` are under `/research` in the container):
 
 ```bash
 docker compose run --rm ingest project /research/ML/11-MentalModelProcesses -v
 docker compose run --rm ingest paper   /research/paper.pdf --project 11-MentalModelProcesses
-docker compose run --rm ingest notes   /research/ideen.docx
-docker compose run --rm ingest project /research/ML/11-MentalModelProcesses --no-llm --dry-run /data/analyse.json
+docker compose run --rm ingest notes   /research/ideas.docx
+docker compose run --rm ingest project /research/ML/11-MentalModelProcesses --no-llm --dry-run /data/analysis.json
 ```
 
-Upload geht auch im Frontend über **Dokumente → Hochladen** (Projekt als ZIP des Ordners).
+Uploading also works in the front end via **Documents → Upload** (a project as a ZIP of its folder).
 
 Tests: `docker compose --profile test run --rm tests`
 
-Alle Docker-Dateien liegen in `docker/` (`backend.Dockerfile`, `nginx.conf`). Ohne LibreOffice (kleineres Image, dann kein Text aus .doc/.ppt): `WITH_LIBREOFFICE=false` in `.env`.
+All Docker files are in `docker/` (`backend.Dockerfile`, `nginx.conf`). Without LibreOffice (smaller image, but no text from .doc/.ppt): `WITH_LIBREOFFICE=false` in `.env`.
 
-### Ohne Docker (Entwicklung)
+### Without Docker (development)
 
 ```bash
 docker compose up -d qdrant
 cd backend && python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
 uvicorn app.main:app --reload                       # http://localhost:8000
-python -m app.ingest project "/pfad/zum/projekt" -v
+python -m app.ingest project "/path/to/project" -v
 ```
 
-## Im Internet betreiben (Hetzner + Cloudflare)
+## Running on the internet (Hetzner + Cloudflare)
 
-Für einen gemeinsamen Workspace mit E-Mail-Einmalcode, eigenen OpenRouter-Keys und Admin-only-Uploads:
-[`deploy/hetzner/README.md`](deploy/hetzner/README.md). Das Hetzner-Profil schließt alle Hostports und erzwingt
-Cloudflare-JWT-Prüfung sowie eine Nutzer-/Admin-Trennung. Die Standard-Compose-Datei ist für lokale Entwicklung.
-Keys und Chatverläufe bleiben nur im Speicher der geöffneten Seite; gewünschte Chats vor Reload/Upgrade exportieren.
+For a shared workspace with e-mail one-time codes, personal OpenRouter keys and admin-only uploads:
+[`deploy/hetzner/README.md`](deploy/hetzner/README.md). The Hetzner profile closes all host ports and enforces
+Cloudflare JWT verification and a user/admin separation. The default Compose file is for local development.
+Keys and chat histories stay only in the memory of the open page; export the chats you want to keep before a reload or upgrade.
 
 ## Alternative: Oracle Cloud + Cloudflare
 
-Gratis-Server auf Oracle Cloud (Always Free, ARM), erreichbar nur über einen Cloudflare Tunnel; davor sitzt
-Cloudflare Access mit Google-Login für freigegebene E-Mail-Adressen. Den fertigen Index zieht
-`docker compose run --rm migrate export|import` um, ohne neu einzulesen.
-Schritt für Schritt: [`deploy/oracle/README.md`](deploy/oracle/README.md).
+Free server on Oracle Cloud (Always Free, ARM), reachable only through a Cloudflare Tunnel; in front of it sits
+Cloudflare Access with Google login for approved e-mail addresses. `docker compose run --rm migrate export|import`
+moves the finished index without ingesting again.
+Step by step: [`deploy/oracle/README.md`](deploy/oracle/README.md).
 
-## Metadaten
+## Metadata
 
-**Alle Datentypen** (research project, research paper, research notes):
+**All data types** (research project, research paper, research notes):
 
-| Feld | Herkunft |
+| Field | Origin |
 |---|---|
-| `doc_type` | Art der Ingestion |
-| `filetype`, `mime`, `size_bytes`, `sha256` | Datei |
-| `date`, `year`, `date_source` | Priorität: Office/PDF-Eigenschaften → Datum im Dateinamen → Jahr im Dateinamen → Dateisystem. `date_source` zeigt, woher das Datum stammt. Das Frontend markiert Dateisystem-Daten mit ≈. |
-| `title`, `authors`, `language`, `pages` | Dokumenteigenschaften / Text |
-| `summary` | Structured Summary: **Purpose, Design/Methodology/Approach, Findings, Research limitations/implications, Originality/value**. Wenn ein Emerald-Abstract im Text steht, wird er direkt geparst. Sonst erzeugt ihn ein Pydantic-AI-Agent (`ENRICH_MODEL`). |
-| `methods` | Klassifikation gegen `glossary/methods.yaml`: Stichwort-Treffer + LLM-Auswahl, jeweils mit Konfidenz und Quelle |
-| `keywords` | Keywords-Zeile im Dokument oder LLM |
+| `doc_type` | Kind of ingestion |
+| `filetype`, `mime`, `size_bytes`, `sha256` | File |
+| `date`, `year`, `date_source` | Priority: Office/PDF properties → date in the file name → year in the file name → file system. `date_source` says where the date comes from. The front end marks file-system dates with ≈. |
+| `title`, `authors`, `language`, `pages` | Document properties / text |
+| `summary` | Structured Summary: **Purpose, Design/Methodology/Approach, Findings, Research limitations/implications, Originality/value**. If an Emerald abstract is in the text, it is parsed directly. Otherwise a Pydantic AI agent creates it (`ENRICH_MODEL`). |
+| `methods` | Classification against `glossary/methods.yaml`: keyword hits + LLM selection, each with confidence and source |
+| `keywords` | Keywords line in the document or LLM |
 
-**Zusätzlich für research projects** (`ProjectContext`, pro Datei):
-`project_name` (= Ordnername), `project_id`, `rel_path`, `folder`, `role` (Manuskript, Abstract, Cover Letter, Reviewer-Antwort, Daten, Analyse-Skript …),
-`venue` + `submission_no` + `stage` (aus `Journal/<n> <Name>/<Ersteinreichung|R1|Revision 1>`), `version_group`, `version`, `is_latest`, `archived` (Ordner `alt`), `duplicate_of`.
+**Additionally for research projects** (`ProjectContext`, per file):
+`project_name` (= folder name), `project_id`, `rel_path`, `folder`, `role` (manuscript, abstract, cover letter, reviewer response, data, analysis script …),
+`venue` + `submission_no` + `stage` (from `Journal/<n> <Name>/<Ersteinreichung|R1|Revision 1>`), `version_group`, `version`, `is_latest`, `archived` (folder `alt`), `duplicate_of`.
 
-Dazu gibt es einen Projekt-Datensatz mit Titel (aus der neuesten Titelseite), Zeitraum, Journals, Dateitypen, Rollen, Projekt-Summary und den häufigsten Methoden.
+There is also a project record with title (from the newest title page), time span, journals, file types, roles, project summary and the most frequent methods.
 
 ## Clustering
 
-**Cluster-Profil beim Hovern** (Karte, Graph, 3D): Beschreibung, zentrale Erkenntnisse, verwendete Analysen und
-Theorien. Quelle sind die Structured Summaries und Methoden-Tags; mit API-Key ergänzt das Sprachmodell beim Clustern
-eigene Aussagen (`docker compose run --rm -e OPENROUTER_API_KEY ingest cluster`).
+**Cluster profile on hover** (map, graph, 3D): description, key insights, analyses and theories used.
+The source is the Structured Summaries and method tags; with an API key the language model adds its own statements
+during clustering (`docker compose run --rm -e OPENROUTER_API_KEY ingest cluster`).
 
-**Cluster-Raum in 3D** („3D · time“ an Cluster-Karte und Cluster-Graph): Position = Cluster-Karte, Tiefe = Jahr.
-Mit W/A/S/D, Q/E, Mausrad oder Steuerkreuz durchlaufen, mit Ziehen umsehen; „Fly through time“ läuft die Jahre ab.
-Ringe mit Linie zeigen den Cluster-Schwerpunkt je Jahr, Balken die Laufzeit von Projekten.
+**Cluster space in 3D** ("3D · time" on the cluster map and cluster graph): position = cluster map, depth = year.
+Move with W/A/S/D, Q/E, mouse wheel or the direction pad, look around by dragging; "Fly through time" runs through the years.
+Rings with a line show the cluster centre per year, bars the duration of projects.
 
+Qdrant stores the vectors but does not cluster itself. After every ingestion (can be switched off with `AUTO_CLUSTER=false`; since 3.0.2 only the databases that were ingested into – each on its own,
+with its previous unit: projects or project files; the other databases keep their clusters) the backend clusters the **Structured Summaries** – one unit per work, not per file:
 
-Qdrant speichert die Vektoren, clustert aber nicht selbst. Nach jeder Ingestion (abschaltbar mit `AUTO_CLUSTER=false`; seit 3.0.2 nur die Datenbanken, in die eingelesen wurde – jede für sich,
-mit ihrer bisherigen Einheit: Projekte oder Projektdateien; die übrigen Datenbanken behalten ihre Cluster) clustert das Backend die **Structured Summaries** – eine Einheit je Werk, nicht je Datei:
-
-| Datenpunkt | Vektor |
+| Data point | Vector |
 |---|---|
-| jedes research paper, jede research note (ohne Duplikate) | Vektor `summary` in `rr_documents` |
-| jedes research project als Ganzes | Vektor `summary` in `rr_projects` (Projekt-Summary) |
+| every research paper, every research note (without duplicates) | vector `summary` in `rr_documents` |
+| every research project as a whole | vector `summary` in `rr_projects` (project summary) |
 
-Der Vektor ist das Embedding von Titel + Purpose, Design/Methodology/Approach, Findings, Research limitations/implications
-und Originality/value (keine Autor:innen, keine Volltexte, Literaturlisten, Deckblätter oder Datendateien).
-Dateien eines Projekts (Daten, Versionen, Korrespondenz) werden nicht selbst geclustert, sondern erben den Cluster
-ihres Projekts (`cluster_basis = "project"`, `cluster_score = null`); Duplikate erben den Cluster des Originals.
-Fehlende oder veraltete Summary-Vektoren (Payload `summary_key` = Hash des eingebetteten Textes) berechnet der Lauf nach,
-wenn ein API-Key vorhanden ist; ohne Key werden diese Einheiten übersprungen (`skipped` in der Antwort).
-Ältere Installationen: die Collection `rr_projects` wird beim Start automatisch mit Vektor `summary` neu angelegt (Payloads bleiben).
+The vector is the embedding of title + Purpose, Design/Methodology/Approach, Findings, Research limitations/implications
+and Originality/value (no authors, no full texts, reference lists, title pages or data files).
+Files of a project (data, versions, correspondence) are not clustered themselves but inherit the cluster
+of their project (`cluster_basis = "project"`, `cluster_score = null`); duplicates inherit the cluster of the original.
+Missing or outdated summary vectors (payload `summary_key` = hash of the embedded text) are computed by the run
+if an API key is available; without a key these units are skipped (`skipped` in the response).
+Older installations: the collection `rr_projects` is recreated automatically on start-up with the vector `summary` (payloads are kept).
 
-Geclustert wird ausschließlich semantisch: k-means (Cosinus, 10 Starts) auf den Embeddings; die Anzahl wird per Silhouette gewählt (`CLUSTER_K=0`, keine Ein-Dokument-Cluster, ab 24 Einheiten mindestens 3)
-oder fest vorgegeben. Dokumente, ihre Chunks und Projekte bekommen `cluster_id`, `cluster_label` (prägnanteste Begriffe),
-`cluster_score` (Ähnlichkeit zum Zentrum), `cluster_k`, `cluster_run`, `cluster_basis` (`summary` | `project`).
+Clustering is purely semantic: k-means (cosine, 10 starts) on the embeddings; the number of clusters is chosen by silhouette (`CLUSTER_K=0`, no one-document clusters, at least 3 from 24 units)
+or fixed. Documents, their chunks and projects get `cluster_id`, `cluster_label` (most distinctive terms),
+`cluster_score` (similarity to the centre), `cluster_k`, `cluster_run`, `cluster_basis` (`summary` | `project`).
 
-**Cluster-Namen (REQ-04):** Jeder Cluster bekommt bei jedem Lauf einen beschreibenden Namen (`cluster_title`), nie eine
-generische Bezeichnung wie „Cluster 3“. Mit API-Key schreibt ihn das LLM (2–6 Wörter, z. B. „Lean and Job Satisfaction“);
-ohne Key, bei Fehlern oder bei generischen LLM-Titeln („Miscellaneous“, „Research“) wird er aus dem prägnantesten Wortpaar bzw.
-der prägnantesten Dreiwortgruppe der Titel und Purposes des Clusters gebildet, ergänzt um den stärksten weiteren Begriff
-(z. B. „Energy App Adoption“, „Job Satisfaction and Lean“); Abkürzungen behalten ihre Schreibweise (AI, fsQCA), Personennamen
-kommen nicht vor. `cluster_title_source` sagt `llm` oder `terms`. Gleiche Namen in einem Lauf werden unterschieden
-(„… (Meter)“). Die Oberfläche zeigt überall diesen Namen; die Begriffe (`cluster_label`) erscheinen nur noch als Detail.
+**Cluster names (REQ-04):** In every run each cluster gets a descriptive name (`cluster_title`), never a
+generic label like "Cluster 3". With an API key the LLM writes it (2–6 words, e.g. "Lean and Job Satisfaction");
+without a key, on errors or for generic LLM titles ("Miscellaneous", "Research") it is formed from the most distinctive
+word pair or three-word group of the titles and purposes of the cluster, plus the strongest further term
+(e.g. "Energy App Adoption", "Job Satisfaction and Lean"); abbreviations keep their spelling (AI, fsQCA), names of people
+do not appear. `cluster_title_source` says `llm` or `terms`. Equal names within one run are distinguished
+("… (Meter)"). The interface shows this name everywhere; the terms (`cluster_label`) appear only as a detail.
 
-**Cluster-Beschreibungen:** Mit API-Key erzeugt jeder Lauf per LLM zusätzlich eine Beschreibung je Cluster
-(`cluster_description`; Namen pseudonymisiert). Im Datenbank-Bereich öffnet „i“ an jeder Datenbank deren Inhalt und
-die Beschreibungen ihrer Cluster; „ⓘ Cluster descriptions“ zeigt alle Cluster mit Datenbank-Anteilen.
+**Cluster descriptions:** With an API key every run also writes a description per cluster with the LLM
+(`cluster_description`; names pseudonymized). In the database bar, "i" on each database opens its content and
+the descriptions of its clusters; "ⓘ Cluster descriptions" shows all clusters with their database shares.
 
-**Visualisierung:** Im Tab „A/B Interaction Interface“ liegt zwischen „Databases“ und den Kacheln je eine Ansicht pro Kachel:
-die **Cluster-Karte** (blau, über dem Document Chat; 2D-Position `cluster_x/_y` = PCA der Summary-Vektoren; Klick auf einen
-Cluster filtert den Chat; Modus „Compare databases“ legt die Cluster der ausgewählten Datenbanken in deren Farben übereinander und zeigt Flächen-Überlappung und gemeinsame Cluster) und der **Cluster-Graph** (orange, über dem Graph Chat; Knoten = Cluster, Kanten = Dokumente,
-deren zweitnächster Cluster `cluster_alt_id` der andere Knoten ist; `GET /api/clusters` → `links`).
+**Visualization:** In the tab "A/B Interaction Interface", between "Databases" and the tiles there is one view per tile:
+the **cluster map** (blue, above the Document Chat; 2D position `cluster_x/_y` = PCA of the summary vectors; a click on a
+cluster filters the chat; the mode "Compare databases" overlays the clusters of the selected databases in their colours and shows area overlap and shared clusters) and the **cluster graph** (orange, above the Graph Chat; nodes = clusters, edges = documents
+whose second-closest cluster `cluster_alt_id` is the other node; `GET /api/clusters` → `links`).
 
-**Datenschutz:** Personennamen dürfen in Cluster-Bezeichnungen nicht auftauchen. Sie werden erkannt (Autor:innen-Metadaten, E-Mail-Adressen `vorname.nachname@…`, Zitiermuster wie „Müller et al“, „Schmidt (2019)“ oder Aufzählungen wie „Simon, Kahneman and Tversky“) und durch stabile Pokémon-Pseudonyme ersetzt. `PSEUDONYM_SALT` in der `.env` ändert die Zuordnung.
+**Privacy:** Names of people must not appear in cluster labels. They are detected (author metadata, e-mail addresses `firstname.lastname@…`, citation patterns like "Müller et al", "Schmidt (2019)" or enumerations like "Simon, Kahneman and Tversky") and replaced by stable Pokémon pseudonyms. `PSEUDONYM_SALT` in `.env` changes the mapping.
 
-- Neu berechnen: `docker compose run --rm ingest cluster [--k 8]` oder `POST /api/clusters/recompute?k=0` (Header `X-OpenRouter-Key` für fehlende Summary-Vektoren)
-- Testdaten CNN/DailyMail (Datenbank CNN_DM): `python tools/fetch_cnn_dailymail.py [--n 1000]` legt eine Stichprobe als research notes in `research/CNN_DM/notes/` ab, danach wie jede Datenbank einlesen und mit `--db CNN_DM` clustern.
-- Projektdateien nach Inhalt clustern: `ingest cluster --db ML --files` (API: `project_files=true`). Statt jedes Projekt als eine Einheit zu behandeln, wird jede aktuelle Projektdatei mit eigener Structured Summary (neueste Version, nicht archiviert) einzeln geclustert; Dateien ohne Summary (Daten, Syntax, Auswertungen, Abbildungen, ältere Versionen) übernehmen den Cluster des Inhaltsdokuments im selben Projekt mit dem nächstgelegenen Ordner, mit ihrem Beitragswert (`cluster_contribution`: data, analysis, results, instrument, submission, literature, version, text, other) und dem Bezugsdokument (`cluster_anchor`).
-- Nur eine Datenbank clustern: `docker compose run --rm ingest cluster --db JSW` oder `POST /api/clusters/recompute?database=JSW`. Die Cluster der anderen Datenbanken bleiben unverändert, die neuen IDs schließen an die höchste bestehende an, die Labels beginnen mit „JSW · “. Ein späterer Lauf ohne `--db` (auch das automatische Clustering nach einer Ingestion) clustert wieder alles gemeinsam; zum Einlesen ohne Neu-Clustering `-e AUTO_CLUSTER=false` anhängen.
-- Übersicht: `GET /api/clusters`; Filter: `GET /api/documents?cluster=3`, im Chat `@cluster:3`
+- Recompute: `docker compose run --rm ingest cluster [--k 8]` or `POST /api/clusters/recompute?k=0` (header `X-OpenRouter-Key` for missing summary vectors)
+- Test data CNN/DailyMail (database CNN_DM): `python tools/fetch_cnn_dailymail.py [--n 1000]` puts a sample as research notes into `research/CNN_DM/notes/`; then ingest it like any database and cluster with `--db CNN_DM`.
+- Cluster project files by content: `ingest cluster --db ML --files` (API: `project_files=true`). Instead of treating each project as one unit, every current project file with its own Structured Summary (newest version, not archived) is clustered on its own; files without a summary (data, syntax, outputs, figures, older versions) take over the cluster of the content document in the same project with the closest folder, with their contribution (`cluster_contribution`: data, analysis, results, instrument, submission, literature, version, text, other) and the reference document (`cluster_anchor`).
+- Cluster a single database: `docker compose run --rm ingest cluster --db JSW` or `POST /api/clusters/recompute?database=JSW`. The clusters of the other databases stay unchanged, the new IDs continue after the highest existing one, the labels start with "JSW · ". A later run without `--db` (also the automatic clustering after an ingestion) clusters everything together again; to ingest without re-clustering, append `-e AUTO_CLUSTER=false`.
+- Overview: `GET /api/clusters`; filter: `GET /api/documents?cluster=3`, in the chat `@cluster:3`
 
-## ISO/IEC 42001 und EU AI Act
+## ISO/IEC 42001 and EU AI Act
 
-Entwürfe der Compliance-Dokumentation liegen in `docs/compliance/*.md` (Systembeschreibung, EU-AI-Act-Einstufung,
-ISO-42001-Lückenübersicht, Impact Assessment, Data Governance/Logging/Aufsicht). Die App zeigt sie im Tab
-„ISO 42001/EUAIACT Docs“ (`GET /api/compliance-docs`); neue Dateien erscheinen ohne Rebuild. Es sind Arbeitsentwürfe, keine Rechtsberatung.
+Drafts of the compliance documentation are in `docs/compliance/*.md` (system description, EU AI Act classification,
+ISO 42001 gap overview, impact assessment, data governance/logging/oversight). The app shows them in the tab
+"ISO 42001/EUAIACT Docs" (`GET /api/compliance-docs`); new files appear without a rebuild. They are working drafts, not legal advice.
 
-## System Prompt
+## System prompt
 
-Der im Interface (Leiste „System Prompt“) eingegebene Prompt geht mit jeder Frage als `system_prompt` an `POST /api/chat`
-und ersetzt dort den Standard (`app/prompts.py`); die Regeln für Quellenverweise [n] werden immer angehängt. Die Antwort
-meldet `system_prompt_source` (default/custom) und `system_prompt_id`. Der Chat-Verlauf speichert zu jeder Frage den
-verwendeten Prompt; der .txt-Export enthält ihn am Anfang und bei jeder Änderung. Standard: ALITA als „Research Companion“,
-der mit dem Forscher die Inhalte diskutiert. `GET /api/system-prompts` liefert die Standard-Prompts.
+The prompt entered in the interface (bar "System Prompt") goes with every question as `system_prompt` to `POST /api/chat`
+and replaces the default there (`app/prompts.py`); the rules for source references [n] are always appended. The response
+reports `system_prompt_source` (default/custom) and `system_prompt_id`. The chat history stores the prompt used
+for each question; the .txt export contains it at the beginning and at every change. Default: ALITA as a "research companion"
+that discusses the content with the researcher. `GET /api/system-prompts` returns the default prompts.
 
-## Ontologie und Wissensgraph (DoCO/DEO, Neo4j)
+## Ontology and knowledge graph (DoCO/DEO, Neo4j)
 
-Design-Entscheidung **ADR-001: Neo4j** (statt nur Qdrant-Labels oder RDF-Triple-Store). Jede Textstelle trägt ihre
-rhetorische Rolle nach der Discourse Elements Ontology (`deo`, z. B. Methods, Results), erkannt aus Überschriften
-(PDF/Word, EN/DE) oder per LLM. Neo4j (Dienst `neo4j`, Browser http://localhost:7474) hält Dokumente, Abschnitte, Chunks,
-Summary-Elemente, DEO-Klassen, Personen, Datenbanken, Methoden, Cluster und Zitate; die SPAR-Ontologien lädt neosemantics.
-Kachel B nutzt den Graphen für Graph RAG (`POST /api/graph/stream`). Ausführlich: Tab „Technical Documentation“ › Ontology
-bzw. `docs/technical/ontology/`.
+Design decision **ADR-001: Neo4j** (instead of only Qdrant labels or an RDF triple store). Every passage carries its
+rhetorical role according to the Discourse Elements Ontology (`deo`, e.g. Methods, Results), detected from headings
+(PDF/Word, EN/DE) or by the LLM. Neo4j (service `neo4j`, browser http://localhost:7474) holds documents, sections, chunks,
+summary elements, DEO classes, people, databases, methods, clusters and citations; neosemantics loads the SPAR ontologies.
+Tile B uses the graph for Graph RAG (`POST /api/graph/stream`). In detail: tab "Technical Documentation" › Ontology
+or `docs/technical/ontology/`.
 
-**Zitationsnetz und BIBO (seit 2.2.0, REQ-35):** Nach jedem Einlesen gleicht `app/citations.py` die Literaturverzeichnisse
-aller Papers, Notes und aktuellen Projektdateien mit den Research Papers der Sammlung ab (DOI oder Titel, bestätigt durch
-Erstautor:in und Jahr) – regelbasiert, ohne LLM und ohne neue Embeddings. Ergebnis: `cites`/`cited_by` im Qdrant-Payload,
-`(:Document)-[:CITES]->(:Document)` mit `bibo:cites` im Graphen, dazu `bibo_type` und die geordnete Autor:innenliste
-(`bibo:authorList`). Anzeige: „⇄ Citations“ in der Wissenslandkarte. Neu berechnen: `docker compose run --rm ingest citations`
-oder `POST /api/citations/rebuild`; abrufen: `GET /api/citations?databases=JSW`. Abschalten: `AUTO_CITATIONS=false`.
+**Citation network and BIBO (since 2.2.0, REQ-35):** After every ingestion `app/citations.py` matches the reference lists
+of all papers, notes and current project files with the research papers of the collection (DOI or title, confirmed by
+first author and year) – rule-based, without LLM and without new embeddings. Result: `cites`/`cited_by` in the Qdrant payload,
+`(:Document)-[:CITES]->(:Document)` with `bibo:cites` in the graph, plus `bibo_type` and the ordered author list
+(`bibo:authorList`). Display: "⇄ Citations" in the knowledge map. Recompute: `docker compose run --rm ingest citations`
+or `POST /api/citations/rebuild`; retrieve: `GET /api/citations?databases=JSW`. Switch off: `AUTO_CITATIONS=false`.
 
-**Gesetze, Leitlinien und Standards (seit 3.0.0, REQ-37/38):** Neue Dokumenttypen `legal_project` (Ordner
-`research/<DB>/legal/<Projekt>/`, Upload als ZIP – die Gesetzesfassungen sind die Stufen), `legal_guideline`
-(`research/<DB>/guidelines/`), `standard` (`research/<DB>/standards/`) und seit 3.3.0 `guidance` – Guidance & FAQ
-(`research/<DB>/guidance/`: Q&A-Seiten, FAQs, Factsheets von Behörden, gegliedert in Themen und Fragen „Q 2.1“). `app/legal.py` zerlegt die Texte in
-Bestandteile (Artikel/§, Absatz, Nummer, Erwägungsgrund, Anhang, Clause) und baut nach dem SAT-Graph RAG von
-de Martim (2025) datierte Fassungen mit Aggregation sowie Actions (Änderungen mit eingebettetem Beschreibungstext);
-im Graphen an ELI ausgerichtet (`Norm`, `Component`, `TemporalVersion`, `LanguageVersion`, `Action`). Daten zu
-Inkrafttreten und Anwendungsbeginn stehen in `_legal.yaml`. Beide Chats wählen per Stichtag die damals gültige
-Fassung (aus der Frage oder „Legal texts as of“; sonst heute) und legen die Regel offen. Einlesen:
-`docker compose run --rm ingest legal <Ordner>` bzw. `ingest guideline|standard <Ordner/Datei>` oder `ingest all /research`;
+**Laws, guidelines and standards (since 3.0.0, REQ-37/38):** New document types `legal_project` (folder
+`research/<DB>/legal/<project>/`, upload as ZIP – the versions of the law are the stages), `legal_guideline`
+(`research/<DB>/guidelines/`), `standard` (`research/<DB>/standards/`) and since 3.3.0 `guidance` – Guidance & FAQ
+(`research/<DB>/guidance/`: Q&A pages, FAQs, factsheets of authorities, structured into topics and questions "Q 2.1"). `app/legal.py` splits the texts into
+components (article/§, paragraph, point, recital, annex, clause) and, following the SAT-Graph RAG of
+de Martim (2025), builds dated versions with aggregation as well as actions (changes with an embedded description text);
+aligned with ELI in the graph (`Norm`, `Component`, `TemporalVersion`, `LanguageVersion`, `Action`). Dates of
+entry into force and application are in `_legal.yaml`. Both chats choose the version valid on a reference date
+(from the question or "Legal texts as of"; otherwise today) and disclose the rule. Ingest:
+`docker compose run --rm ingest legal <folder>` or `ingest guideline|standard <folder/file>` or `ingest all /research`;
 API: `GET /api/legal/norms`, `/api/legal/norms/{id}?as_of=…`, `/api/legal/norms/{id}/actions`, `/api/legal/plan?q=…`.
-Ausführlich: `docs/technical/ontology/08-legal-ontology.md`.
+In detail: `docs/technical/ontology/08-legal-ontology.md`.
 
-## Sprachmodelle
+**Papers linked to the provisions they discuss (since 3.10.0, REQ-68/69):** References in papers, notes and project files
+("Art. 33(4) AI Act", "Annex III", "Recital 27") become edges `(:Document)-[:DISCUSSES]->(:Component)`; ALITA determines the
+version a paper cites and maps the number to today's (Art. 33 of the 2021 proposal → Art. 31). Rule-based, without LLM;
+runs after every ingestion (`AUTO_PROVISIONS`), recompute with `docker compose run --rm ingest provisions`;
+API: `GET /api/provisions`, `GET /api/legal/norms/{id}/discussed?seq=…`.
 
-| Aufgabe | Modell (Standard) | Einstellung |
+## Language models
+
+| Task | Model (default) | Setting |
 |---|---|---|
-| Antworten (FAQ, gestreamt), Anschlussfragen, Cluster-Beschreibungen | `openai/gpt-6-luna` (GPT-6 Luna) über OpenRouter; fest, keine Auswahl | `CHAT_MODEL` |
-| Suche und Clustering (Embeddings) | `openai/text-embedding-3-large`, 3072 Dimensionen | `EMBEDDING_MODEL`, `EMBEDDING_DIM` |
+| Answers (FAQ, streamed), follow-up questions, cluster descriptions | `openai/gpt-6-luna` (GPT-6 Luna) via OpenRouter; fixed, no selection | `CHAT_MODEL` |
+| Search and clustering (embeddings) | `openai/text-embedding-3-large`, 3072 dimensions | `EMBEDDING_MODEL`, `EMBEDDING_DIM` |
 
-GPT-6 Luna ist auch das Modell für Structured Summaries (`ENRICH_MODEL`), DEO-Klassifikation und Cluster-Beschreibungen. Nach einem Wechsel des Embedding-Modells einmal neu einlesen.
-Ohne Backend (veröffentlichte Seite auf claude.ai) erreicht die Seite OpenRouter nicht; dort antwortet Claude über die
-Artifact-Fähigkeit `sample` auf dem Claude-Konto des Betrachters.
+GPT-6 Luna is also the model for Structured Summaries (`ENRICH_MODEL`), DEO classification and cluster descriptions. After changing the embedding model, ingest once again.
+Without a backend (published page on claude.ai) the page cannot reach OpenRouter; there Claude answers through the
+artifact capability `sample` on the viewer's Claude account.
 
 ## Streaming
 
-`POST /api/chat/stream` liefert die Antwort als Server-Sent Events: `meta` (Quellen, Filter, Gedächtnis, System Prompt),
-dann `delta`-Textstücke, zum Schluss `done` (endgültige Antwort, zitierte Quellen) oder `error`. Das Frontend zeigt den
-Text beim Schreiben an; ohne Endpunkt fällt es auf `POST /api/chat` zurück. nginx puffert diesen Pfad nicht.
-Antworten sind als zusammenhängender FAQ-Text formuliert (direkte Antwort zuerst, Quellen inline [n]).
+`POST /api/chat/stream` returns the answer as server-sent events: `meta` (sources, filters, memory, system prompt),
+then `delta` text pieces, finally `done` (final answer, cited sources) or `error`. The front end shows the
+text while it is written; without the endpoint it falls back to `POST /api/chat`. nginx does not buffer this path.
+Answers are written as a coherent FAQ text (direct answer first, sources inline [n]).
 
-## Gesprächsgedächtnis
+## Conversation memory
 
-Der bisherige Verlauf der aktuellen Unterhaltung geht mit jeder Frage an `POST /api/chat` (`history`; im Frontend bis zu 40
-Wechsel, frühere Antworten mit den Titeln ihrer Quellen). Das Backend begrenzt auf `MEMORY_MAX_TURNS`/`MEMORY_MAX_CHARS`
-und schreibt Anschlussfragen vor der Vektorsuche zu eigenständigen Suchanfragen um (`MEMORY_REWRITE`, sonst Heuristik).
-Die Antwort meldet `memory_turns` und `retrieval_query`. Im Interface: Parameter „Memory“ (an/aus), „New“ startet ohne Gedächtnis.
+The previous turns of the current conversation go with every question to `POST /api/chat` (`history`; in the front end up to 40
+turns, earlier answers with the titles of their sources). The backend limits this to `MEMORY_MAX_TURNS`/`MEMORY_MAX_CHARS`
+and rewrites follow-up questions into standalone search queries before the vector search (`MEMORY_REWRITE`, otherwise a heuristic).
+The response reports `memory_turns` and `retrieval_query`. In the interface: parameter "Memory" (on/off); "New" starts without memory.
 
-## Versionen und Release Notes
+## Versions and release notes
 
-Versionsnummern folgen [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html) (`MAJOR.MINOR.PATCH`):
+Version numbers follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html) (`MAJOR.MINOR.PATCH`):
 
-| Änderung | Erhöht | Beispiel |
+| Change | Increases | Example |
 |---|---|---|
-| neue Funktion, rückwärtskompatibel | MINOR (PATCH → 0) | 0.4.1 → 0.5.0 |
-| Fehlerbehebung, Datenschutz-Korrektur | PATCH | 0.4.0 → 0.4.1 |
-| inkompatible Änderung an API/Metadaten | MAJOR (ab 1.0.0; davor MINOR) | 1.3.2 → 2.0.0 |
+| new feature, backwards compatible | MINOR (PATCH → 0) | 0.4.1 → 0.5.0 |
+| bug fix, privacy correction | PATCH | 0.4.0 → 0.4.1 |
+| incompatible change to API/metadata | MAJOR (from 1.0.0; before that MINOR) | 1.3.2 → 2.0.0 |
 
-Seit 1.0.0 gilt die API (REST, CLI, Metadatenfelder) als stabil; inkompatible Änderungen erhöhen MAJOR.
+Since 1.0.0 the API (REST, CLI, metadata fields) is considered stable; incompatible changes increase MAJOR.
 
-`CHANGELOG.md` folgt [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/): oben `## [Unreleased]`, darunter je Version
-`## [x.y.z] - JJJJ-MM-TT` mit den Abschnitten `### Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
-In der App zeigt der Tab „Release Notes“ (oder ein Klick auf das Versionskennzeichen) die Release Notes, gruppiert nach diesen Abschnitten;
-mit Backend kommen sie über `GET /api/release-notes` direkt aus `CHANGELOG.md` (Parser: `app/release_notes.py`).
+`CHANGELOG.md` follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/): `## [Unreleased]` at the top, below it per version
+`## [x.y.z] - YYYY-MM-DD` with the sections `### Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
+In the app the tab "Release Notes" (or a click on the version label) shows the release notes, grouped by these sections;
+with a backend they come directly from `CHANGELOG.md` via `GET /api/release-notes` (parser: `app/release_notes.py`).
 
-Neue Version: Einträge aus `[Unreleased]` in einen neuen Versionsabschnitt verschieben, dann `VERSION`, `backend/app/__init__.py`
-und `APP_VERSION` im Frontend angleichen. Der Test `test_changelog_follows_keepachangelog_and_semver` prüft Format, Reihenfolge und
-Übereinstimmung mit `VERSION`.
+New version: move the entries from `[Unreleased]` into a new version section, then align `VERSION`, `backend/app/__init__.py`
+and `APP_VERSION` in the front end. The test `test_changelog_follows_keepachangelog_and_semver` checks format, order and
+agreement with `VERSION`.
 
-| Version | Datum | Inhalt | früher |
+| Version | Date | Content | earlier |
 |---|---|---|---|
-| **3.12.0** | 2026-10-31 | **Minor Release – Guided tour (REQ-70):** Knopf „▶ Guided tour“ in der Kopfzeile führt in elf Schritten durch ALITA (Wissenskarte, Compare, Fassungsgeschichte, Paper → Artikel, Schemata hinterfragen; „explore or exploit?“), hebt die jeweilige Stelle hervor und setzt Beispielfragen in den Graph Chat. | 3.11.0 |
-| 3.11.0 | 2026-10-31 | **Minor Release – Paper je Artikel aus Sicht des Gesetzes (REQ-69):** Dokumentdetails einer Gesetzesfassung zeigen „Discussed in papers“ – je Artikel, Anhang und Erwägungsgrund die Paper, die ihn diskutieren, in der Nummerierung dieser Fassung (Paper zu anderen Fassungen werden umgerechnet); Klick öffnet das Paper, „Ask“ fragt den Graph Chat. | 3.10.0 |
-| 3.10.0 | 2026-10-31 | **Minor Release – Paper mit den Artikeln verknüpft, die sie diskutieren (REQ-68):** Verweise wie „Art. 33(4) AI Act“ werden zu Kanten Dokument –discusses→ Artikel; ALITA bestimmt die zitierte Fassung (z. B. Vorschlag 2021) und die heutige Nummer (Art. 33 → Art. 31); Graph Chat nutzt die Kanten (Fragen zu Artikeln und zu Clustern), Dokumentdetails zeigen „Discusses“. | 3.9.0 |
-| 3.9.0 | 2026-10-31 | **Minor Release – Fragen zu dem, was die Wissenskarte zeigt (REQ-67):** in der Frage genannte Cluster („C8“, „C9“) werden zum Suchraum, auch über Datenbanken und trotz gewähltem Projekt; je Cluster gesucht; Brücken-Stellen (ähnlichste Stellen über die Clustergrenze) als Belege; Graphpfad über die Ontologie (Cluster → Dokument → Abschnitt ↔ Abschnitt → Dokument → Cluster). | 3.7.3 |
-| 3.7.3 | 2026-10-31 | **Patch Release – größeres Eingabefeld, ausgerichtete obere Zeile (REQ-64, REQ-65):** Fragefeld beider Chats vier Zeilen hoch und wachsend; Datenbankleiste so breit wie die Spalte der Wissenskarte. | 3.7.2 |
-| 3.7.2 | 2026-10-31 | **Patch Release – B-Seite in drei Spalten (REQ-63):** Wissenskarte, „Projects & clusters“ und Graph Chat nebeneinander; „Enlarge“ öffnet die Wissenskarte in einem eigenen Browserfenster, die Cluster-Auswahl gilt in beiden Fenstern. | 3.7.1 |
-| 3.7.1 | 2026-10-31 | **Patch Release – eine Zeile auf der B-Seite (REQ-62):** Datenbankleiste, „Window to the outside“ und B-Erklärung stehen als drei Kästen nebeneinander; die Wissenskarte rückt nach oben. | 3.7.0 |
-| 3.7.0 | 2026-10-31 | **Minor Release – Cluster zweier Datenbanken vergleichen (REQ-59 – REQ-61):** Dropdown „Compare“ zeichnet die Beziehungen zwischen den Clustern zweier Datenbanken (z. B. EU AI Act ↔ Wachter) in die Wissenskarte; der Graph Chat befragt ausgewählte Cluster mehrerer Datenbanken je Datenbank und führt die Treffer zusammen; neuer Endpunkt `/api/clusters/relations`, neues Kommando `ingest delete --norm`; der in 3.3.1 aufgenommene Standard ist vollständig entfernt. | 3.6.3 |
-| 3.6.3 | 2026-10-31 | **Patch Release – Release Notes hinter dem Passwort (REQ-58):** ohne Passwort ist auch „Release Notes“ ausgeblendet, die Versionsnummer ist dann kein Link. | 3.6.2 |
-| 3.6.2 | 2026-10-31 | **Patch Release – Doku-Tabs hinter dem Passwort (REQ-57):** ohne Passwort sind auch „ISO 42001/EUAIACT Docs“ und „Technical Documentation“ ausgeblendet; mit Passwort wieder sichtbar. | 3.6.1 |
-| 3.6.1 | 2026-10-30 | **Patch Release – Wachter öffentlich (REQ-56):** ohne Passwort sind jetzt EU AI Act und Wachter sichtbar; die übrigen Datenbanken weiter nur mit Passwort. | 3.6.0 |
-| 3.6.0 | 2026-10-30 | **Minor Release – neue Datenbank „Wachter“ (REQ-55):** ID `WACHTER`, Schild-Symbol, Farbe Violett; zwei Paper (Laux, Wachter & Mittelstadt 2024; Ho & Caals 2024) mit kuratierten Summaries in `research/WACHTER/papers/`; zunächst nur mit Passwort sichtbar (seit 3.6.1 öffentlich). | 3.5.1 |
-| 3.5.1 | 2026-10-30 | **Patch Release – kein Upload-Button in der Datenbankleiste (REQ-54):** „+ Add new data“ entfernt; Hochladen in bestehende Datenbanken weiter über Documents → + Upload. REQ-53 (drei Paper für EU AI Act) zurückgezogen. | 3.5.0 |
-| 3.5.0 | 2026-10-30 | **Minor Release – nur „EU AI Act“ öffentlich (REQ-52):** ohne Passwort zeigt die Oberfläche nur die Datenbank EU AI Act, beide Chats suchen nur dort; die übrigen Datenbanken erscheinen nach Eingabe des Passworts im Feld „Password“ neben dem OpenRouter-Key („Lock“ blendet sie wieder aus). Nur Anzeige-Filter im Frontend, kein Zugriffsschutz der API. | 3.4.0 |
-| 3.4.0 | 2026-10-30 | **Minor Release – Weißbuch als Begleitdokument (REQ-51):** Weißbuch der Kommission zur KI (COM(2020) 65, 19.2.2020) im Legal project EU-AI-Act; neue Projektrolle `white_paper`; Abschnitt `documents:` in `_legal.yaml` legt Rolle, Datum und Titel von Begleitdokumenten fest. | 3.3.2 |
-| 3.3.2 | 2026-10-30 | **Patch Release – NIST SP 800-18 Rev. 2 (REQ-50):** zweiter Standard in „EU AI Act“; „Appendix A.“ gilt als Anhang, „References“/„Bibliography“ als eigene Anlage statt Ende des letzten Abschnitts. | 3.3.1 |
-| 3.3.1 | 2026-10-30 | **Patch Release – Lizenzstempel und Normen-Parser (REQ-49):** personalisierte Lizenzstempel von Normen-Downloads (Name, Kundennummer, Download-ID) werden beim Auslesen entfernt; Normen: Begriffe als eigene Bestandteile, Anhangstatus, Anhang-Gliederung „C.1.2“, Tabellenzeilen in Anhängen bleiben Text. | 3.3.0 |
-| 3.3.0 | 2026-10-29 | **Minor Release – neue Dokumentklasse „Guidance & FAQ“ (REQ-48):** Q&A-Seiten, FAQs und Factsheets von Behörden (unverbindlich, ohne Aktenzeichen) als eigener Typ `guidance` neben Legal guidelines; erste Seite: „AI Literacy – Questions & Answers“ des AI Office (Stand 29.10.2026) in EU AI Act; Gliederung in Themen und Fragen, Stufe `snapshot` für Webseitenstände. | 3.2.2 |
-| 3.2.2 | 2026-10-29 | **Patch Release – Leitlinien zu verbotenen KI-Praktiken (REQ-47):** zweite Legal guideline (C(2025) 5052 final, 134 Seiten, 433 Randnummern, 114 Gliederungspunkte); Inhaltsverzeichnis wird übersprungen, Gliederung und Randnummern müssen fortlaufen (Aufzählungen und zitierte Artikel im Text bleiben Text), Überschriften dürfen mit Klammer oder Anführungszeichen beginnen. | 3.2.1 |
-| 3.2.1 | 2026-10-29 | **Patch Release – Leitlinien der Kommission (REQ-46):** Leitlinien zur Definition eines KI-Systems (C(2025) 5053 final, 29.7.2025) als erste Legal guideline in „EU AI Act“; Parser für Kommissionsleitlinien: Abschnitte „I.“–„III.“, Gliederung „1.“/„5.1.“, Randnummern „(1)“–„(64)“, Fußnoten ausgelassen. | 3.2.0 |
-| 3.2.0 | 2026-10-29 | **Minor Release – Änderungsverordnungen anwenden (REQ-45):** Digital Omnibus on AI (Verordnung (EU) 2026/1744) als vierte Fassung des AI Act; `apply_amendments` in `_legal.yaml` wendet die Änderungsbefehle auf die Vorfassung an (`app/legal_amend.py`) – 63 von 72 Befehlen exakt, 5 angenähert, 4 offen gemeldet; neue Artikel 4a, 60a, 75a–75d, Anhang XIV; Anwendungsdaten des geänderten Art. 113; Bericht je Befehl in den Dokumentdetails. | 3.1.1 |
-| 3.1.1 | 2026-10-29 | **Patch Release – Verordnung (EU) 2024/1689 aus dem Amtsblatt (REQ-44):** dritte Fassung des AI Act; Amtsblatt-PDFs: Fußnoten werden nicht mehr als Erwägungsgründe gelesen (236 → 180), Abschnittsüberschriften „SECTION 1“ bleiben erhalten (16 Abschnitte), Verweise „Article 49“ in Anhängen sind keine Artikel (115 → 113); Anwendungsregeln: die Regel für einen Artikel schlägt die für sein Kapitel (Art. 101 ab 2.8.2026). | 3.1.0 |
-| 3.1.0 | 2026-10-29 | **Minor Release – Teilfassungen und Ausschussstufe (REQ-43):** Kompromissänderungen der Parlamentsausschüsse IMCO/LIBE (9.5.2023) als zweite Fassung des AI Act; `partial: true` in `_legal.yaml` übernimmt nicht enthaltene Teile unverändert aus der Vorfassung; neue Stufe `committee`; Parser für Kompromissblöcke (CA 1–12), Artikelnummern wie „54 a“/„28(a)“, Erwägungsgründe „(65a)“; Fassungsvergleich unabhängig von Leerzeichen, Bindestrichen und Satzzeichen der PDF-Extraktion. | 3.0.2 |
-| 3.0.2 | 2026-10-29 | **Patch Release – Clustering nach dem Einlesen (REQ-42):** Das automatische Neu-Clustern nach einer Ingestion betrifft nur noch die eingelesenen Datenbanken (jede für sich, mit Projekten bzw. Projektdateien wie zuvor) statt alle gemeinsam; ein Legal project ist eine Einheit statt zwei; eine Datenbank mit nur einem Werk bekommt einen eigenen Cluster; Projektnamen in der Wissenskarte überdecken keine Paper mehr. | 3.0.1 |
-| 3.0.1 | 2026-10-29 | **Patch Release – erstes echtes Gesetz (REQ-41):** Kommissionsvorschlag des AI Act (COM(2021) 206, Hauptdokument + Anhänge) als erstes Legal project in „EU AI Act“; Segmentierung von Kommissionsvorschlägen (TITLE/CHAPTER, alle Anhänge, Begriffsbestimmungen, Finanzbogen als Anlage, Seitenfüße, umbrochene Verweise), `file:` als Liste in `_legal.yaml`, Rückfall auf den jüngsten Entwurf, wenn kein Gesetz gilt. | 3.0.0 |
-| 3.0.0 | 2026-10-29 | **Major Release – Legal-Ontologie (REQ-37/38/39):** Gesetze, Leitlinien und Standards als neue Dokumenttypen (`legal_project`, `legal_guideline`, `standard`), strukturbewusst in Artikel/Absätze/Anhänge bzw. Clauses zerlegt, mit datierten Fassungen (unveränderte Teile wiederverwendet), Änderungen als eigene, eingebettete Actions und Stichtag-Suche mit offengelegter Regel – nach dem SAT-Graph RAG von de Martim (2025), an ELI ausgerichtet; neue Datenbank „EU AI Act“ (Kornblume); `fabio:Note` korrigiert. Major, weil sich Datenmodell (neue Typen und Felder) und Suchverhalten (Stichtag für Rechtstexte) ändern; bestehende Daten müssen nicht neu eingelesen werden | |
-| 2.2.0 | 2026-10-29 | Minor Release – Zitationsnetz und BIBO (REQ-35): Literaturverzeichnisse werden mit den Papers der Sammlung abgeglichen (DOI oder Titel mit Erstautor:in und Jahr, ohne LLM, ohne neue Embeddings); „⇄ Citations“ in der Wissenslandkarte zeigt, wer wen zitiert; „Cites / Cited by“ in den Dokumentdetails; Graph Chat beantwortet Zitationsfragen; BIBO im Graphen (`bibo_type`, `author_list`, `(:Document)-[:CITES]->(:Document)`); Literaturverzeichnisse, die durch Seitenkopfzeilen getrennt waren, werden wieder vollständig als `deo:BibliographicReference` erkannt. Backend-Update nötig, kein Neu-Einlesen | |
-| 2.1.0 | 2026-10-17 | Minor Release – Arbeitsfläche und Zeitstrahl: B-Seite über die volle Bildschirmbreite (Karte links in voller Höhe, rechts „Projects & clusters“ und Graph Chat), Karte füllt ihre Kachel und lässt sich vergrößern, 3D-Zeitansicht mit genauen Dokumentdaten und Zeit-Zoom bis auf Tage; Anforderungen REQ-22 – REQ-34 (inkl. Feedback von Dustin) in `docs/requirements-status.md` und `docs/requirements-log.xlsx`; nur Frontend | |
-| 2.0.0 | 2026-10-11 | Major Release – Meilenstein Anforderungen: alle 21 Anforderungen (REQ-01 – REQ-21) adressiert, Übersicht mit Status, Release und Umsetzung in `docs/requirements-status.md` und in den Release Notes; API bleibt kompatibel | |
-| 1.16.2 | 2026-10-11 | Code-Aufräumen vor dem Major Release, ohne sichtbare Änderungen (Module für Personen/Erkenntnisstufen, Lint sauber, CSS-Überschreibungen zusammengeführt) | |
-| 1.16.1 | 2026-10-11 | Korrektur B-Seite: Eingabefeld des Graph Chat auf breiten Bildschirmen wieder sichtbar; rechte Spalte („Your questions“ + Eingabe) weniger gequetscht | |
-| 1.16.0 | 2026-10-11 | „Add new data“: eigenes Fenster (Datenbank · Datenart · Gesamtdatum · Dateien) mit Bestätigung „ein Projekt = eine ZIP“, mehrere Projekte pro Upload; neue Datenbank „Others“; Kosten: ALITA meldet nach dem Upload Tokens und Euro, jede Chatnachricht zeigt die Kosten von Frage und Antwort | |
-| 1.15.0 | 2026-10-11 | REQ-10, REQ-15 – REQ-18: Versionshistorie in Erkenntnisstufen – Zeitleiste in der Projektkarte, inhaltliche vs. formale Änderungen, Stufentabelle mit Links zu den Quelldateien, Fortschrittsfragen in beiden Chats; offene Punkte für den Anforderer im CHANGELOG | |
-| 1.14.0 | 2026-10-11 | REQ-19: Projektteams statt Datei-Metadaten als Autor:innen, Personen-Filter für beide Chats, Bereinigung von Metadaten-Namen; REQ-12: Chat-Umfang folgt der Auswahl (Projekt, Cluster, ganze Landkarte); ALITA-Helferin mit Rundgang und „RAG vs. Graph“; Wissenslandkarte in drei Ebenen, „Reset view“, Datenbank-Blumen im 3D; REQ-11: Erklärungen über den Chats | |
-| 1.13.0 | 2026-10-11 | REQ-09: Cluster- und Projektansicht oben rechts mit Dokumentliste und Projektkarte; Projektebene über den Clustern in der Wissenslandkarte; REQ-08: ausgeschlossene Dateien (z. B. Literaturordner) im Datenbank-Infofenster mit Grund; REQ-21: Parameter und System Prompt unter „Advanced settings“ | – |
-| 1.12.0 | 2026-10-11 | REQ-02: Wissenslandkarte auf der B-Seite immer sichtbar (Seite auf Fensterhöhe, Dokumente öffnen im Bereich Projekte & Cluster); Klick auf Cluster wie auf A/B mit Beschreibung oben rechts; verbundene Cluster in jeder Cluster-Beschreibung; alte Cluster-Detailansicht entfernt; Fehler „Cluster [object Object]“ behoben | – |
-| 1.11.0 | 2026-10-11 | REQ-01: B Interaction Interface in vier Bereichen (Wissenslandkarte · Projekte & Cluster · Fenster nach außen · Graph Chat); REQ-20 „Externes Challengen“ als animierte Wüsten-Baustelle mit Konzeptbeschreibung; „Clear selection“ wählt Datenbanken und Cluster ab; Korrekturen: leerer Cluster-Graph, Cluster-Auswahl beim Datenbankwechsel | – |
-| 1.10.0 | 2026-10-11 | REQ-04: aussagekräftige Cluster-Namen – jeder Cluster bekommt automatisch einen beschreibenden Namen (LLM, sonst aus den prägnantesten Wortpaaren), eindeutig je Lauf; die Oberfläche zeigt überall den Namen statt der Begriffsliste | – |
-| 1.9.0 | 2026-10-11 | Blumen der Datenbanken in den Cluster-Punkten (Form = Typ); „3D · time“ mit Zeitfenster (von–bis), nur gewählte Datenbank, Hover für alle Punkte; Cluster-Beschreibungen in eigenem Feld unter den Ansichten je ausgewähltem Cluster; Graph Chat auf B: Fragen und Eingabe rechts, Antworten links; 3D-Ansicht A/B repariert | – |
-| 1.8.0 | 2026-10-10 | Datenbanken heißen nach Blumen (Peony = LDK u. a.), überall inkl. Cluster; Unterwasser-Szene mit aufsteigenden Blasen und Tiefseetieren in Kopfzeile und Datenbank-Leiste; Clustern einzelner Datenbanken und Projektdateien; Datenbank CNN_DM; Start immer auf B; Recompute-Button entfernt | – |
-| 1.7.0 | 2026-10-05 | A und B zeigen die Cluster je Zeitraum (vor 2025 · 2025 · 2026); Cluster-Mehrfachauswahl begrenzt beide Chats | – |
-| 1.6.0 | 2026-10-05 | Cluster-Karte A: Ziehen erhält Ähnlichkeitsbeziehungen (Federn), Beziehungslinien | – |
-| 1.5.2 | 2026-10-05 | Zeitraster unter der 3D-Cluster-Karte entfernt; Steuerung oben links in allen 3D-Ansichten | – |
-| 1.5.1 | 2026-10-05 | Refactoring: Frontend in css/ und js/ aufgeteilt, Build-Werkzeug im Repo, tote Reste entfernt | – |
-| 1.5.0 | 2026-10-05 | Cluster-Karte und Cluster-Graph interaktiv in 3D (drehen, Cluster ziehen) | – |
-| 1.4.0 | 2026-10-05 | Cluster-Profil beim Hovern: Erkenntnisse, Analysen, Theorien | – |
-| 1.3.0 | 2026-10-05 | Cluster-Raum in 3D mit Zeitachse (Jahre), begehbar | – |
-| 1.2.1 | 2026-10-05 | Datenbankauswahl begrenzt A und B vollständig (auch Graph-Nachbarn), sichtbar in beiden Kacheln | – |
-| 1.2.0 | 2026-10-05 | „Read aloud“ entfernt, keine Sprachausgabe mehr | – |
-| 1.1.2 | 2026-10-05 | Literatur-Ordner auch verschachtelt übersprungen | – |
-| 1.1.1 | 2026-10-05 | Eingabe und Fußzeile von Document Chat und Graph Chat bündig | – |
-| 1.1.0 | 2026-10-05 | `ingest delete --db <DB>`; alle JSW-Daten entfernt | – |
-| 1.0.0 | 2026-10-03 | Erste stabile Version: API, CLI und Metadaten gelten als stabil (GPT-6 Luna fest, Key nur aus dem Interface, Graph Chat, Server-Betrieb) | – |
-| 0.19.0 | 2026-10-03 | Server-Betrieb auf Oracle Cloud mit Cloudflare Tunnel + Google-Login, Index-Umzug (`migrate`); B heißt „Graph Chat“; Avatar-Haare in Datenbankfarben | – |
-| 0.18.0 | 2026-10-03 | GPT-6 Luna als einziges Sprachmodell, Spracheingabe entfernt, API-Key nur aus dem Interface | – |
-| 0.17.1 | 2026-10-03 | nginx: kein 502 mehr nach Backend-Neustart | – |
-| 0.17.0 | 2026-10-03 | Ontologie DoCO/DEO in Neo4j (ADR-001), Graph RAG für B, Tab „Technical Documentation“ | – |
-| 0.16.0 | 2026-10-03 | Meta Muse Spark 1.3 als Standardmodell, text-embedding-3-large, Sprachmodell auch in der veröffentlichten Seite | – |
-| 0.15.0 | 2026-10-03 | Antworten gestreamt (SSE) und als zusammenhängender FAQ-Text | – |
-| 0.14.2 | 2026-10-03 | Abfragen über alle Datenbanken (Demo und Quellenauswahl im Backend) | – |
-| 0.14.1 | 2026-10-03 | Projektfilter aus den Document-Chat-Parametern entfernt | – |
-| 0.14.0 | 2026-10-03 | Gesprächsgedächtnis: ganzer Verlauf geht mit jeder Frage mit, Anschlussfragen für die Suche umgeschrieben | – |
-| 0.13.0 | 2026-10-03 | System Prompt steuert jede Anfrage, im Chat-Verlauf protokolliert; neuer Standard „Research Companion“ | – |
-| 0.12.1 | 2026-10-03 | System Prompt als eigene Leiste neben „Parameters“ | – |
-| 0.12.0 | 2026-10-03 | System Prompt in den Parametern (einklappbar), `system_prompt` in `/api/chat` | – |
-| 0.11.0 | 2026-10-03 | Tabs „A/B Interaction Interface“ und „B Interaction Interface“ (Cluster-Graph + Voice Assistant) | – |
-| 0.10.1 | 2026-10-03 | Parameter standardmäßig eingeklappt | – |
-| 0.10.0 | 2026-10-03 | Tab „Cluster Graph“, Parameter einklappbar | – |
-| 0.9.0 | 2026-10-03 | Chat-Verlauf als .txt herunterladen | – |
-| 0.8.1 | 2026-10-03 | Genutzte Quellen ausklappbar (Liste und einzelne Quelle) | – |
-| 0.8.0 | 2026-10-03 | Nur noch semantisches Clustering (Embeddings), auch in der Demo | – |
-| 0.7.0 | 2026-10-03 | Datenbanken vergleichen, Datenbank-Infos mit Cluster-Beschreibungen, Recompute | – |
-| 0.6.0 | 2026-10-03 | Cluster-Karte und -Graph, Tabs Release Notes und ISO 42001/EU AI Act, „Interaction Interface“ | – |
-| 0.5.0 | 2026-10-03 | Clustering auf Basis der Structured Summaries | – |
-| 0.4.1 | 2026-10-03 | Pseudonymisierung von Personennamen in Clustern | 0.0.5 |
-| 0.4.0 | 2026-10-03 | Release Notes in der App | 0.0.4 |
-| 0.3.0 | 2026-10-03 | Chat-Meta: Intention, Entitäten | 0.0.3 |
-| 0.2.0 | 2026-10-03 | automatisches Clustering | 0.0.2 |
-| 0.1.0 | 2026-10-03 | erste Version | 0.0.1 |
+| **3.12.0** | 2026-10-31 | **Minor release – guided tour (REQ-70):** the button "▶ Guided tour" in the header walks through ALITA in eleven steps (knowledge map, Compare, version history, paper → article, questioning one's schemes; "explore or exploit?"), highlights the relevant part and puts example questions into the Graph Chat. | 3.11.0 |
+| 3.11.0 | 2026-10-31 | **Minor release – papers per article, seen from the law (REQ-69):** document details of a law version show "Discussed in papers" – for each article, annex and recital the papers that discuss it, in the numbering of that version (papers citing other versions are mapped over); a click opens the paper, "Ask" asks the Graph Chat. | 3.10.0 |
+| 3.10.0 | 2026-10-31 | **Minor release – papers linked to the articles they discuss (REQ-68):** references like "Art. 33(4) AI Act" become edges document –discusses→ article; ALITA determines the cited version (e.g. the 2021 proposal) and today's number (Art. 33 → Art. 31); the Graph Chat uses the edges (questions about articles and clusters), document details show "Discusses". | 3.9.0 |
+| 3.9.0 | 2026-10-31 | **Minor release – questions about what the knowledge map shows (REQ-67):** clusters named in the question ("C8", "C9") become the search space, also across databases and even with a project selected; searched cluster by cluster; bridging passages (most similar passages across the cluster boundary) as evidence; graph path through the ontology (cluster → document → section ↔ section → document → cluster). | 3.7.3 |
+| 3.7.3 | 2026-10-31 | **Patch release – larger input field, aligned top row (REQ-64, REQ-65):** question field of both chats four lines high and growing; database bar as wide as the column of the knowledge map. | 3.7.2 |
+| 3.7.2 | 2026-10-31 | **Patch release – B page in three columns (REQ-63):** knowledge map, "Projects & clusters" and Graph Chat side by side; "Enlarge" opens the knowledge map in its own browser window, the cluster selection applies in both windows. | 3.7.1 |
+| 3.7.1 | 2026-10-31 | **Patch release – one row on the B page (REQ-62):** database bar, "Window to the outside" and the B explainer stand side by side as three boxes; the knowledge map moves up. | 3.7.0 |
+| 3.7.0 | 2026-10-31 | **Minor release – compare the clusters of two databases (REQ-59 – REQ-61):** the dropdown "Compare" draws the relations between the clusters of two databases (e.g. EU AI Act ↔ Wachter) into the knowledge map; the Graph Chat queries selected clusters of several databases one database at a time and merges the hits; new endpoint `/api/clusters/relations`, new command `ingest delete --norm`; the standard added in 3.3.1 is removed completely. | 3.6.3 |
+| 3.6.3 | 2026-10-31 | **Patch release – release notes behind the password (REQ-58):** without the password "Release Notes" is hidden too, and the version number is no link. | 3.6.2 |
+| 3.6.2 | 2026-10-31 | **Patch release – documentation tabs behind the password (REQ-57):** without the password "ISO 42001/EUAIACT Docs" and "Technical Documentation" are hidden as well; visible again with the password. | 3.6.1 |
+| 3.6.1 | 2026-10-30 | **Patch release – Wachter public (REQ-56):** without the password EU AI Act and Wachter are now visible; the other databases still only with the password. | 3.6.0 |
+| 3.6.0 | 2026-10-30 | **Minor release – new database "Wachter" (REQ-55):** ID `WACHTER`, shield icon, colour violet; two papers (Laux, Wachter & Mittelstadt 2024; Ho & Caals 2024) with curated summaries in `research/WACHTER/papers/`; at first visible only with the password (public since 3.6.1). | 3.5.1 |
+| 3.5.1 | 2026-10-30 | **Patch release – no upload button in the database bar (REQ-54):** "+ Add new data" removed; uploading into existing databases still via Documents → + Upload. REQ-53 (three papers for EU AI Act) withdrawn. | 3.5.0 |
+| 3.5.0 | 2026-10-30 | **Minor release – only "EU AI Act" public (REQ-52):** without the password the interface shows only the database EU AI Act and both chats search only there; the other databases appear after entering the password in the field "Password" next to the OpenRouter key ("Lock" hides them again). Display filter in the front end only, no access protection of the API. | 3.4.0 |
+| 3.4.0 | 2026-10-30 | **Minor release – White Paper as an accompanying document (REQ-51):** the Commission's White Paper on AI (COM(2020) 65, 19.2.2020) in the legal project EU-AI-Act; new project role `white_paper`; section `documents:` in `_legal.yaml` sets role, date and title of accompanying documents. | 3.3.2 |
+| 3.3.2 | 2026-10-30 | **Patch release – NIST SP 800-18 Rev. 2 (REQ-50):** second standard in "EU AI Act"; "Appendix A." counts as an annex, "References"/"Bibliography" as a separate supplement instead of the end of the last section. | 3.3.1 |
+| 3.3.1 | 2026-10-30 | **Patch release – licence stamps and standards parser (REQ-49):** personalized licence stamps of standards downloads (name, customer number, download ID) are removed when reading; standards: terms as separate components, annex status, annex outline "C.1.2", table rows in annexes stay text. | 3.3.0 |
+| 3.3.0 | 2026-10-29 | **Minor release – new document class "Guidance & FAQ" (REQ-48):** Q&A pages, FAQs and factsheets of authorities (not binding, no reference number) as a separate type `guidance` next to legal guidelines; first page: "AI Literacy – Questions & Answers" of the AI Office (as of 29.10.2026) in EU AI Act; structured into topics and questions, stage `snapshot` for web page states. | 3.2.2 |
+| 3.2.2 | 2026-10-29 | **Patch release – guidelines on prohibited AI practices (REQ-47):** second legal guideline (C(2025) 5052 final, 134 pages, 433 margin numbers, 114 outline points); the table of contents is skipped, outline and margin numbers must be consecutive (enumerations and cited articles in the text stay text), headings may start with a bracket or quotation mark. | 3.2.1 |
+| 3.2.1 | 2026-10-29 | **Patch release – Commission guidelines (REQ-46):** guidelines on the definition of an AI system (C(2025) 5053 final, 29.7.2025) as the first legal guideline in "EU AI Act"; parser for Commission guidelines: sections "I."–"III.", outline "1."/"5.1.", margin numbers "(1)"–"(64)", footnotes left out. | 3.2.0 |
+| 3.2.0 | 2026-10-29 | **Minor release – applying amending regulations (REQ-45):** Digital Omnibus on AI (Regulation (EU) 2026/1744) as the fourth version of the AI Act; `apply_amendments` in `_legal.yaml` applies the amending instructions to the previous version (`app/legal_amend.py`) – 63 of 72 instructions exact, 5 approximate, 4 reported as open; new Articles 4a, 60a, 75a–75d, Annex XIV; application dates of the amended Art. 113; report per instruction in the document details. | 3.1.1 |
+| 3.1.1 | 2026-10-29 | **Patch release – Regulation (EU) 2024/1689 from the Official Journal (REQ-44):** third version of the AI Act; Official Journal PDFs: footnotes are no longer read as recitals (236 → 180), section headings "SECTION 1" are kept (16 sections), references "Article 49" in annexes are not articles (115 → 113); application rules: the rule for an article beats the one for its chapter (Art. 101 from 2.8.2026). | 3.1.0 |
+| 3.1.0 | 2026-10-29 | **Minor release – partial versions and committee stage (REQ-43):** compromise amendments of the Parliament committees IMCO/LIBE (9.5.2023) as the second version of the AI Act; `partial: true` in `_legal.yaml` takes parts not contained unchanged from the previous version; new stage `committee`; parser for compromise blocks (CA 1–12), article numbers like "54 a"/"28(a)", recitals "(65a)"; version comparison independent of spaces, hyphens and punctuation of the PDF extraction. | 3.0.2 |
+| 3.0.2 | 2026-10-29 | **Patch release – clustering after ingestion (REQ-42):** the automatic re-clustering after an ingestion now only affects the databases ingested into (each on its own, with projects or project files as before) instead of all together; a legal project is one unit instead of two; a database with only one work gets a cluster of its own; project names in the knowledge map no longer cover papers. | 3.0.1 |
+| 3.0.1 | 2026-10-29 | **Patch release – the first real law (REQ-41):** Commission proposal of the AI Act (COM(2021) 206, main document + annexes) as the first legal project in "EU AI Act"; segmentation of Commission proposals (TITLE/CHAPTER, all annexes, definitions, financial statement as a supplement, page footers, wrapped references), `file:` as a list in `_legal.yaml`, fallback to the latest draft when no law is in force. | 3.0.0 |
+| 3.0.0 | 2026-10-29 | **Major release – legal ontology (REQ-37/38/39):** laws, guidelines and standards as new document types (`legal_project`, `legal_guideline`, `standard`), split structure-aware into articles/paragraphs/annexes or clauses, with dated versions (unchanged parts reused), changes as separate, embedded actions and reference-date search with a disclosed rule – following the SAT-Graph RAG of de Martim (2025), aligned with ELI; new database "EU AI Act" (cornflower); `fabio:Note` corrected. Major because the data model (new types and fields) and search behaviour (reference date for legal texts) change; existing data does not need to be ingested again | |
+| 2.2.0 | 2026-10-29 | Minor release – citation network and BIBO (REQ-35): reference lists are matched with the papers of the collection (DOI or title with first author and year, without LLM, without new embeddings); "⇄ Citations" in the knowledge map shows who cites whom; "Cites / Cited by" in the document details; the Graph Chat answers citation questions; BIBO in the graph (`bibo_type`, `author_list`, `(:Document)-[:CITES]->(:Document)`); reference lists split by page headers are again recognized completely as `deo:BibliographicReference`. Backend update needed, no re-ingestion | |
+| 2.1.0 | 2026-10-17 | Minor release – workspace and timeline: B page across the full screen width (map on the left at full height, on the right "Projects & clusters" and Graph Chat), the map fills its tile and can be enlarged, 3D time view with exact document dates and time zoom down to days; requirements REQ-22 – REQ-34 (incl. feedback from Dustin) in `docs/requirements-status.md` and `docs/requirements-log.xlsx`; front end only | |
+| 2.0.0 | 2026-10-11 | Major release – requirements milestone: all 21 requirements (REQ-01 – REQ-21) addressed, overview with status, release and implementation in `docs/requirements-status.md` and in the release notes; API stays compatible | |
+| 1.16.2 | 2026-10-11 | Code clean-up before the major release, without visible changes (modules for people/knowledge stages, lint clean, CSS overrides merged) | |
+| 1.16.1 | 2026-10-11 | Fix B page: input field of the Graph Chat visible again on wide screens; right column ("Your questions" + input) less squeezed | |
+| 1.16.0 | 2026-10-11 | "Add new data": own window (database · data type · overall date · files) with the confirmation "one project = one ZIP", several projects per upload; new database "Others"; costs: ALITA reports tokens and euros after the upload, every chat message shows the cost of question and answer | |
+| 1.15.0 | 2026-10-11 | REQ-10, REQ-15 – REQ-18: version history in knowledge stages – timeline in the project card, substantive vs. formal changes, stage table with links to the source files, progress questions in both chats; open points for the requester in the CHANGELOG | |
+| 1.14.0 | 2026-10-11 | REQ-19: project teams instead of file metadata as authors, person filter for both chats, clean-up of metadata names; REQ-12: chat scope follows the selection (project, cluster, whole map); ALITA helper with a tour and "RAG vs. Graph"; knowledge map in three layers, "Reset view", database flowers in 3D; REQ-11: explanations above the chats | |
+| 1.13.0 | 2026-10-11 | REQ-09: cluster and project view top right with document list and project card; project layer above the clusters in the knowledge map; REQ-08: excluded files (e.g. literature folders) in the database info window with the reason; REQ-21: parameters and system prompt under "Advanced settings" | – |
+| 1.12.0 | 2026-10-11 | REQ-02: knowledge map always visible on the B page (page at window height, documents open in the area Projects & clusters); click on a cluster as on A/B with the description top right; connected clusters in every cluster description; old cluster detail view removed; error "Cluster [object Object]" fixed | – |
+| 1.11.0 | 2026-10-11 | REQ-01: B Interaction Interface in four areas (knowledge map · projects & clusters · window to the outside · Graph Chat); REQ-20 "external challenge" as an animated desert construction site with a concept description; "Clear selection" deselects databases and clusters; fixes: empty cluster graph, cluster selection when switching databases | – |
+| 1.10.0 | 2026-10-11 | REQ-04: meaningful cluster names – every cluster automatically gets a descriptive name (LLM, otherwise from the most distinctive word pairs), unique per run; the interface shows the name everywhere instead of the term list | – |
+| 1.9.0 | 2026-10-11 | Database flowers in the cluster dots (shape = type); "3D · time" with a time window (from–to), only the selected database, hover for all dots; cluster descriptions in their own field below the views per selected cluster; Graph Chat on B: questions and input on the right, answers on the left; 3D view A/B repaired | – |
+| 1.8.0 | 2026-10-10 | Databases are named after flowers (Peony = LDK etc.), everywhere incl. clusters; underwater scene with rising bubbles and deep-sea animals in the header and database bar; clustering of single databases and project files; database CNN_DM; always start on B; Recompute button removed | – |
+| 1.7.0 | 2026-10-05 | A and B show the clusters per period (before 2025 · 2025 · 2026); multiple cluster selection restricts both chats | – |
+| 1.6.0 | 2026-10-05 | Cluster map A: dragging keeps similarity relations (springs), relation lines | – |
+| 1.5.2 | 2026-10-05 | Time grid below the 3D cluster map removed; controls top left in all 3D views | – |
+| 1.5.1 | 2026-10-05 | Refactoring: front end split into css/ and js/, build tool in the repo, dead leftovers removed | – |
+| 1.5.0 | 2026-10-05 | Cluster map and cluster graph interactive in 3D (rotate, drag clusters) | – |
+| 1.4.0 | 2026-10-05 | Cluster profile on hover: insights, analyses, theories | – |
+| 1.3.0 | 2026-10-05 | Cluster space in 3D with a time axis (years), walkable | – |
+| 1.2.1 | 2026-10-05 | Database selection restricts A and B completely (also graph neighbours), visible in both tiles | – |
+| 1.2.0 | 2026-10-05 | "Read aloud" removed, no speech output any more | – |
+| 1.1.2 | 2026-10-05 | Literature folders skipped also when nested | – |
+| 1.1.1 | 2026-10-05 | Input and footer of Document Chat and Graph Chat aligned | – |
+| 1.1.0 | 2026-10-05 | `ingest delete --db <DB>`; all JSW data removed | – |
+| 1.0.0 | 2026-10-03 | First stable version: API, CLI and metadata are considered stable (GPT-6 Luna fixed, key only from the interface, Graph Chat, server operation) | – |
+| 0.19.0 | 2026-10-03 | Server operation on Oracle Cloud with Cloudflare Tunnel + Google login, index migration (`migrate`); B is called "Graph Chat"; avatar hair in database colours | – |
+| 0.18.0 | 2026-10-03 | GPT-6 Luna as the only language model, voice input removed, API key only from the interface | – |
+| 0.17.1 | 2026-10-03 | nginx: no more 502 after a backend restart | – |
+| 0.17.0 | 2026-10-03 | Ontology DoCO/DEO in Neo4j (ADR-001), Graph RAG for B, tab "Technical Documentation" | – |
+| 0.16.0 | 2026-10-03 | Meta Muse Spark 1.3 as default model, text-embedding-3-large, language model also in the published page | – |
+| 0.15.0 | 2026-10-03 | Answers streamed (SSE) and as a coherent FAQ text | – |
+| 0.14.2 | 2026-10-03 | Queries across all databases (demo and source selection in the backend) | – |
+| 0.14.1 | 2026-10-03 | Project filter removed from the Document Chat parameters | – |
+| 0.14.0 | 2026-10-03 | Conversation memory: the whole history goes with every question, follow-up questions rewritten for the search | – |
+| 0.13.0 | 2026-10-03 | System prompt controls every request, logged in the chat history; new default "research companion" | – |
+| 0.12.1 | 2026-10-03 | System prompt as a separate bar next to "Parameters" | – |
+| 0.12.0 | 2026-10-03 | System prompt in the parameters (collapsible), `system_prompt` in `/api/chat` | – |
+| 0.11.0 | 2026-10-03 | Tabs "A/B Interaction Interface" and "B Interaction Interface" (cluster graph + voice assistant) | – |
+| 0.10.1 | 2026-10-03 | Parameters collapsed by default | – |
+| 0.10.0 | 2026-10-03 | Tab "Cluster Graph", parameters collapsible | – |
+| 0.9.0 | 2026-10-03 | Download the chat history as .txt | – |
+| 0.8.1 | 2026-10-03 | Sources used can be expanded (list and single source) | – |
+| 0.8.0 | 2026-10-03 | Only semantic clustering (embeddings), also in the demo | – |
+| 0.7.0 | 2026-10-03 | Compare databases, database info with cluster descriptions, Recompute | – |
+| 0.6.0 | 2026-10-03 | Cluster map and graph, tabs Release Notes and ISO 42001/EU AI Act, "Interaction Interface" | – |
+| 0.5.0 | 2026-10-03 | Clustering based on the Structured Summaries | – |
+| 0.4.1 | 2026-10-03 | Pseudonymization of names of people in clusters | 0.0.5 |
+| 0.4.0 | 2026-10-03 | Release notes in the app | 0.0.4 |
+| 0.3.0 | 2026-10-03 | Chat meta: intention, entities | 0.0.3 |
+| 0.2.0 | 2026-10-03 | Automatic clustering | 0.0.2 |
+| 0.1.0 | 2026-10-03 | First version | 0.0.1 |
 
-## Chat-Meta (Intention, Entitäten)
+## Chat meta (intention, entities)
 
-Jede Frage im Chat bekommt eine **Intention** (z. B. Methodology, Findings, Compare, Find sources) und erkannte
-**Entitäten** (Person, Projekt, Datenbank, Methode, Jahr, Dokument, Thema, Cluster). Regelbasiert in Frontend und
-Backend (`app/query_meta.py`); im Live-Betrieb ergänzt das LLM beides in derselben Antwort (`intent`, `entities` in
-`/api/chat`). Die Meta-Infos werden im Chat-Verlauf gespeichert und in „History“ je Gespräch angezeigt.
+Every question in the chat gets an **intention** (e.g. Methodology, Findings, Compare, Find sources) and recognized
+**entities** (person, project, database, method, year, document, topic, cluster). Rule-based in front end and
+backend (`app/query_meta.py`); in live operation the LLM adds to both in the same response (`intent`, `entities` in
+`/api/chat`). The meta information is stored in the chat history and shown per conversation in "History".
 
-## Datenbanken (AL, DL, JSW, LDK, ML, UM)
+## Databases
 
-Jede Datei trägt das Metadatum `databases` (eine oder mehrere). Die Liste ist in `.env` konfigurierbar: `DATABASES=AL,CNN_DM,DL,JSW,LDK,ML,UM,EUAIA,WACHTER,OTH`. `OTH` („Others“) nimmt alles auf, was in keine andere Datenbank gehört. Seit 3.0.0 gibt es `EUAIA` („EU AI Act“, Kornblume) für Gesetzestexte, Leitlinien und Standards rund um die KI-Verordnung. **Wer `DATABASES` in der `.env` gesetzt hat, muss `EUAIA` dort ergänzen**, sonst erscheint die Datenbank nicht. Seit 3.6.0 gibt es `WACHTER` („Wachter“, Schild-Symbol): wissenschaftliche Paper zu vertrauenswürdiger KI und zum EU AI Act (`research/WACHTER/papers/`).
+Every file carries the metadata field `databases` (one or more). The list is configurable in `.env`: `DATABASES=AL,CNN_DM,DL,JSW,LDK,ML,UM,EUAIA,WACHTER,OTH`. `OTH` ("Others") takes everything that belongs in no other database. Since 3.0.0 there is `EUAIA` ("EU AI Act", cornflower) for legal texts, guidelines and standards around the AI Regulation. **If you set `DATABASES` in your `.env`, add `EUAIA` there**, otherwise the database does not appear. Since 3.6.0 there is `WACHTER` ("Wachter", shield icon): scientific papers on trustworthy AI and the EU AI Act (`research/WACHTER/papers/`).
 
-Zuordnung (Priorität von oben nach unten):
+Assignment (priority from top to bottom):
 
-1. explizit: `python -m app.ingest project <ordner> --db ML` bzw. `--db AL,JSW`, im Upload-Dialog oder per API
-2. Ordnerstruktur: `research/<DB>/<Projekt>`, z. B. `research/ML/11-MentalModelProcesses`; `ingest all` erkennt das automatisch
-   - Paper und Notizen: `research/<DB>/papers/*.pdf` bzw. `research/<DB>/notes/*` werden als research paper bzw. research notes eingelesen (z. B. `research/LDK/papers/`)
-3. beim erneuten Einlesen bleibt eine vorhandene Zuordnung erhalten
+1. explicit: `python -m app.ingest project <folder> --db ML` or `--db AL,JSW`, in the upload dialog or via the API
+2. folder structure: `research/<DB>/<project>`, e.g. `research/ML/11-MentalModelProcesses`; `ingest all` detects this automatically
+   - papers and notes: `research/<DB>/papers/*.pdf` and `research/<DB>/notes/*` are ingested as research paper and research notes (e.g. `research/LDK/papers/`)
+3. when ingesting again, an existing assignment is kept
 
-Nachträglich ändern: im Frontend (Projektkarte oder Dokument-Details → „Zuordnung speichern“) oder per
-`PUT /api/projects/{name}/databases` bzw. `PUT /api/documents/{id}/databases` mit `{"databases": ["ML"]}`. Die Änderung wird in Dokumenten und Chunks gesetzt, ein Neu-Einlesen ist nicht nötig.
+Change it later: in the front end (project card or document details → "Save assignment") or via
+`PUT /api/projects/{name}/databases` or `PUT /api/documents/{id}/databases` with `{"databases": ["ML"]}`. The change is set in documents and chunks; no re-ingestion is needed.
 
-Im Frontend wählt die Datenbank-Leiste eine oder mehrere Datenbanken aus; die Auswahl gilt für Chat und Dokumentenliste. Keine Auswahl = alle. Im Prompt: `@db:ML` oder `@db:AL,JSW`. `GET /api/databases` liefert die Datenbanken mit Anzahl Dokumente und Projekte.
+In the front end the database bar selects one or more databases; the selection applies to the chats and the document list. No selection = all. In the prompt: `@db:ML` or `@db:AL,JSW`. `GET /api/databases` returns the databases with the number of documents and projects.
 
-## Kuratierte Zusammenfassungen (`_summaries.yaml`)
+## Curated summaries (`_summaries.yaml`)
 
-Liegt neben Papern oder Notizen eine `_summaries.yaml` (Dateiname → purpose, design_methodology_approach, findings,
-research_limitations_implications, originality_value), übernimmt die Ingestion diese Felder als Structured Summary
-(`source: manual`) und ruft dafür kein LLM auf. Mitgeliefert für die 3 Paper in `research/LDK/papers/` und alle 28 Notizen
-in `research/LDK/notes/`. Auf Projektebene wird die Zusammenfassung aus dem Structured Abstract des Projekts gelesen
-(`research/ML/11-MentalModelProcesses`, neueste `Abstract.docx`).
+If there is a `_summaries.yaml` next to papers or notes (file name → purpose, design_methodology_approach, findings,
+research_limitations_implications, originality_value), the ingestion takes these fields as the Structured Summary
+(`source: manual`) and calls no LLM for it. Included for the 3 papers in `research/LDK/papers/` and all 28 notes
+in `research/LDK/notes/`. At project level the summary is read from the project's structured abstract
+(`research/ML/11-MentalModelProcesses`, newest `Abstract.docx`).
 
-## Chat-Verlauf
+## Chat history
 
-Beide Chat-Kacheln haben „History“ und „New“. Gespräche bleiben nur im Speicher der geöffneten Seite (50 pro Kachel),
-lassen sich dort wieder öffnen und löschen. Vor Reload/Schließen bei Bedarf als TXT exportieren. Der Dokumenten-Chat schickt die letzten Wechsel der aktuellen Sitzung als
-`history` an `/api/chat`, damit Rückfragen den Kontext behalten.
+Both chat tiles have "History" and "New". Conversations stay only in the memory of the open page (50 per tile),
+can be reopened and deleted there. Export them as TXT before reloading/closing if needed. The Document Chat sends the last turns of the current session as
+`history` to `/api/chat`, so that follow-up questions keep their context.
 
-## Entscheidungen
+## Decisions
 
-- **Fremdliteratur**: `PROJECT_EXCLUDE` (Standard `*Literatur*/*`): jeder Ordner mit „Literatur“ oder „Literature“ im Namen wird beim Einlesen übersprungen, auch verschachtelt wie `Paper/1-Literatur/`. Einzelne zitierte PDFs außerhalb dieses Ordners bekommen die Rolle `reference`.
-- **Versionen**: Alle Versionen werden indexiert. `is_latest` markiert pro Gruppe (Basisname + Dateityp) die höchste Version. Der Chat begrenzt Treffer auf 2 Chunks pro Dokument, damit nicht sechs Fassungen desselben Artikels alle Quellen belegen. Mit „nur neueste Versionen“ bzw. `@version:latest` lässt sich das weiter eingrenzen.
-- **Exakte Duplikate** (gleicher Hash, z. B. dieselbe `Figures_v5.pptx` in jedem Journal-Ordner) stehen in der Liste, ihr Inhalt wird aber nur einmal eingebettet.
-- **LLM-Kosten**: `ENRICH_SCOPE=latest` erzeugt Summaries nur für die neueste Version textreicher Rollen. Paper und Notes bekommen immer eine eigene Summary. Mit `all` bekommt jede Version eine.
-- **Methoden-Glossar**: `glossary/methods.yaml` ist ein Platzhalter. Die IDs landen in `method_ids` und sind filterbar (`@methode:survey`). Wenn das richtige Glossar kommt, wird nur diese Datei getauscht und neu eingelesen.
-- **API-Key**: Nur der Key aus dem Interface zählt (Header `X-OpenRouter-Key`, im Browser nur im Seitenspeicher; zur Verarbeitung an Backend/OpenRouter übertragen). Ohne Key antwortet das Backend mit 401; ein Server-Key wird nie benutzt. Das Einlese-CLI nimmt `--api-key` oder `-e OPENROUTER_API_KEY=…` für den einen Lauf.
+- **Third-party literature**: `PROJECT_EXCLUDE` (default `*Literatur*/*`): every folder with "Literatur" or "Literature" in its name is skipped when ingesting, also nested ones like `Paper/1-Literatur/`. Single cited PDFs outside this folder get the role `reference`.
+- **Versions**: All versions are indexed. `is_latest` marks the highest version per group (base name + file type). The chat limits hits to 2 chunks per document, so that six versions of the same article do not take all sources. "latest versions only" or `@version:latest` narrows this further.
+- **Exact duplicates** (same hash, e.g. the same `Figures_v5.pptx` in every journal folder) are in the list, but their content is embedded only once.
+- **LLM costs**: `ENRICH_SCOPE=latest` creates summaries only for the newest version of text-rich roles. Papers and notes always get their own summary. With `all` every version gets one.
+- **Methods glossary**: `glossary/methods.yaml` is a placeholder. The IDs end up in `method_ids` and can be filtered (`@methode:survey`). When the real glossary arrives, only this file is replaced and the data ingested again.
+- **API key**: Only the key from the interface counts (header `X-OpenRouter-Key`, kept in the browser only in page memory; transmitted to backend/OpenRouter for processing). Without a key the backend answers 401; a server key is never used. The ingestion CLI takes `--api-key` or `-e OPENROUTER_API_KEY=…` for one run.
 
 ## API
 
-| Methode | Pfad | Zweck |
+| Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/health` | Status |
-| POST | `/api/chat` | `{message, filters, top_k, model, history}` → Antwort + Quellen (Titel, Link `/files/{id}#page=n`, Fundstelle, Score, Metadaten) |
-| GET | `/api/documents` | Liste mit Filtern `doc_type, project, filetype, role, method, year_from, year_to, latest_only, q, sort` |
-| GET | `/api/documents/{id}` | alle Metadaten inkl. Summary |
-| GET | `/api/facets` | Zählungen für Filter |
-| GET | `/api/projects`, `/api/projects/{name}` | Projekt-Datensätze |
-| GET | `/api/databases` | Datenbanken mit Zählungen |
-| PUT | `/api/projects/{name}/databases`, `/api/documents/{id}/databases` | Datenbank-Zuordnung ändern |
-| GET | `/api/glossary` | Methoden-Glossar |
-| POST | `/api/ingest` | Upload (Projekt-ZIP oder Einzeldateien), läuft als Hintergrund-Job |
-| GET | `/api/jobs/{id}` | Job-Status |
-| GET | `/files/{id}` | Originaldatei |
+| POST | `/api/chat` | `{message, filters, top_k, model, history}` → answer + sources (title, link `/files/{id}#page=n`, location, score, metadata) |
+| GET | `/api/documents` | List with filters `doc_type, project, filetype, role, method, year_from, year_to, latest_only, q, sort` |
+| GET | `/api/documents/{id}` | All metadata incl. summary |
+| GET | `/api/facets` | Counts for filters |
+| GET | `/api/projects`, `/api/projects/{name}` | Project records |
+| GET | `/api/databases` | Databases with counts |
+| PUT | `/api/projects/{name}/databases`, `/api/documents/{id}/databases` | Change the database assignment |
+| GET | `/api/glossary` | Methods glossary |
+| POST | `/api/ingest` | Upload (project ZIP or single files), runs as a background job |
+| GET | `/api/jobs/{id}` | Job status |
+| GET | `/files/{id}` | Original file |
 
-Prompt-Filter im Chat: `@db:ML,UM`, `@typ:paper|project|notes`, `@projekt:NAME`, `@dateityp:pdf`, `@jahr:2021` oder `@jahr:2018-2021`, `@rolle:manuscript`, `@methode:survey`, `@journal:"European Management Review"`, `@version:latest`.
+Prompt filters in the chat: `@db:ML,UM`, `@typ:paper|project|notes`, `@projekt:NAME`, `@dateityp:pdf`, `@jahr:2021` or `@jahr:2018-2021`, `@rolle:manuscript`, `@methode:survey`, `@journal:"European Management Review"`, `@version:latest` (the filter keywords are German).
 
-## Eine Datenbank komplett entfernen
+## Removing a database completely
 
 ```bash
-docker compose run --rm ingest delete --db JSW --dry-run -                          # nur anzeigen
-docker compose run --rm -e OPENROUTER_API_KEY=sk-or-v1-… ingest delete --db JSW     # löschen + Cluster neu (mit Beschreibungen)
+docker compose run --rm ingest delete --db JSW --dry-run -                          # show only
+docker compose run --rm -e OPENROUTER_API_KEY=sk-or-v1-… ingest delete --db JSW     # delete + re-cluster (with descriptions)
 ```
 
-Löscht Dokumente und Textstellen, die nur zu dieser Datenbank gehören, aus Qdrant und Neo4j; gemeinsame Dokumente
-verlieren nur die Zuordnung. Den Ordner `research/<DB>` danach selbst löschen, sonst liest `seed` ihn beim nächsten Start wieder ein.
+Deletes documents and passages that belong only to this database from Qdrant and Neo4j; shared documents
+only lose the assignment. Delete the folder `research/<DB>` yourself afterwards, otherwise `seed` ingests it again at the next start.
 
 ## Backup
 
-- **Metadaten:** `GET /api/export` liefert alle Dokumente (inkl. Zusammenfassungen, Datenbanken, Methoden) und Projekte als JSON.
-- **Vektorindex:** Qdrant-Snapshots über `POST http://localhost:6333/collections/rr_documents/snapshots` (ebenso `rr_chunks`, `rr_projects`) oder das Volume `qdrant_data` sichern.
-- **Originaldateien und kuratierte Summaries:** liegen in `RESEARCH_DIR` (inkl. `_summaries.yaml`) bzw. im Volume `app_data` für Uploads.
+- **Metadata:** `GET /api/export` returns all documents (incl. summaries, databases, methods) and projects as JSON.
+- **Vector index:** Qdrant snapshots via `POST http://localhost:6333/collections/rr_documents/snapshots` (likewise `rr_chunks`, `rr_projects`) or back up the volume `qdrant_data`.
+- **Original files and curated summaries:** are in `RESEARCH_DIR` (incl. `_summaries.yaml`) or in the volume `app_data` for uploads.
 
-## Frontend
+## Front end
 
-Kein Build nötig: nginx und das Backend liefern `frontend/` direkt aus. Die Skripte in `js/` teilen sich den globalen
-Gültigkeitsbereich und werden in der Reihenfolge von `index.html` geladen; `start.js` kommt zuletzt und startet die App.
-Neue Funktionen, die schon beim Laden aufgerufen werden, gehören in eine Datei *vor* ihrer ersten Verwendung.
+No build needed: nginx and the backend serve `frontend/` directly. The scripts in `js/` share the global
+scope and are loaded in the order of `index.html`; `start.js` comes last and starts the app.
+New functions that are already called while loading belong in a file *before* their first use.
 
 ```bash
-python tools/build_frontend.py data                          # js/data.js aus CHANGELOG.md, docs/ und prompts.py
-python tools/build_frontend.py artifact demo.json out.html   # Einzeldatei mit Demodaten (veröffentlichte Seite)
+python tools/build_frontend.py data                          # js/data.js from CHANGELOG.md, docs/ and prompts.py
+python tools/build_frontend.py artifact demo.json out.html   # single file with demo data (published page)
 ```
 
 ## Tests
 
 ```bash
 cd backend && pytest
-ruff check backend          # Lint (Regeln in backend/ruff.toml)
+ruff check backend          # lint (rules in backend/ruff.toml)
 ```
 
-Die Tests laufen ohne Netz und prüfen Rollen, Versionen, Journal-Erkennung, Prompt-Filter, Abstract-Parser, Chunking und einen Projekt-Scan.
+The tests run without network access and check roles, versions, journal detection, prompt filters, the abstract parser, chunking, a project scan, the legal ontology, clustering helpers, citations and provisions.
 
-[GitHub Actions CI](docs/ci.md) führt bei PRs und Änderungen auf `main` automatisch Tests,
-Lint-/Syntaxprüfungen, Compose-/nginx-Checks und einen Secret-Scan aus. Keine Server-Zugangsdaten
-oder OpenRouter-Keys erforderlich; der Produktiv-Deploy bleibt manuell.
+[GitHub Actions CI](docs/ci.md) automatically runs tests, lint/syntax checks, Compose/nginx checks and a secret scan
+on PRs and changes to `main`. No server credentials or OpenRouter keys are needed; the production deployment stays manual.
 
-## Lizenz
+## Licence
 
-ALITA steht unter der [MIT-Lizenz](LICENSE). Sie gilt für den Code und die Dokumentation dieses Repositorys.
-Dokumente, die in ALITA eingelesen werden (Paper, Gesetzestexte, Leitlinien, Standards, eigene Projekte), behalten
-ihre eigenen Lizenzen und Nutzungsbedingungen – sie liegen nicht im Repository.
+ALITA is released under the [MIT licence](LICENSE). It covers the code and the documentation of this repository.
+Documents loaded into ALITA (papers, legal texts, guidelines, standards, your own projects) keep
+their own licences and terms of use – they are not part of the repository.
