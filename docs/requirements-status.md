@@ -1,4 +1,4 @@
-# ALITA – requirements status (3.7.0, 2026-10-31)
+# ALITA – requirements status (3.7.1, 2026-10-31)
 
 Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wording, the request as a requirement, acceptance criterion).
 
@@ -65,6 +65,7 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 | REQ-59 | Cluster analysis for EU AI Act and Wachter together; dropdown to compare two databases; relations drawn on the map; Graph Chat re-queries inside clusters across databases | ✅ done – needs deploy | 3.7.0 | `/api/clusters/relations` (centroid similarity, bridging documents), dropdown **Compare**, violet dashed lines in 2D/3D, Select/Ask; Graph Chat searches each database's clusters and interleaves the hits, prompt gets the relations. Live index: C6 ↔ C8 0.76, C7 ↔ C8 0.33. |
 | REQ-60 | Remove the standard added in 3.3.1 from everywhere | ✅ done | 3.7.0 | File and `_legal.yaml` entry deleted; mentions removed from code, tests, docs, release notes, requirements log; 141 passages + document removed from the local Qdrant index; stale cluster texts cleared. New `ingest delete --norm ID` for graph and model store. |
 | REQ-61 | Refactor the whole code base | 🔄 staged | 3.7.0 – | Stage 0 in 3.7.0: new cluster-comparison code in its own modules. Next stages in separate PRs (see docs/technical/refactoring-plan.md). |
+| REQ-62 | B page: "Window to the outside" and the B explainer next to the database bar, as three boxes | ✅ done – needs deploy (frontend) | 3.7.1 | `.bar-row` with database bar + `#bTop` (B page only). |
 
 ## Open points for the requirement owners
 - REQ-10, REQ-15 – REQ-18: main document chain per project, inferred links between versions and analyses, threshold for "substantive", AI stage texts automatic or on demand, versions without full text.

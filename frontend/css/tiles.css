@@ -33,9 +33,13 @@
 .chat-why q{font-style:italic;quotes:"„" "“"}
 .chat-why .cw-alt{color:var(--muted)}
 #page-graph .bq-chat{flex-direction:column;gap:14px}
-#page-graph .b-top{flex:none;display:flex;gap:14px;align-items:stretch;margin-bottom:14px}   /* below the database bar: B explainer + "Window to the outside" button */
-#page-graph .b-why{flex:1;min-width:0}
-@media (max-width:700px){#page-graph .b-top{flex-direction:column}}
+.bar-row{display:flex;gap:14px;align-items:stretch}   /* REQ-62: database bar | window to the outside | B explainer – three boxes */
+.bar-row>.dbbar{flex:1 1 auto;min-width:0}
+.bar-row:has(#bTop:not([hidden]))>.dbbar{flex:0 1 auto}
+.bar-row>.b-top{flex:1 1 560px;min-width:0;display:flex;gap:14px;align-items:stretch}
+.bar-row .b-why{flex:1;min-width:0;align-items:center}
+@media (max-width:980px){.bar-row{flex-wrap:wrap}.bar-row>.dbbar{flex:1 1 100%}}
+@media (max-width:700px){.bar-row>.b-top{flex-direction:column}}
 
 /* info sign: pulses on hover, a click lets a mini ALITA pop out */
 .chat-why{position:relative}

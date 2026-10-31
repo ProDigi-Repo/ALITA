@@ -259,7 +259,8 @@ und `APP_VERSION` im Frontend angleichen. Der Test `test_changelog_follows_keepa
 
 | Version | Datum | Inhalt | früher |
 |---|---|---|---|
-| **3.7.0** | 2026-10-31 | **Minor Release – Cluster zweier Datenbanken vergleichen (REQ-59 – REQ-61):** Dropdown „Compare“ zeichnet die Beziehungen zwischen den Clustern zweier Datenbanken (z. B. EU AI Act ↔ Wachter) in die Wissenskarte; der Graph Chat befragt ausgewählte Cluster mehrerer Datenbanken je Datenbank und führt die Treffer zusammen; neuer Endpunkt `/api/clusters/relations`, neues Kommando `ingest delete --norm`; der in 3.3.1 aufgenommene Standard ist vollständig entfernt. | 3.6.3 |
+| **3.7.1** | 2026-10-31 | **Patch Release – eine Zeile auf der B-Seite (REQ-62):** Datenbankleiste, „Window to the outside“ und B-Erklärung stehen als drei Kästen nebeneinander; die Wissenskarte rückt nach oben. | 3.7.0 |
+| 3.7.0 | 2026-10-31 | **Minor Release – Cluster zweier Datenbanken vergleichen (REQ-59 – REQ-61):** Dropdown „Compare“ zeichnet die Beziehungen zwischen den Clustern zweier Datenbanken (z. B. EU AI Act ↔ Wachter) in die Wissenskarte; der Graph Chat befragt ausgewählte Cluster mehrerer Datenbanken je Datenbank und führt die Treffer zusammen; neuer Endpunkt `/api/clusters/relations`, neues Kommando `ingest delete --norm`; der in 3.3.1 aufgenommene Standard ist vollständig entfernt. | 3.6.3 |
 | 3.6.3 | 2026-10-31 | **Patch Release – Release Notes hinter dem Passwort (REQ-58):** ohne Passwort ist auch „Release Notes“ ausgeblendet, die Versionsnummer ist dann kein Link. | 3.6.2 |
 | 3.6.2 | 2026-10-31 | **Patch Release – Doku-Tabs hinter dem Passwort (REQ-57):** ohne Passwort sind auch „ISO 42001/EUAIACT Docs“ und „Technical Documentation“ ausgeblendet; mit Passwort wieder sichtbar. | 3.6.1 |
 | 3.6.1 | 2026-10-30 | **Patch Release – Wachter öffentlich (REQ-56):** ohne Passwort sind jetzt EU AI Act und Wachter sichtbar; die übrigen Datenbanken weiter nur mit Passwort. | 3.6.0 |

@@ -19,6 +19,16 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 - Require an explicit Neo4j password instead of a committed default; restrict CORS, downloads and ZIP expansion, and cap HTTP uploads at 50 MiB.
 - Keep keys and chat history in page memory only, with Access logout. Export existing chats before upgrading: old browser-persisted keys/history are removed on first load.
 
+## [3.7.1] - 2026-10-31
+
+> **Patch release – one row instead of two on the B page.** The B explainer ("B searches the knowledge graph …") and the "Window to the outside" no longer take a row of their own below the database bar: on the B page the database bar, the "Window to the outside" and the explainer stand side by side as three boxes, and the knowledge map moves up. On the other pages the database bar keeps the full width.
+
+### Requirements
+- **REQ-62 Move the "Window to the outside" and the B explainer next to the database bar, as three boxes of their own** – ✅ done; checked on the local instance and in a headless browser (B page: three boxes in one row; A/B and Documents: database bar only; the pop-up of the window still opens).
+
+### Changed
+- `index.html`: database bar and `#bTop` in a new row `.bar-row`; `#bTop` is shown on the B page only (`showPage`). CSS in `tiles.css` (`.bar-row`), `outside.css` no longer scoped to `#page-graph`; below 980 px the boxes wrap.
+
 ## [3.7.0] - 2026-10-31
 
 > **Minor release – compare the clusters of two databases, and re-query inside them.** Every database is clustered on its own, so the knowledge map had no lines between, for example, the EU AI Act and Wachter clusters. A new dropdown **Compare** above the map draws the relations between the clusters of two databases as violet dashed lines (2D and 3D, with the similarity on the line); the side panel lists them with **Select** and **Ask**. When the selected clusters come from several databases, the Graph Chat searches them database by database, merges the hits alternately and tells the language model how the clusters relate. With the current data, EU AI Act "Scope and Guidance" (C6) and Wachter "AI Act Trustworthiness and Risk" (C8) are closely related (0.76). The standard that was added in 3.3.1 is removed from the repository, the data folder and the local index (REQ-60). **Update:** `docker compose up -d --build backend frontend`; then `docker compose run --rm ingest delete --norm <norm_id>` removes a law, guideline or standard from index, graph and model store, and `docker compose run --rm -e OPENROUTER_API_KEY=… ingest cluster --db EUAIA` refreshes the EU AI Act cluster descriptions. Roll back with `git checkout v3.6.3`.
