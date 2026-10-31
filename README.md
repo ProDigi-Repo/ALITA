@@ -443,3 +443,9 @@ Die Tests laufen ohne Netz und prüfen Rollen, Versionen, Journal-Erkennung, Pro
 [GitHub Actions CI](docs/ci.md) führt bei PRs und Änderungen auf `main` automatisch Tests,
 Lint-/Syntaxprüfungen, Compose-/nginx-Checks und einen Secret-Scan aus. Keine Server-Zugangsdaten
 oder OpenRouter-Keys erforderlich; der Produktiv-Deploy bleibt manuell.
+
+## Lizenz
+
+ALITA steht unter der [MIT-Lizenz](LICENSE). Sie gilt für den Code und die Dokumentation dieses Repositorys.
+Dokumente, die in ALITA eingelesen werden (Paper, Gesetzestexte, Leitlinien, Standards, eigene Projekte), behalten
+ihre eigenen Lizenzen und Nutzungsbedingungen – sie liegen nicht im Repository.

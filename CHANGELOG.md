@@ -9,6 +9,7 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 ## [Unreleased]
 
 ### Added
+- MIT licence (`LICENSE`): applies to the code and documentation of this repository; documents loaded into ALITA keep their own licences.
 - Read-only GitHub Actions CI for PRs and main: secret scanning, Python/auth/deployment tests, Ruff, shell/JavaScript/nginx checks and generated frontend data validation. No production credentials or automatic deployment.
 - Reusable manual Hetzner code-deployment script with candidate import/health checks, rollback, private configuration backups and data-count checks; optional 4-GB pilot limits and an operations runbook. No automatic GitHub deployment or production configuration change.
 - Optional anonymous reviewer host with expiring invitation codes, read-only sessions, document downloads and each reviewer's own OpenRouter key. Includes an issue/revoke CLI; private Cloudflare Access remains unchanged.
