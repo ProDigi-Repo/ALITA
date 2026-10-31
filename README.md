@@ -449,3 +449,8 @@ oder OpenRouter-Keys erforderlich; der Produktiv-Deploy bleibt manuell.
 ALITA steht unter der [MIT-Lizenz](LICENSE). Sie gilt für den Code und die Dokumentation dieses Repositorys.
 Dokumente, die in ALITA eingelesen werden (Paper, Gesetzestexte, Leitlinien, Standards, eigene Projekte), behalten
 ihre eigenen Lizenzen und Nutzungsbedingungen – sie liegen nicht im Repository.
+
+Die Datenbank **EU AI Act** enthält Rechtstexte (AI Act in allen Fassungen, Vorschlag, Änderungen) und amtliche Dokumente
+der Kommission. Gesetze und Verordnungen sind amtliche Werke und **nicht urheberrechtlich geschützt** (z. B. § 5 Abs. 1 UrhG);
+die übrigen Dokumente dürfen nach dem Weiterverwendungsbeschluss 2011/833/EU der Kommission bzw. CC BY 4.0 mit Quellenangabe
+frei genutzt werden. Details: [`docs/compliance/05-data-governance-and-oversight.md`](docs/compliance/05-data-governance-and-oversight.md#copyright-status-of-the-database-eu-ai-act).
