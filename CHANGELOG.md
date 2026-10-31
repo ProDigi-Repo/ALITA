@@ -16,6 +16,7 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 - Hetzner Compose profile and mailcode setup guide for a shared workspace behind Cloudflare Access/Tunnel; no published host ports.
 
 ### Changed
+- README: section "How this software was built – AI disclosure" – ALITA was developed with Claude (Anthropic); who did what, how it was checked (no independent code review or audit), where the trail is (requirements log, commit trailers, pull requests, CHANGELOG), and the separate runtime use of GPT-6 Luna and OpenAI embeddings.
 - README translated into English (content unchanged apart from the current version in the header and a short section on papers linked to the provisions they discuss).
 
 ### Security
