@@ -305,3 +305,8 @@ async function askGraph(q){
 $('#graphInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('#graphForm').requestSubmit()}});
 $('#graphForm').addEventListener('submit',e=>{e.preventDefault();const v=$('#graphInput').value.trim();if(v){askGraph(v);$('#graphInput').value=''}});
 try{renderGraphSide()}catch(e){}
+
+/* REQ-64: the question field grows with its text (and shrinks back after sending) */
+['#ragInput','#graphInput'].forEach(id=>{const t=$(id);if(!t)return;t.rows=4;
+  const fit=()=>{t.style.height='auto';t.style.height=Math.min(280,Math.max(104,t.scrollHeight+2))+'px'};
+  t.addEventListener('input',fit);t.form&&t.form.addEventListener('submit',()=>setTimeout(fit,0));setTimeout(fit,0)});

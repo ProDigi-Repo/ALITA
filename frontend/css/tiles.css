@@ -33,12 +33,12 @@
 .chat-why q{font-style:italic;quotes:"„" "“"}
 .chat-why .cw-alt{color:var(--muted)}
 #page-graph .bq-chat{flex-direction:column;gap:14px}
-.bar-row{display:flex;gap:14px;align-items:stretch}   /* REQ-62: database bar | window to the outside | B explainer – three boxes */
-.bar-row>.dbbar{flex:1 1 auto;min-width:0}
-.bar-row:has(#bTop:not([hidden]))>.dbbar{flex:0 1 auto}
-.bar-row>.b-top{flex:1 1 560px;min-width:0;display:flex;gap:14px;align-items:stretch}
+.bar-row{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr);gap:14px;align-items:stretch}   /* REQ-62/65: same columns as the B page below – database bar over the map, window + explainer over the other two */
+.bar-row>.dbbar{grid-column:1/-1;min-width:0}
+.bar-row:has(#bTop:not([hidden]))>.dbbar{grid-column:1}
+.bar-row>.b-top{grid-column:2/4;min-width:0;display:flex;gap:14px;align-items:stretch}
 .bar-row .b-why{flex:1;min-width:0;align-items:center}
-@media (max-width:980px){.bar-row{flex-wrap:wrap}.bar-row>.dbbar{flex:1 1 100%}}
+@media (max-width:1100px){.bar-row{display:flex;flex-wrap:wrap}.bar-row>.dbbar{flex:1 1 100%}.bar-row>.b-top{flex:1 1 100%}}
 @media (max-width:700px){.bar-row>.b-top{flex-direction:column}}
 
 /* info sign: pulses on hover, a click lets a mini ALITA pop out */

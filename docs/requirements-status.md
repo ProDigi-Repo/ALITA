@@ -1,4 +1,4 @@
-# ALITA – requirements status (3.7.2, 2026-10-31)
+# ALITA – requirements status (3.7.3, 2026-10-31)
 
 Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wording, the request as a requirement, acceptance criterion).
 
@@ -67,6 +67,8 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 | REQ-61 | Refactor the whole code base | 🔄 staged | 3.7.0 – | Stage 0 in 3.7.0: new cluster-comparison code in its own modules. Next stages in separate PRs (see docs/technical/refactoring-plan.md). |
 | REQ-62 | B page: "Window to the outside" and the B explainer next to the database bar, as three boxes | ✅ done – needs deploy (frontend) | 3.7.1 | `.bar-row` with database bar + `#bTop` (B page only). |
 | REQ-63 | B page in three columns (map, projects & clusters, Graph Chat); Enlarge opens the map in a separate window | ✅ done – needs deploy (frontend) | 3.7.2 | Grid `map cluster chat`; `map-window.js` (`?view=map`, BroadcastChannel sync of selection). |
+| REQ-64 | Larger question input | ✅ done – needs deploy (frontend) | 3.7.3 | 4 lines, grows to ~11, resizable (both chats). |
+| REQ-65 | Extend the first box (database bar) | ✅ done – needs deploy (frontend) | 3.7.3 | Top row on the B page uses the three columns of the page: database bar over the map. |
 
 ## Open points for the requirement owners
 - REQ-10, REQ-15 – REQ-18: main document chain per project, inferred links between versions and analyses, threshold for "substantive", AI stage texts automatic or on demand, versions without full text.

@@ -19,6 +19,18 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 - Require an explicit Neo4j password instead of a committed default; restrict CORS, downloads and ZIP expansion, and cap HTTP uploads at 50 MiB.
 - Keep keys and chat history in page memory only, with Access logout. Export existing chats before upgrading: old browser-persisted keys/history are removed on first load.
 
+## [3.7.3] - 2026-10-31
+
+> **Patch release – larger question field, aligned top row.** The question field of both chats shows four lines, grows with the text (up to about eleven lines) and can be dragged taller; after sending it shrinks back. On the B page the database bar now spans the column of the knowledge map, and the "Window to the outside" and the B explainer sit above the other two columns.
+
+### Requirements
+- **REQ-64 Make the input area larger** – ✅ done; checked on the local instance (empty 111 px, eight lines 220 px, back to 111 px after clearing).
+- **REQ-65 Extend the first box (database bar)** – ✅ done; the top row uses the same three columns as the B page below (database bar over the map; window + explainer over "Projects & clusters" and the Graph Chat).
+
+### Changed
+- `clusters.css`: `.composer textarea` min 104 px, max 280 px, resizable; `chat.js` grows the field with its text.
+- `tiles.css`: `.bar-row` as a grid with the columns of `#page-graph .bgrid`; stacked below 1100 px.
+
 ## [3.7.2] - 2026-10-31
 
 > **Patch release – B page in three columns; the knowledge map in its own window.** The B page shows the knowledge map, "Projects & clusters" and the Graph Chat side by side in three columns (before: the map on the left, the other two stacked on the right). **⤢ Enlarge** opens the knowledge map in a separate browser window – only the map, filling the window, e.g. on a second screen. Both windows share the cluster and database selection, so clusters picked in the map window are the search space of the chats in the main window and vice versa. If the browser blocks the pop-up, the map is enlarged over the page as before.
