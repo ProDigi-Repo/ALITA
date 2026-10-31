@@ -5,6 +5,32 @@ Version: see `VERSION` (currently **3.12.0**; backend: `app.__version__`, `GET /
 Backend for tile 1 of the ALITA Prototype: FastAPI + Pydantic AI + pydantic-settings, Qdrant as vector database, OpenRouter for the LLM and the embeddings.
 The RAG service (`app/rag.py`) does not depend on FastAPI and can be reused by the Graph Chat (tile 2).
 
+## How this software was built – AI disclosure
+
+ALITA was developed **with the AI coding assistant Claude (Anthropic)**, used through Claude Code and claude.ai sessions, in a
+conversational, requirement-driven way ("vibe coding"):
+
+- **People** set the research goals and every requirement in plain language, made the design and research decisions,
+  chose the data, tried each increment in the running application and decided what was merged.
+- **Claude** wrote most of the source code, the tests, the technical and user documentation and the release notes, and
+  ran the checks described below.
+- **Checks:** automated tests (`backend/tests`, run in CI on every pull request), lint, checks of the front end in a
+  scripted browser and against a local instance with real data. The code has **not** had an independent code review or
+  security audit – treat it as a research prototype.
+
+The trail is part of the repository:
+
+| Where | What it shows |
+|---|---|
+| [`docs/requirements-log.xlsx`](docs/requirements-log.xlsx), [`docs/requirements-status.md`](docs/requirements-status.md) | every request word for word, the requirement and acceptance criterion it became, its status and how it was implemented (also withdrawn requests) |
+| commit history | commits written with Claude end with `Co-Authored-By: Claude …` and a link to the session |
+| pull requests | descriptions written by Claude end with "Generated with Claude Code" |
+| [`CHANGELOG.md`](CHANGELOG.md) | what changed in each release and how it was checked |
+
+Two other uses of AI are separate from this: **inside ALITA**, GPT-6 Luna (via OpenRouter) writes answers, summaries and
+cluster descriptions, and OpenAI embeddings drive search and clustering (see [Language models](#language-models)).
+Publications about ALITA should state both uses; AI tools are not listed as authors.
+
 ```
 research-rag/
 ├─ backend/app/
