@@ -1,4 +1,4 @@
-# ALITA – requirements status (3.11.0, 2026-10-31)
+# ALITA – requirements status (3.12.0, 2026-10-31)
 
 Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wording, the request as a requirement, acceptance criterion).
 
@@ -73,6 +73,7 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 | REQ-67 | Ask about the connections visible on the cluster image; reach the text passages via the ontology | ✅ done – needs deploy (backend + frontend) | 3.9.0 | `cluster_query.py`: named clusters → cluster mode (no project filter, per-cluster retrieval), bridging passages across the cluster boundary, cluster profiles and pairs in the prompt, ontology path in the answer. |
 | REQ-68 | Edges in the knowledge graph from papers to the provisions they discuss (e.g. Laux et al. → Art. 33 of the proposal = Art. 31 today) | ✅ done – needs deploy (backend + frontend) and `ingest provisions` | 3.10.0 | `provisions.py`: references found in the text, version of the paper determined, mapped to today's numbering; `discusses`/`provisions` payloads, DISCUSSES/REFERS_TO edges, Graph Chat context and path, document details. |
 | REQ-69 | Show per article of a law which papers discuss it | ✅ done – needs deploy (backend + frontend) | 3.11.0 | `provisions.discussed_in`, `GET /api/legal/norms/{id}/discussed?seq=`; document details of a law version: "Discussed in papers" in the numbering of that version, Ask per article. |
+| REQ-70 | A button that guides users through ALITA (guided tour) | ✅ done – needs frontend reload | 3.12.0 | `tour.js`/`tour.css`: eleven steps along the proposal's mechanisms (refresh memory, traceability, scheme updating; explore vs. exploit), spotlight on the explained element, example questions into the Graph Chat (put / ask now); project step with the password. |
 
 ## Open points for the requirement owners
 - REQ-10, REQ-15 – REQ-18: main document chain per project, inferred links between versions and analyses, threshold for "substantive", AI stage texts automatic or on demand, versions without full text.

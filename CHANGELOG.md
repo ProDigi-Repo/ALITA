@@ -19,6 +19,16 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 - Require an explicit Neo4j password instead of a committed default; restrict CORS, downloads and ZIP expansion, and cap HTTP uploads at 50 MiB.
 - Keep keys and chat history in page memory only, with Access logout. Export existing chats before upgrading: old browser-persisted keys/history are removed on first load.
 
+## [3.12.0] - 2026-10-31
+
+> **Minor release – a guided tour.** A new button **▶ Guided tour** in the header walks through ALITA in eleven steps along the three mechanisms of the research proposal: refresh memory (the knowledge map; across collections with Compare; within a trajectory of versions), make the argument traceable (papers –discusses→ articles, graph path and sources) and update one's schemes (questions that challenge a position, checked against the sources) – with "explore or exploit?" as the thread. Each step switches to the right page, highlights the part of the interface it explains and, where useful, offers an example question: **Put into Graph Chat** or **Ask now**. Cluster numbers and the example project are taken from the current data; the step on one's own research projects appears with the password. Keys: → next, ← back, Esc close; `?tour=1` starts the tour on opening.
+
+### Requirements
+- **REQ-70 A button that guides through ALITA** – ✅ done; checked in a headless browser on the demo data (all eleven steps, every target found and the step box inside the window at 1600 × 950, example question put into the Graph Chat, tour closes without errors).
+
+### Added
+- `frontend/js/tour.js`, `frontend/css/tour.css`; header button `#tourBtn` (hidden in the map window).
+
 ## [3.11.0] - 2026-10-31
 
 > **Minor release – which papers discuss which article, seen from the law.** The document details of a law version (e.g. "AI Act – Proposal") have a new section **Discussed in papers**: for every article, annex and recital of that version, the papers that discuss it – in the numbering of that version. Papers that cite another version are mapped over: in the proposal, Art. 33 "Notified bodies" lists Laux, Wachter & Mittelstadt (who cite the proposal) and would list a paper citing today's Art. 31; in the consolidated version the same papers appear under Art. 31, with "cited as Art. 33 of the proposal". Each paper opens with a click; **Ask** puts the question "What do the papers say about Art. 31 of the AI Act (numbered 33 in the proposal)?" into the Graph Chat. Only papers of the visible databases are listed.
