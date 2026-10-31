@@ -1,4 +1,4 @@
-# ALITA – User Manual (front-end, v3.7.1)
+# ALITA – User Manual (front-end, v3.7.2)
 
 ALITA lets you ask questions of your research documents and get answers with numbered, clickable sources.
 The quick visual version is [`ALITA-Cheat-Sheet-Comic.pdf`](ALITA-Cheat-Sheet-Comic.pdf).
@@ -71,7 +71,7 @@ The database bar stays visible on every chat page: **ⓘ Cluster descriptions** 
 
 9. **Info banner:** says what B does: it searches the knowledge graph. For what a document says in detail, use A.
 10. **Knowledge map:** all data in three layers: projects and papers on top, semantic clusters in the middle, documents below. Color by **Document type** or **Database**. Hover to preview, click to open.
-11. **Map controls:** **Compare** (draws the relations between the clusters of two databases, e.g. EU AI Act ↔ Wachter, as violet dashed lines with their similarity; see below), **2D**, **Reset view**, **3D · time** (years as depth), **⇄ Citations** (which papers cite each other) and **Enlarge** to fill the screen.
+11. **Map controls:** **Compare** (draws the relations between the clusters of two databases, e.g. EU AI Act ↔ Wachter, as violet dashed lines with their similarity; see below), **2D**, **Reset view**, **3D · time** (years as depth), **⇄ Citations** (which papers cite each other) and **Enlarge**, which opens the knowledge map in a separate browser window (e.g. for a second screen; clusters you select there are the search space of the chats in the main window and vice versa – if the browser blocks pop-ups, the map is enlarged over the page instead).
 12. **Projects & clusters:** every cluster with its topic, key terms and number of documents; click one to select it for the chats. Below, the strongest bridges between clusters. Project cards and document details open here too.
 13. **Graph Chat header:** **History** reopens earlier conversations; **+ New** starts a fresh one.
 

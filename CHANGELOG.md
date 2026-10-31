@@ -19,6 +19,17 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 - Require an explicit Neo4j password instead of a committed default; restrict CORS, downloads and ZIP expansion, and cap HTTP uploads at 50 MiB.
 - Keep keys and chat history in page memory only, with Access logout. Export existing chats before upgrading: old browser-persisted keys/history are removed on first load.
 
+## [3.7.2] - 2026-10-31
+
+> **Patch release – B page in three columns; the knowledge map in its own window.** The B page shows the knowledge map, "Projects & clusters" and the Graph Chat side by side in three columns (before: the map on the left, the other two stacked on the right). **⤢ Enlarge** opens the knowledge map in a separate browser window – only the map, filling the window, e.g. on a second screen. Both windows share the cluster and database selection, so clusters picked in the map window are the search space of the chats in the main window and vice versa. If the browser blocks the pop-up, the map is enlarged over the page as before.
+
+### Requirements
+- **REQ-63 Three columns on the B page; Enlarge opens a separate window** – ✅ done; checked on the local instance and in a headless browser (three columns at 1700 px; Enlarge opens `?view=map` with only the map; selecting C6 + C8 in the map window reaches the Graph Chat plan of the main window and back).
+
+### Changed
+- `clusters.css`: `#page-graph .bgrid` with three columns (`map cluster chat`); below 1100 px stacked as before; `html.map-window` styles for the map-only window.
+- New `frontend/js/map-window.js`: opens the window, shows the map only with `?view=map`, syncs selection over a `BroadcastChannel` ("alita-map").
+
 ## [3.7.1] - 2026-10-31
 
 > **Patch release – one row instead of two on the B page.** The B explainer ("B searches the knowledge graph …") and the "Window to the outside" no longer take a row of their own below the database bar: on the B page the database bar, the "Window to the outside" and the explainer stand side by side as three boxes, and the knowledge map moves up. On the other pages the database bar keeps the full width.
