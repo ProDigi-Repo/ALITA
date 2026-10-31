@@ -45,12 +45,15 @@ function botMsg(chat,a){
   const id='m'+(++uid);
   const text=mdLite(a.answer).replace(/\[(\d+)\]/g,(m,n)=>`<sup class="cite" data-t="${id}-${n}">[${n}]</sup>`);
   const pathHtml=a.path?`<div class="path"><span class="lbl">Graph path</span>${a.path.map(p=>Array.isArray(p)?`<span class="node">${esc(p[0])}<i>${esc(p[1])}</i></span>`:`<span class="edge">—${esc(p)}→</span>`).join('')}</div>`:'';
+  /* REQ-59: clusters from several databases were searched one database at a time */
+  const xs=a.cluster_scope,scopeHtml=xs&&xs.by_database?`<div class="path"><span class="lbl">Clusters across databases</span>${Object.entries(xs.by_database).map(([db,ids])=>`<span class="node">${esc(dbName(db))}<i>${ids.map(i=>'C'+i).join(', ')}</i></span>`).join('<span class="edge">·</span>')}${(xs.relations||[]).map(l=>`<span class="edge">C${l.source} ↔ C${l.target} · ${(+l.similarity).toFixed(2)}</span>`).join('')}${(xs.bridges||[]).length?`<span class="edge">bridging passages: ${xs.bridges.map(b=>`[${b.left}] ↔ [${b.right}] ${(+b.similarity).toFixed(2)}`).join(' · ')}</span>`:''}</div>`:'';
   const srcHtml=a.sources.map(s=>{
     const tags=[TYPE_LABEL[s.doc_type]||s.doc_type,s.project_name,s.filetype&&'.'+s.filetype,s.legal?null:s.year,ROLE_LABEL[s.role]||s.role,s.legal&&typeof legalSrcTag==='function'?legalSrcTag(s.legal):s.locator,...(s.methods||[]).map(m=>METHOD_LABEL[m]||m)].filter(Boolean);
     const href=LIVE?s.url.replace(/^\//,''):'#';
     return `<details class="src" id="${id}-${s.n}"><summary><span class="n">[${s.n}]</span><span class="stt"><a href="${esc(href)}" ${LIVE?'target="_blank" rel="noopener"':'data-demo="1"'}>${esc(s.title)}</a><span class="sub">${esc([TYPE_LABEL[s.doc_type]||s.doc_type,s.project_name,s.year,s.locator].filter(Boolean).join(' · '))}</span></span><span class="score">${(+s.score).toFixed(2)}</span><span class="chev" aria-hidden="true">▸</span></summary><div class="sbody"><div class="tags">${tags.map(t=>`<span>${esc(t)}</span>`).join('')}</div><p class="snip">${esc(s.snippet)}</p></div></details>`}).join('');
   const d=document.createElement('div');d.className='msg bot';
-  d.innerHTML=`<div class="bubble">${text}</div>${a.progress&&typeof progressBlockHtml==='function'?progressBlockHtml(a.progress):''}${a.temporal&&typeof legalBlockHtml==='function'?legalBlockHtml(a):''}${pathHtml}
+  const provHtml=(a.provisions||[]).length?`<div class="path"><span class="lbl">Provisions discussed</span>${a.provisions.slice(0,8).map(l=>`<span class="node">${esc(l.title.slice(0,48))}<i>${l.cluster!=null?'C'+l.cluster:''}</i></span><span class="edge">—discusses→</span><span class="node">${esc(l.label)}${l.renumbered&&l.current_label?' → '+esc(l.current_label):''}<i>${esc(l.law)}${(l.law_clusters||[]).length?' · '+l.law_clusters.map(c=>'C'+c).join(', '):''}</i></span>`).join('<span class="edge">·</span>')}</div>`:'';
+  d.innerHTML=`<div class="bubble">${text}</div>${a.progress&&typeof progressBlockHtml==='function'?progressBlockHtml(a.progress):''}${a.temporal&&typeof legalBlockHtml==='function'?legalBlockHtml(a):''}${pathHtml}${scopeHtml}${provHtml}
    ${a.sources.length?`<details class="sources"><summary><span class="chev" aria-hidden="true">▸</span><b>${a.sources.length} source${a.sources.length>1?'s':''} used</b><span class="srctoggle"></span><span class="sfilter">Filter: ${esc(filterSummary(a.applied_filters||{}))}</span><span class="speek">${a.sources.map(x=>`[${x.n}] ${esc(x.title)}`).join(' · ')}</span></summary><div class="sbar"><button type="button" class="mini" data-sall="1">Expand all</button><button type="button" class="mini" data-sall="0">Collapse all</button></div>${srcHtml}</details>`:''}
    <div class="actions"><button class="mini" data-copy>Copy</button><span class="meta-line" style="align-self:center">${esc(a.model||CHAT_MODEL_ID)}${LIVE?'':a.llm==='claude-sample'?' · demo without backend (GPT-6 Luna needs the backend)':a.llm==='extractive'?' · extractive demo answer':' · sample answer'}${a.truncated?' · cut short':''}${a.memory_turns!=null?` · <span class="memchip" title="${esc(a.retrieval_query&&a.retrieval_query!==a.question?'Search query with conversation context: '+a.retrieval_query:'Earlier turns sent with this question')}">memory: ${a.memory_turns?a.memory_turns+' earlier turn'+(a.memory_turns>1?'s':''):'none'}</span>`:''}</span></div>`;
   chat.appendChild(d);chat.scrollTop=chat.scrollHeight;
@@ -287,7 +290,7 @@ async function askGraph(q){
   const plan=graphPlan(q);
   if(LIVE){
     const sc=chatScope();
-    const body={message:q,history:priorG,system_prompt:sysPrompt('graph'),databases:plan.databases,clusters:sc.kind==='project'?[]:plan.clusters,projects:sc.project,persons:sc.person,overview:sc.overview,deo:$('#gDeo').value?[$('#gDeo').value]:[],
+    const body={message:q,history:priorG,system_prompt:sysPrompt('graph'),databases:plan.databases,clusters:plan.clusters,projects:sc.project,persons:sc.person,overview:sc.overview,deo:$('#gDeo').value?[$('#gDeo').value]:[],
       entity_types:plan.entity_types,relation:plan.relation||null,year_from:plan.year,year_to:plan.year,hops:plan.hops,as_of:($('#gAsOf')&&$('#gAsOf').value)||null};
     try{
       const res=await streamChat(body,chat,t,'api/graph/stream');
@@ -303,3 +306,8 @@ async function askGraph(q){
 $('#graphInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('#graphForm').requestSubmit()}});
 $('#graphForm').addEventListener('submit',e=>{e.preventDefault();const v=$('#graphInput').value.trim();if(v){askGraph(v);$('#graphInput').value=''}});
 try{renderGraphSide()}catch(e){}
+
+/* REQ-64: the question field grows with its text (and shrinks back after sending) */
+['#ragInput','#graphInput'].forEach(id=>{const t=$(id);if(!t)return;t.rows=4;
+  const fit=()=>{t.style.height='auto';t.style.height=Math.min(280,Math.max(104,t.scrollHeight+2))+'px'};
+  t.addEventListener('input',fit);t.form&&t.form.addEventListener('submit',()=>setTimeout(fit,0));setTimeout(fit,0)});

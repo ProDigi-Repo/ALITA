@@ -45,9 +45,33 @@ function legalDocHtml(full){
     <dt>Structure</dt><dd>${lg.components} components${lg.seq>1?` · vs. version ${lg.seq-1}: ${lg.changed} changed, ${lg.added} added, ${lg.removed} removed`:''}</dd>
   </dl>
   ${sibl.length>1?`<div class="vlist lg-vers">${sibl.map(d=>`<button type="button" data-id="${esc(d.id)}" class="${d.id===full.id?'cur':''}"><span><b>${d.leg.seq}</b> ${esc(d.leg.stage_label||d.leg.stage)}${d.leg.current?'<span class="latest">current</span>':''}</span><span class="num">${esc(d.leg.in_force||d.d||'')}</span></button>`).join('')}</div>`:''}
-  ${LIVE&&lg.seq>1?`<button class="mini" type="button" data-lgchanges="${esc(lg.norm_id)}|${lg.seq}">Show the changes of this version</button><div class="lg-changes"></div>`:''}</section>`;
+  ${LIVE&&lg.seq>1?`<button class="mini" type="button" data-lgchanges="${esc(lg.norm_id)}|${lg.seq}">Show the changes of this version</button><div class="lg-changes"></div>`:''}</section>
+  ${LIVE&&lg.kind==='law'?`<section class="lg-disc" data-norm="${esc(lg.norm_id)}" data-seq="${lg.seq}" data-short="${esc(lg.short||lg.norm_title||'')}" data-stage="${esc(lg.stage_label||STAGE_LABEL[lg.stage]||lg.stage||'')}" data-current="${lg.current?1:0}"><h4>Discussed in papers <span class="prov">references in the text · numbering of this version</span></h4><div class="srcnote">Loading …</div></section>`:''}`;
+}
+/* REQ-69: per article of this version, the papers that discuss it (papers citing another version are mapped over) */
+async function loadLegalDiscussed(box){
+  const {norm,seq,short,stage,current}=box.dataset,list=box.querySelector('.srcnote');
+  try{
+    const r=await fetch(`api/legal/norms/${encodeURIComponent(norm)}/discussed?seq=${seq}`).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()});
+    const vis=new Set(DOCS.map(d=>d.id));
+    const arts=(r.articles||[]).map(a=>({...a,papers:a.papers.filter(p=>vis.has(p.doc_id))})).filter(a=>a.papers.length);
+    if(!arts.length){list.textContent='No paper in the visible databases discusses an article of this version yet.';return}
+    const au=p=>p.authors&&p.authors.length?`${esc(String(p.authors[0]).split(',')[0])}${p.authors.length>1?' et al.':''}, `:'';
+    const row=a=>`<li><b>${esc(a.label)}</b>${a.title?' '+esc(a.title):''}${current!=='1'&&a.current_label&&a.current_label!==a.label?` <span class="srcnote">(today ${esc(a.current_label)})</span>`:''}
+      <button class="mini" type="button" data-lgask="${esc(a.current_label||a.label)}|${esc(a.label)}" title="Ask the Graph Chat what the papers say about this article">Ask</button>
+      <ul>${a.papers.map(p=>`<li><a href="#" data-open="${esc(p.doc_id)}">${esc(p.title||'')}</a> <span class="srcnote">(${au(p)}${p.year||'n.d.'}) · ${p.count}×${p.cited_as!==a.label?` · cited as ${esc(p.cited_as)}${p.stage?' of the '+esc((STAGE_LABEL[p.stage]||p.stage).toLowerCase()):''}`:''}${(p.parts||[]).length?' · '+esc(p.parts.slice(0,3).join(', ')):''}</span></li>`).join('')}</ul></li>`;
+    list.outerHTML=`<div class="srcnote">${arts.length} article(s), recitals or annexes of the ${esc(short)} (${esc(stage.toLowerCase())}) are discussed by ${new Set(arts.flatMap(a=>a.papers.map(p=>p.doc_id))).size} paper(s).</div><ul class="ci-list lg-disc-list">${arts.slice(0,40).map(row).join('')}</ul>${arts.length>40?`<div class="srcnote">… and ${arts.length-40} more</div>`:''}`;
+    box.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();openDoc(b.dataset.open)}));
+    box.querySelectorAll('[data-lgask]').forEach(b=>b.addEventListener('click',()=>{
+      const [cur,here]=b.dataset.lgask.split('|'),inp=$('#graphInput');if(!inp)return;
+      if(typeof showPage==='function'&&$('#page-graph')&&$('#page-graph').hidden)showPage('graph');
+      inp.value=`What do the papers say about ${cur} of the ${short}${cur!==here?` (numbered ${here.replace(/^\D+/,'')} in the ${stage.toLowerCase()})`:''}? Compare their reading with the wording of the article.`;
+      inp.dispatchEvent(new Event('input'));inp.focus();inp.scrollIntoView({block:'center',behavior:'smooth'});
+    }));
+  }catch(e){list.textContent='Could not load the papers: '+e.message}
 }
 function wireLegalDoc(root){
+  root.querySelectorAll('.lg-disc').forEach(loadLegalDiscussed);
   root.querySelectorAll('.lg-vers button').forEach(b=>b.addEventListener('click',()=>openDoc(b.dataset.id)));
   root.querySelectorAll('[data-lgchanges]').forEach(b=>b.addEventListener('click',async()=>{
     const [nid,seq]=b.dataset.lgchanges.split('|'),box=b.nextElementSibling;box.textContent='Loading …';

@@ -138,7 +138,7 @@ _CA = re.compile(r"(?:^|\s)CA\s+(\d{1,3})$")              # Kopfzeile eines Komp
 CA_MARK = "\x00CA "
 _CLAUSE = re.compile(r"^(\d{1,2}(?:\.\d{1,3}){0,4})\.?\s+([A-ZÄÖÜ‘“\"'(][^\n]{1,110})$")
 _MARGIN = re.compile(r"^(\d{1,4})\.\s+(\S.*)$")
-_ANNEX_CLAUSE = re.compile(r"^([A-Z](?:\.\d{1,3}){1,4})\.?\s+([A-ZÄÖÜ‘“\"'(][^\n]{1,110})$")   # „C.1.2 Solution …“ in Anhängen
+_ANNEX_CLAUSE = re.compile(r"^([A-Z](?:\.\d{1,3}){1,4})\.?\s+([A-ZÄÖÜ‘“\"'(][^\n]{1,110})$")   # z. B. „C.1.2 …“ in Anhängen
 _BARE_NUM = re.compile(r"^(\d{1,2}(?:\.\d{1,3}){1,4})\.?$")                                   # „3.1“ allein: Begriff folgt
 _BACK_MATTER = re.compile(r"^(References|Bibliography|Literaturhinweise|Normative References)\s*$")   # Norm: Literaturverzeichnis
 _ANNEX_STATUS = re.compile(r"^\((informative|normative|informativ|normativ)\)$", re.I)
@@ -497,7 +497,7 @@ def parse_components(text: str, kind: str = "law") -> list[Component]:
                 cur = c
                 continue
             if annex_ctx and kind == "standard" and (_CLAUSE.match(ln) or _BARE_NUM.match(ln)):
-                cur.text = (cur.text + "\n" + ln) if cur.text else ln      # „3 GPS Outage“ in einer Anhang-Tabelle
+                cur.text = (cur.text + "\n" + ln) if cur.text else ln      # z. B. „3 …“ als Zeile einer Anhang-Tabelle
                 continue
             m = _BARE_NUM.match(ln) if kind == "standard" else None
             if m and _next_in_outline(m.group(1), clause_stack, 99):

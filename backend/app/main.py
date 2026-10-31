@@ -187,6 +187,25 @@ def citations_rebuild():
     return rebuild()
 
 
+@app.get("/api/provisions")
+def provisions_links(databases: Annotated[list[str] | None, Query()] = None, norm_id: str | None = None, article: str | None = None):
+    """REQ-68: Welche Paper diskutieren welche Bestimmungen (zitierte Nummer, Fassung, geltende Nummer).
+    article = geltende ID (z. B. art_31) – „Wer schreibt über Art. 31?“"""
+    from .provisions import links
+    try:
+        dbs = get_settings().normalize_databases([x for v in databases or [] for x in v.split(",") if x])
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return {"links": links(store.scroll_documents(), dbs, norm_id, article)}
+
+
+@app.post("/api/provisions/rebuild")
+def provisions_rebuild():
+    """REQ-68: Verweise der Paper auf Artikel, Anhänge und Erwägungsgründe neu auflösen (ohne LLM, ohne Embeddings)."""
+    from .provisions import rebuild
+    return rebuild()
+
+
 # ------------------------------------------------------------- Legal-Ontologie (REQ-37/38)
 @app.get("/api/legal/norms")
 def legal_norms(databases: Annotated[list[str] | None, Query()] = None):
@@ -211,6 +230,23 @@ def legal_norm(norm_id: str, as_of: str | None = None, stage: str | None = None,
               **({"text": c["text"]} if text else {"snippet": c["text"][:240]})}
              for cid, c in sorted(cur.items(), key=lambda kv: m["components"][kv[0]]["order"])]
     return {**summary_of(m), "as_of": as_of, "stage": stage, "seq": seq, "items": comps}
+
+
+@app.get("/api/legal/norms/{norm_id}/discussed")
+def legal_discussed(norm_id: str, seq: int | None = None, databases: Annotated[list[str] | None, Query()] = None):
+    """REQ-69: Je Artikel (Anhang, Erwägungsgrund) einer Fassung die Paper, die ihn diskutieren – in der Nummerierung
+    dieser Fassung; ohne seq die geltende Fassung."""
+    from .legal_ingest import load_model
+    from .provisions import discussed_in
+    m = load_model(norm_id)
+    if not m:
+        raise HTTPException(404, "Unknown norm")
+    try:
+        dbs = get_settings().normalize_databases([x for v in databases or [] for x in v.split(",") if x])
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    docs = [d for d in store.scroll_documents() if d.get("discusses") and (not dbs or set(dbs) & set(d.get("databases") or []))]
+    return {"norm_id": norm_id, "seq": seq or m.get("current_seq"), "articles": discussed_in(m, docs, seq)}
 
 
 @app.get("/api/legal/norms/{norm_id}/actions")
@@ -378,6 +414,17 @@ def clusters():
     return {"run": run, "k": len(out), "basis": "summary", "clusters": sorted(out.values(), key=lambda c: c["cluster_id"]),
             "links": _links([*[r for r in rows if r.get("cluster_basis") == "summary"], *projects])}
 
+
+
+@app.get("/api/clusters/relations")
+def cluster_relations(databases: Annotated[list[str] | None, Query(description="zwei oder mehr Datenbanken, z. B. EUAIA,WACHTER")] = None):
+    """REQ-59: Beziehungen zwischen den Clustern verschiedener Datenbanken (Ähnlichkeit der Zentroide, Brücken),
+    ohne neu zu clustern. Für das Dropdown „Compare“ auf der Wissenskarte und den Graph Chat."""
+    from .cluster_relations import relations
+    dbs = get_settings().normalize_databases([x for v in databases or [] for x in v.split(",") if x])
+    if len(dbs) < 2:
+        raise HTTPException(422, "Give at least two databases, e.g. ?databases=EUAIA,WACHTER")
+    return relations(dbs)
 
 
 @app.post("/api/clusters/recompute")

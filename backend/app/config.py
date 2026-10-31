@@ -104,6 +104,7 @@ class Settings(BaseSettings):
     graph_import_ontologies: bool = True  # DoCO/DEO/FaBiO/CiTO/BIBO per neosemantics (n10s) aus dem Netz laden
     auto_cluster: bool = True     # nach jeder Ingestion neu clustern
     auto_citations: bool = True   # REQ-35: nach jeder Ingestion das Zitationsnetz neu berechnen (ohne LLM/Embeddings)
+    auto_provisions: bool = True  # REQ-68: nach jeder Ingestion Paper mit den Bestimmungen verknüpfen, die sie diskutieren
     cluster_k: int = 0            # 0 = automatisch per Silhouette, sonst feste Anzahl
     pseudonym_salt: str = ""      # Salt für die Pokémon-Pseudonyme in Cluster-Bezeichnungen
 

@@ -1,7 +1,9 @@
-# ALITA – User Manual (front-end, v3.6.3)
+# ALITA – User Manual (front-end, v3.12.0)
 
 ALITA lets you ask questions of your research documents and get answers with numbered, clickable sources.
 The quick visual version is [`ALITA-Cheat-Sheet-Comic.pdf`](ALITA-Cheat-Sheet-Comic.pdf).
+
+**Guided tour (since 3.12.0):** the button **▶ Guided tour** next to the version number walks you through ALITA in eleven steps – the collections, the knowledge map, comparing collections, asking about the map, the version history of a law, papers linked to the articles they discuss, and questions that challenge a position. Each step highlights the part of the screen it explains; **Put into Graph Chat** inserts the example question, **Ask now** sends it (needs your OpenRouter key). → / ← move between the steps, Esc ends the tour. A link with `?tour=1` starts it right away.
 
 ## Access ALITA
 
@@ -71,12 +73,26 @@ The database bar stays visible on every chat page: **ⓘ Cluster descriptions** 
 
 9. **Info banner:** says what B does: it searches the knowledge graph. For what a document says in detail, use A.
 10. **Knowledge map:** all data in three layers: projects and papers on top, semantic clusters in the middle, documents below. Color by **Document type** or **Database**. Hover to preview, click to open.
-11. **Map controls:** **2D**, **Reset view**, **3D · time** (years as depth), **⇄ Citations** (which papers cite each other) and **Enlarge** to fill the screen.
+11. **Map controls:** **Compare** (draws the relations between the clusters of two databases, e.g. EU AI Act ↔ Wachter, as violet dashed lines with their similarity; see below), **2D**, **Reset view**, **3D · time** (years as depth), **⇄ Citations** (which papers cite each other) and **Enlarge**, which opens the knowledge map in a separate browser window (e.g. for a second screen; clusters you select there are the search space of the chats in the main window and vice versa – if the browser blocks pop-ups, the map is enlarged over the page instead).
 12. **Projects & clusters:** every cluster with its topic, key terms and number of documents; click one to select it for the chats. Below, the strongest bridges between clusters. Project cards and document details open here too.
 13. **Graph Chat header:** **History** reopens earlier conversations; **+ New** starts a fresh one.
+
+**Compare the clusters of two databases (since 3.7.0)**
+
+Each database is clustered on its own, so the map normally shows no lines between, say, EU AI Act and Wachter. Choose a pair in **Compare** above the map: both databases are selected, and violet dashed lines connect each cluster with its most similar clusters in the other database (the number is the similarity of the cluster contents, 0–1). The side panel lists the relations: **Select** puts both clusters into the search space of the chats, **Ask** also writes a comparison question into the Graph Chat. A click on a violet line does the same as **Select**. The Graph Chat then searches the selected clusters **database by database** and merges the results, so a small database (two papers) is not drowned by a large one (a law with thousands of passages); under the answer, **Clusters across databases** shows what was searched and how the clusters relate.
 14. **Answer:** the answer with [n] citations, the **graph path** it followed, the **sources used**, and **Copy**.
 15. **Advanced settings and your questions:** databases, parameters (entities, relation, period, hops) and the system prompt. Below, your questions; click one to jump to its answer.
 16. **Scope and question:** shows what the chat searches; **restrict to a person** narrows it. Type your question and click **Send**.
+
+**Ask about what the map shows (since 3.9.0)**
+
+Name the clusters in your question – *"Describe the link between C8 and C9"*, *"Was verbindet C8 und C9?"*, *"What does cluster 9 say about notified bodies?"*. The Graph Chat then searches exactly these clusters (also across databases, and even if a project is selected), cluster by cluster. For two or more clusters it also looks for **bridging passages**: for the best passages of one cluster the most similar passage in the other one. The answer gets the cluster descriptions, their similarity and these passage pairs, and compares what each side says. The **graph path** under the answer shows the way through the ontology: cluster → document → section (its DEO role, or the article of a law) ↔ section → document → cluster; **Clusters across databases** lists the passage pairs with their source numbers.
+
+**Papers and the articles they discuss (since 3.10.0)**
+
+ALITA reads the references in papers, notes and project files ("Art. 33(4) AI Act", "Article 5(1)(c)", "Annex III", "Recital 27") and links each paper to the articles of the law it discusses. Papers cite the version their authors had in front of them, so ALITA works out that version and gives today's number as well: Laux, Wachter & Mittelstadt discuss Art. 33 of the 2021 proposal ("Notified bodies"), which is **Art. 31** today. References to other acts (GDPR, the Treaties, the Charter) are left out. You see the links in the **document details** (section **Discusses**) and in the Graph Chat: ask *"What do the papers say about Art. 31?"* or *"Describe the link between C8 and C9"*, and the answer uses the papers' passages together with the wording of the article in force; **Provisions discussed** under the answer shows paper → article (→ today's number) and the cluster of the law, and the graph path reads cluster → paper → discusses → article → part of → law → cluster.
+
+The other way round: open a version of the law in the document list (e.g. *AI Act – Proposal*). The section **Discussed in papers** lists, for each article, annex and recital of that version, the papers that discuss it – in the numbering of that version, also for papers that cite another version ("cited as Art. 33 of the proposal"). A click on a paper opens it; **Ask** puts the question about this article into the Graph Chat.
 
 ## Document Chat (A) and Graph Chat (B)
 

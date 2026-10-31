@@ -17,14 +17,16 @@
 <link rel="stylesheet" href="css/citations.css">
 <link rel="stylesheet" href="css/legal.css">
 <link rel="stylesheet" href="css/pages.css">
+<link rel="stylesheet" href="css/tour.css">
 </head>
 <body><!--BODY-->
 <div class="app">
   <header class="top">
     <div class="brand">
       <h1>ALITA PROTOTYPE</h1>
-      <button class="ver" id="appVersion" type="button" title="Open release notes">v3.6.3</button>
+      <button class="ver" id="appVersion" type="button" title="Open release notes">v3.12.0</button>
       <span class="mode" id="mode" title="">Demo</span>
+      <button class="tour-btn" id="tourBtn" type="button" title="A step-by-step walk through ALITA with example questions">▶ Guided tour</button>
     </div>
     <nav class="nav" role="tablist" aria-label="Sections">
       <button role="tab" aria-selected="true" data-page="graph" id="tab-graph" title="B only: cluster graph and Graph Chat">B Interaction Interface</button>
@@ -54,6 +56,8 @@
     </form>
   </header>
 
+  <!-- REQ-62: three boxes side by side – database bar, and on the B page "Window to the outside" and the B explainer -->
+  <div class="bar-row">
   <section class="dbbar" aria-label="Databases">
     <div class="avatar" id="avatar" role="img" aria-label="ALITA avatar: cyberpunk girl with rainbow hair and seashell earrings who follows your cursor">
       <svg viewBox="0 0 120 120" aria-hidden="true">
@@ -147,6 +151,8 @@
     <span class="unas" id="dbUnassigned"></span>
     <button class="clear" id="dbClear" type="button" hidden title="Deselect all databases and clusters">Clear selection</button>
   </section>
+  <div class="b-top" id="bTop" hidden><button type="button" class="b-outside-btn" id="bOutsideBtn" aria-haspopup="dialog" aria-controls="bOutside" title="Window to the outside – external challenge (planned, REQ-20). Click to open."><span class="bo-scene" id="bOutsideScene" aria-hidden="true"></span><span class="bo-label"><span aria-hidden="true">🚧</span> Window to the outside</span></button><div class="chat-why cw-b b-why"><button type="button" class="cw-tag" title="Say hello to ALITA" aria-label="Say hello to ALITA">i</button><p><b>B searches the knowledge graph</b> – the connections between people, projects, methods, clusters and document parts (Graph RAG). Ask it <i>how</i> things are connected – e.g. <q>Who worked with whom on project X?</q> Answers follow paths in the graph and show them. <span class="cw-alt">For what a document says in detail use <b>A</b>.</span></p></div></div>
+  </div>
 
   <!-- ============ PAGE: CHAT ============ -->
   <div class="page" id="page-chat">
@@ -306,13 +312,12 @@
   <div class="page" id="page-graph" hidden>
     <!-- REQ-01: workspace in four areas – knowledge map | project/cluster view
                                           window to the outside | chat -->
-    <!-- REQ-11: what B does – directly below the database bar -->
-    <div class="b-top"><button type="button" class="b-outside-btn" id="bOutsideBtn" aria-haspopup="dialog" aria-controls="bOutside" title="Window to the outside – external challenge (planned, REQ-20). Click to open."><span class="bo-scene" id="bOutsideScene" aria-hidden="true"></span><span class="bo-label"><span aria-hidden="true">🚧</span> Window to the outside</span></button><div class="chat-why cw-b b-why"><button type="button" class="cw-tag" title="Say hello to ALITA" aria-label="Say hello to ALITA">i</button><p><b>B searches the knowledge graph</b> – the connections between people, projects, methods, clusters and document parts (Graph RAG). Ask it <i>how</i> things are connected – e.g. <q>Who worked with whom on project X?</q> Answers follow paths in the graph and show them. <span class="cw-alt">For what a document says in detail use <b>A</b>.</span></p></div></div>
     <div class="cgwrap bgrid">
       <div class="cg-max-scrim" id="cgMaxScrim" hidden></div>
       <section class="cg-main t-graph bq-map" aria-label="Knowledge map: all clusters">
         <div class="cv-head"><span class="badge">B</span><h3>Knowledge map</h3>
           <div class="cv-mode" id="cgMode" role="group" aria-label="Color documents by"><button type="button" data-m="type" aria-pressed="true">Document type</button><button type="button" data-m="db" aria-pressed="false">Database</button></div>
+          <label class="xc-pick" title="Draw the relations between the clusters of two databases on the map">Compare <select id="cgCompare" aria-label="Compare the clusters of two databases"><option value="">No comparison</option></select></label>
           <button class="mini v3-toggle" type="button">2D</button><button class="mini v3-reset" type="button" title="Back to the start view: zoom, rotation and moved clusters">⟲ Reset view</button>
           <button class="mini s3btn" type="button" data-open3d title="Walk through the clusters in 3D, with the years as depth">3D · time</button>
           <button class="mini cg-cite" type="button" id="cgCite" aria-pressed="false" title="Show which papers cite each other (found in their reference lists)">⇄ Citations</button>
@@ -590,6 +595,8 @@
 <script src="js/databases.js"></script>
 <script src="js/release-compliance.js"></script>
 <script src="js/clusters.js"></script>
+<script src="js/cluster-compare.js"></script>
+<script src="js/map-window.js"></script>
 <script src="js/outside.js"></script>
 <script src="js/cluster-profile.js"></script>
 <script src="js/chat-tools.js"></script>
@@ -608,6 +615,7 @@
 <script src="js/puppy.js"></script>
 <script src="js/voxel.js"></script>
 <script>window.syncPuppy&&syncPuppy();window.syncVoxel&&syncVoxel()</script>
+<script src="js/tour.js"></script>
 <script src="js/start.js"></script>
 <!--APP-END-->
 </body>

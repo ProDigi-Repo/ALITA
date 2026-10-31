@@ -196,6 +196,19 @@ def search_chunks(vector: list[float], flt: qm.Filter | None, limit: int):
     ).points
 
 
+def chunk_vectors(ids: list) -> dict[str, list[float]]:
+    """REQ-67: Text-Vektoren gegebener Textstellen (für die Suche nach ähnlichen Stellen in einem anderen Cluster)."""
+    if not ids:
+        return {}
+    pts = client().retrieve(get_settings().col_chunks, ids=list(ids), with_payload=False, with_vectors=["text"])
+    out = {}
+    for p in pts:
+        v = p.vector.get("text") if isinstance(p.vector, dict) else p.vector
+        if v:
+            out[str(p.id)] = list(v)
+    return out
+
+
 def scroll_documents(flt: qm.Filter | None = None, limit: int = 10_000) -> list[dict]:
     s, c = get_settings(), client()
     out, offset = [], None
@@ -205,6 +218,28 @@ def scroll_documents(flt: qm.Filter | None = None, limit: int = 10_000) -> list[
         out += [p.payload for p in pts]
         if offset is None or len(out) >= limit:
             return out[:limit]
+
+
+def ensure_provision_indexes() -> None:
+    """REQ-68: Filter „Passagen, die Art. X diskutieren“ (chunks.provisions) – in bestehenden Installationen nachrüsten."""
+    s, c = get_settings(), client()
+    for col in (s.col_chunks,):
+        try:
+            c.create_payload_index(col, "provisions", qm.PayloadSchemaType.KEYWORD)
+        except Exception:
+            pass
+
+
+def scroll_chunk_provisions() -> dict[str, list[str]]:
+    """chunk_id -> ["eu-ai-act#art_31", …] für alle Passagen mit Verweisen auf Bestimmungen (REQ-68)."""
+    s, c = get_settings(), client()
+    flt = qm.Filter(must_not=[qm.IsEmptyCondition(is_empty=qm.PayloadField(key="provisions"))])
+    out, offset = {}, None
+    while True:
+        pts, offset = c.scroll(s.col_chunks, scroll_filter=flt, limit=1024, offset=offset, with_payload=["provisions"], with_vectors=False)
+        out.update({str(p.id): p.payload.get("provisions") or [] for p in pts if p.payload.get("provisions")})
+        if offset is None:
+            return out
 
 
 def scroll_chunks(doc_id: str) -> list[dict]:

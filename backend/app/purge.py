@@ -90,3 +90,42 @@ def _purge_graph(name: str, removed: list[str], untagged: list[str]) -> dict | s
     except Exception as e:  # Graph ist optional
         log.warning("Neo4j nicht bereinigt: %s", e)
         return f"not cleaned: {e}"
+
+
+def delete_norm(norm_id: str, dry_run: bool = False) -> dict:
+    """Eine Norm (Gesetz, Leitlinie, Standard) vollständig aus dem Index entfernen: alle Dateien/Fassungen mit ihren
+    Textstellen und Rechtseinheiten in Qdrant, das Normmodell unter DATA_DIR/legal und den Teilgraphen in Neo4j.
+
+        docker compose run --rm ingest delete --norm <norm_id>
+
+    Die Quelldateien unter /research bleiben (read-only) – Datei und Eintrag in `_legal.yaml` selbst entfernen."""
+    from .legal_ingest import _model_file
+
+    s, c = get_settings(), store.client()
+    norm_filter = qm.Filter(must=[qm.FieldCondition(key="norm_id", match=qm.MatchValue(value=norm_id))])
+    docs = [d for d in store.scroll_documents() if ((d.get("legal") or {}).get("norm_id") == norm_id)]
+    chunks = c.count(s.col_chunks, count_filter=norm_filter, exact=True).count
+    model = _model_file(norm_id)
+    res = {"norm_id": norm_id, "dry_run": dry_run, "documents": [d.get("filename") for d in docs],
+           "norm_units": chunks, "model_file": model.is_file(), "graph": None}
+    if dry_run:
+        return res
+    for d in docs:
+        store.delete_document(d["doc_id"])
+    c.delete(s.col_chunks, qm.FilterSelector(filter=norm_filter))
+    if model.is_file():
+        model.unlink()
+    if s.graph_enabled:
+        try:
+            from . import graph as g
+            g.run("UNWIND $ids AS id MATCH (d:Document {doc_id: id}) "
+                  "OPTIONAL MATCH (d)-[:CONTAINS]->(x:Section) OPTIONAL MATCH (x)-[:CONTAINS]->(k:Chunk) "
+                  "OPTIONAL MATCH (d)-[:HAS_SUMMARY]->(e:SummaryElement) DETACH DELETE k, x, e, d",
+                  ids=[d["doc_id"] for d in docs])
+            for label in ("LanguageVersion", "TemporalVersion", "Component", "Action", "Chunk", "Norm"):
+                g.run(f"MATCH (n:{label} {{norm_id: $id}}) DETACH DELETE n", id=norm_id)
+            res["graph"] = "cleaned"
+        except Exception as e:  # Graph ist optional
+            log.warning("Neo4j nicht bereinigt: %s", e)
+            res["graph"] = f"not cleaned: {e}"
+    return res

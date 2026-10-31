@@ -9,6 +9,7 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 ## [Unreleased]
 
 ### Added
+- MIT licence (`LICENSE`): applies to the code and documentation of this repository; documents loaded into ALITA keep their own licences.
 - Read-only GitHub Actions CI for PRs and main: secret scanning, Python/auth/deployment tests, Ruff, shell/JavaScript/nginx checks and generated frontend data validation. No production credentials or automatic deployment.
 - Reusable manual Hetzner code-deployment script with candidate import/health checks, rollback, private configuration backups and data-count checks; optional 4-GB pilot limits and an operations runbook. No automatic GitHub deployment or production configuration change.
 - Optional anonymous reviewer host with expiring invitation codes, read-only sessions, document downloads and each reviewer's own OpenRouter key. Includes an issue/revoke CLI; private Cloudflare Access remains unchanged.
@@ -18,6 +19,110 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 - Verify Access JWT signatures, issuer, audience and expiry; reserve uploads and mutations for configured admins. Chat keeps using each user's own OpenRouter key.
 - Require an explicit Neo4j password instead of a committed default; restrict CORS, downloads and ZIP expansion, and cap HTTP uploads at 50 MiB.
 - Keep keys and chat history in page memory only, with Access logout. Export existing chats before upgrading: old browser-persisted keys/history are removed on first load.
+
+## [3.12.0] - 2026-10-31
+
+> **Minor release – a guided tour.** A new button **▶ Guided tour** in the header walks through ALITA in eleven steps along the three mechanisms of the research proposal: refresh memory (the knowledge map; across collections with Compare; within a trajectory of versions), make the argument traceable (papers –discusses→ articles, graph path and sources) and update one's schemes (questions that challenge a position, checked against the sources) – with "explore or exploit?" as the thread. Each step switches to the right page, highlights the part of the interface it explains and, where useful, offers an example question: **Put into Graph Chat** or **Ask now**. Cluster numbers and the example project are taken from the current data; the step on one's own research projects appears with the password. Keys: → next, ← back, Esc close; `?tour=1` starts the tour on opening.
+
+### Requirements
+- **REQ-70 A button that guides through ALITA** – ✅ done; checked in a headless browser on the demo data (all eleven steps, every target found and the step box inside the window at 1600 × 950, example question put into the Graph Chat, tour closes without errors) and on the local instance in a narrow window (488 px: targets scrolled into view, C8/C9 taken from the data, the law step shows "Discussed in papers", the document details close again on the next step).
+
+### Added
+- `frontend/js/tour.js`, `frontend/css/tour.css`; header button `#tourBtn` (hidden in the map window).
+
+## [3.11.0] - 2026-10-31
+
+> **Minor release – which papers discuss which article, seen from the law.** The document details of a law version (e.g. "AI Act – Proposal") have a new section **Discussed in papers**: for every article, annex and recital of that version, the papers that discuss it – in the numbering of that version. Papers that cite another version are mapped over: in the proposal, Art. 33 "Notified bodies" lists Laux, Wachter & Mittelstadt (who cite the proposal) and would list a paper citing today's Art. 31; in the consolidated version the same papers appear under Art. 31, with "cited as Art. 33 of the proposal". Each paper opens with a click; **Ask** puts the question "What do the papers say about Art. 31 of the AI Act (numbered 33 in the proposal)?" into the Graph Chat. Only papers of the visible databases are listed.
+
+### Requirements
+- **REQ-69 Show per article of a law which papers discuss it** – ✅ done; checked offline with the four versions of the AI Act and both Wachter papers (consolidated version: 72 provisions discussed; proposal: 42, Ho & Caals' Recital 143 shown under the proposal's Recital 73), in a headless browser (list, hidden paper filtered, click opens the paper, Ask fills the Graph Chat) and with tests.
+
+### Added
+- `GET /api/legal/norms/{norm_id}/discussed?seq=` – per article of a version the discussing papers (title, authors, year, number as cited, version cited, count, parts) and today's number; `provisions.discussed_in`.
+- Document details of a law version: section **Discussed in papers** with **Ask** per article (`frontend/js/legal.js`).
+- Payload `discusses` keeps the `seq` of the cited version.
+
+## [3.10.0] - 2026-10-31
+
+> **Minor release – papers linked to the articles they discuss.** ALITA now reads the references in papers, notes and project files ("Art. 33(4) AI Act", "Article 5(1)(c)", "Annex III", "Recital 27") and turns them into edges of the knowledge graph: Document –discusses→ article of the law. References to other acts (GDPR, TFEU, the Treaty, the Charter …) are skipped. Because papers cite the version they had in front of them, ALITA works out that version (versions up to the paper's date; the one in which the cited provisions exist and quoted wording appears) and maps the number to today's: Laux, Wachter & Mittelstadt cite Art. 33 of the 2021 proposal ("Notified bodies") – today Art. 31 "Requirements relating to notified bodies"; their Recital 27 is today's Recital 46. The Graph Chat uses these edges: questions about an article ("What do the papers say about Art. 31?") or about clusters (C8 Wachter ↔ C9 EU AI Act) get the papers' passages and the wording of the article in force, and the graph path reads cluster → paper → discusses → article → part of → law → cluster. Document details list the articles a paper discusses. No LLM and no embeddings needed.
+
+### Requirements
+- **REQ-68 Edges in the knowledge graph from papers to the provisions they discuss** – ✅ done; checked offline with the four versions of the AI Act and both Wachter papers (Laux et al.: proposal 2021, 10 provisions, Art. 33 → Art. 31, Recitals 27/62/73/81 → 46/123/143/165; Ho & Caals: adopted text 2024, 67 provisions, numbering unchanged; "Article 2 of the Treaty on European Union" and "European Union 2012, Article 114" not taken) and with tests.
+
+### Added
+- `backend/app/provisions.py`: `find_refs`, `aliases`, `Resolver` (version of a paper, concordance to today's numbering by text comparison), `link_document`, `by_article`, `rebuild`, `links`, `chat_scope`, `chat_passages`.
+- Payload: documents `discusses` (per article: number and title as cited, version, today's number and title, parts, count), chunks `provisions` (`["eu-ai-act#art_31", …]`, keyword index).
+- Graph: `(:Document)-[:DISCUSSES {cited_as, count, parts, stage, renumbered}]->(:Component)` and `(:Chunk)-[:REFERS_TO]->(:Component)`; also restored by `POST /api/graph/rebuild`.
+- `GET /api/provisions?databases=&norm_id=&article=` and `POST /api/provisions/rebuild` (admin); CLI `ingest provisions`; runs automatically after every ingestion (`AUTO_PROVISIONS`, default on).
+- Graph Chat: provisions named in the question or discussed by the papers of the selected clusters are added to the prompt with the papers' passages and the wording in force; answer footer **Provisions discussed**.
+- Document details: section **Discusses**.
+
+## [3.9.0] - 2026-10-31
+
+> **Minor release – ask about what the knowledge map shows.** Questions that name clusters ("Describe the link between C8 and C9") now go through the ontology to the text: the named clusters become the search space (also across databases and even if a project is selected), each cluster is searched on its own, and for every pair of clusters the Graph Chat looks for **bridging passages** – for the best passages of one cluster the most similar passage of the other (reference lists excluded). The language model gets the cluster descriptions, the relation shown on the map and these passage pairs; the graph path shows cluster → document → section (DEO role or article) ↔ section → document → cluster. Before, such a question in the scope of a project searched only that project and found nothing about the other cluster. (3.8.0 was withdrawn, see REQ-66.)
+
+### Requirements
+- **REQ-67 Ask questions about the connections visible on the cluster image; reach the text passages via the ontology** – ✅ done; checked with the live index (passages of C8 "AI Act Trustworthiness and Risk" find their closest passages in C9 – e.g. Commission guidelines, para. 191, similarity 0.64) and with tests.
+
+### Added
+- `backend/app/cluster_query.py`: `named_clusters` ("C8", "c9", "cluster 9"), `profiles`, `bridge_passages`, `bridges_context`, `bridge_path`; `store.chunk_vectors`.
+- Graph Chat: cluster mode (named clusters or clusters from several databases) – project scope dropped, retrieval per cluster, bridging passages added as sources, cluster profiles and passage pairs in the prompt, `cluster_scope.bridges` in the answer.
+- Answer footer "Clusters across databases" lists the bridging passages ([n] ↔ [m] and similarity).
+
+### Fixed
+- The Graph Chat request kept the selected clusters when a project was selected only if no project scope was active; clusters are now always sent. Selecting a relation on the map clears a project scope.
+- Rare "DOCS is not defined" at start-up (a resize before `documents.js` had run).
+
+## [3.7.3] - 2026-10-31
+
+> **Patch release – larger question field, aligned top row.** The question field of both chats shows four lines, grows with the text (up to about eleven lines) and can be dragged taller; after sending it shrinks back. On the B page the database bar now spans the column of the knowledge map, and the "Window to the outside" and the B explainer sit above the other two columns.
+
+### Requirements
+- **REQ-64 Make the input area larger** – ✅ done; checked on the local instance (empty 111 px, eight lines 220 px, back to 111 px after clearing).
+- **REQ-65 Extend the first box (database bar)** – ✅ done; the top row uses the same three columns as the B page below (database bar over the map; window + explainer over "Projects & clusters" and the Graph Chat).
+
+### Changed
+- `clusters.css`: `.composer textarea` min 104 px, max 280 px, resizable; `chat.js` grows the field with its text.
+- `tiles.css`: `.bar-row` as a grid with the columns of `#page-graph .bgrid`; stacked below 1100 px.
+
+## [3.7.2] - 2026-10-31
+
+> **Patch release – B page in three columns; the knowledge map in its own window.** The B page shows the knowledge map, "Projects & clusters" and the Graph Chat side by side in three columns (before: the map on the left, the other two stacked on the right). **⤢ Enlarge** opens the knowledge map in a separate browser window – only the map, filling the window, e.g. on a second screen. Both windows share the cluster and database selection, so clusters picked in the map window are the search space of the chats in the main window and vice versa. If the browser blocks the pop-up, the map is enlarged over the page as before.
+
+### Requirements
+- **REQ-63 Three columns on the B page; Enlarge opens a separate window** – ✅ done; checked on the local instance and in a headless browser (three columns at 1700 px; Enlarge opens `?view=map` with only the map; selecting C6 + C8 in the map window reaches the Graph Chat plan of the main window and back).
+
+### Changed
+- `clusters.css`: `#page-graph .bgrid` with three columns (`map cluster chat`); below 1100 px stacked as before; `html.map-window` styles for the map-only window.
+- New `frontend/js/map-window.js`: opens the window, shows the map only with `?view=map`, syncs selection over a `BroadcastChannel` ("alita-map").
+
+## [3.7.1] - 2026-10-31
+
+> **Patch release – one row instead of two on the B page.** The B explainer ("B searches the knowledge graph …") and the "Window to the outside" no longer take a row of their own below the database bar: on the B page the database bar, the "Window to the outside" and the explainer stand side by side as three boxes, and the knowledge map moves up. On the other pages the database bar keeps the full width.
+
+### Requirements
+- **REQ-62 Move the "Window to the outside" and the B explainer next to the database bar, as three boxes of their own** – ✅ done; checked on the local instance and in a headless browser (B page: three boxes in one row; A/B and Documents: database bar only; the pop-up of the window still opens).
+
+### Changed
+- `index.html`: database bar and `#bTop` in a new row `.bar-row`; `#bTop` is shown on the B page only (`showPage`). CSS in `tiles.css` (`.bar-row`), `outside.css` no longer scoped to `#page-graph`; below 980 px the boxes wrap.
+
+## [3.7.0] - 2026-10-31
+
+> **Minor release – compare the clusters of two databases, and re-query inside them.** Every database is clustered on its own, so the knowledge map had no lines between, for example, the EU AI Act and Wachter clusters. A new dropdown **Compare** above the map draws the relations between the clusters of two databases as violet dashed lines (2D and 3D, with the similarity on the line); the side panel lists them with **Select** and **Ask**. When the selected clusters come from several databases, the Graph Chat searches them database by database, merges the hits alternately and tells the language model how the clusters relate. With the current data, EU AI Act "Scope and Guidance" (C6) and Wachter "AI Act Trustworthiness and Risk" (C8) are closely related (0.76). The standard that was added in 3.3.1 is removed from the repository, the data folder and the local index (REQ-60). **Update:** `docker compose up -d --build backend frontend`; then `docker compose run --rm ingest delete --norm <norm_id>` removes a law, guideline or standard from index, graph and model store, and `docker compose run --rm -e OPENROUTER_API_KEY=… ingest cluster --db EUAIA` refreshes the EU AI Act cluster descriptions. Roll back with `git checkout v3.6.3`.
+
+### Requirements
+- **REQ-59 Cluster analysis for EU AI Act and Wachter together, chosen from a dropdown, drawn on the map; Graph Chat re-queries inside the clusters across databases** – ✅ done; checked with the live index (C6 ↔ C8 0.76, C7 ↔ C8 0.33) and in a headless browser (dropdown, lines in 2D and 3D, Select/Ask, Graph Chat plan with both databases and both clusters).
+- **REQ-60 Remove the standard added in 3.3.1 completely** – ✅ done; file and `_legal.yaml` entry deleted, all mentions removed from code comments, tests, documentation, release notes and the requirements log; its 141 passages and its document removed from the local index and stale cluster descriptions cleared. The parser features and the removal of licence stamps stay.
+- **REQ-61 Refactor the whole code base** – 🔄 staged: the new cluster-comparison code lives in its own modules (`backend/app/cluster_relations.py`, `frontend/js/cluster-compare.js`); further stages follow in separate pull requests.
+
+### Added
+- `GET /api/clusters/relations?databases=EUAIA,WACHTER`: clusters of the given databases with their database, and the relations between clusters of different databases (centroid similarity of the summary vectors, bridging documents); per cluster at least its best partner, further ones from similarity 0.55 or with bridges.
+- B page: dropdown **Compare** (pairs of visible databases with clusters, EU AI Act ↔ Wachter first); violet dashed relation lines with similarity in the 2D graph and the 3D map; side panel "Cluster relations" with **Select** / **Ask**; a click on a line selects both clusters.
+- Graph Chat: clusters from several databases are searched one database at a time (top-k shared, hits interleaved, retried without role/graph path if empty); the prompt gets the relations between the selected clusters; the answer shows **Clusters across databases**.
+- `ingest delete --norm ID [--dry-run OUT]`: removes one law, guideline or standard with all versions from Qdrant, Neo4j and `DATA_DIR/legal`.
+
+### Removed
+- The standard added in 3.3.1, everywhere (see REQ-60).
 
 ## [3.6.3] - 2026-10-31
 
@@ -96,28 +201,28 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [3.3.2] - 2026-10-30
 
-> **Patch release – NIST SP 800-18 Rev. 2.** Second standard of the database "EU AI Act": NIST Special Publication 800-18 Revision 2, "Developing Security, Privacy, and Cybersecurity Supply Chain Risk Management Plans for Systems" (June 2026, 70 pages, free of charge). NIST documents have "Appendix A." instead of "Annex A" and an unnumbered "References" section; the appendices were not found and the reference list ended up in section 4.7. Checked on the real file: sections 1–4.7 (28 clauses), References, Appendices A–D; DIN SPEC 92005 and all other documents are split as before. One new requirement (REQ-50). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest standard /research/EUAIA/standards` (reads both standards – check the DIN licence first, see 3.3.1). Roll back with `git checkout v3.3.1`.
+> **Patch release – NIST SP 800-18 Rev. 2.** Second standard of the database "EU AI Act": NIST Special Publication 800-18 Revision 2, "Developing Security, Privacy, and Cybersecurity Supply Chain Risk Management Plans for Systems" (June 2026, 70 pages, free of charge). NIST documents have "Appendix A." instead of "Annex A" and an unnumbered "References" section; the appendices were not found and the reference list ended up in section 4.7. Checked on the real file: sections 1–4.7 (28 clauses), References, Appendices A–D; all other documents are split as before. One new requirement (REQ-50). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest standard /research/EUAIA/standards` (reads the standards folder). Roll back with `git checkout v3.3.1`.
 
 ### Requirements
-- **REQ-50 Add another standard (NIST SP 800-18 Rev. 2)** – ✅ prepared and checked offline; second entry in `research/EUAIA/standards/_legal.yaml`; ingestion runs in Docker. (The first upload for this request was the DIN SPEC 92005 file again; nothing was changed for it.)
+- **REQ-50 Add another standard (NIST SP 800-18 Rev. 2)** – ✅ prepared and checked offline; second entry in `research/EUAIA/standards/_legal.yaml`; ingestion runs in Docker.
 
 ### Fixed
 - Standards: "Appendix A. …" is recognised as an annex (NIST); an unnumbered "References", "Bibliography" or "Literaturhinweise" heading starts a supplement of its own (cited as "References") instead of continuing the last clause.
 
 ## [3.3.1] - 2026-10-30
 
-> **Patch release – the first standard.** DIN SPEC 92005:2024-03 "Artificial Intelligence – Uncertainty quantification in machine learning" (46 pages, text in English) as the first standard of the database "EU AI Act". The file is a personal DIN Media download: every page carries a stamp with the buyer's name, customer number, download ID and time. ALITA now removes such licence stamps when reading a PDF, so they reach neither the index nor the language model. Checked on the real file: no stamp left; sections 1–7 with all subclauses, 28 terms, Annexes A–C with clauses C.1 … C.2.x – 92 parts, 174 text units. One new requirement (REQ-49). **Licence:** a standard bought from DIN Media is usually licensed to one person; storing its full text in a shared ALITA instance and sending it to an external AI service (summaries, embeddings) may not be covered – check before ingesting. **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest standard /research/EUAIA/standards`. Roll back with `git checkout v3.3.0`.
+> **Patch release – licence stamps and standards parsing.** Purchased standards downloads carry a stamp with the buyer's name, customer number, download ID and time on every page. ALITA now removes such licence stamps when reading a PDF, so they reach neither the index nor the language model. The standards parser learned terms, annex status and annex clauses. One requirement (REQ-49; the standard it was built for was removed again in 3.7.0). **Licence:** a purchased standard is usually licensed to one person; storing its full text in a shared ALITA instance and sending it to an external AI service may not be covered – check before ingesting. **Update:** `docker compose up -d --build backend frontend`. Roll back with `git checkout v3.3.0`.
 
 ### Requirements
-- **REQ-49 Add a standard (DIN SPEC 92005:2024-03)** – ✅ prepared and checked offline; file and `_legal.yaml` in `research/EUAIA/standards/`; ingestion runs in Docker after the licence is checked.
+- **REQ-49 Add a first standard** – parser and licence-stamp removal done; the standard itself was removed again in 3.7.0 (REQ-60).
 
 ### Added
-- Licence stamps of standards downloads ("Normen-Download-DIN Media-<name>-KdNr.<n>-ID.<id>-<date time>") are removed from the text of every PDF (`extract.strip_licence_stamps`).
+- Licence stamps of standards downloads ("Normen-Download-<publisher>-<name>-KdNr.<n>-ID.<id>-<date time>") are removed from the text of every PDF (`extract.strip_licence_stamps`).
 - Standards: terms in "Terms and definitions" are parts of their own (`3.1` on its own line followed by the term; type `term`, cited as "Clause 3.1", title = the term).
 
 ### Fixed
 - Standards: the annex status "(informative)" / "(normative)" was taken as the annex title; now the real title follows ("Use cases (informative)").
-- Standards: clauses inside annexes ("C.1.2 Solution via uncertainty quantification") are recognised, and numbered table rows inside annexes ("3 GPS Outage") no longer become clause 3 again.
+- Standards: clauses inside annexes ("C.1.2 …") are recognised, and numbered table rows inside annexes ("3 …") no longer become clause 3 again.
 
 ## [3.3.0] - 2026-10-29
 
@@ -290,7 +395,7 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 - No real law has been ingested in this release: please put the AI Act files into `research/EUAIA/legal/EU-AI-Act/` (file names as in `_legal.yaml`) and run `ingest all /research`; the segmentation is tested on structured samples, not yet on the Official Journal PDF.
 - The time filter in Qdrant is covered by `tests/test_legal_qdrant.py`, which needs the backend container (`docker compose run --rm backend pytest tests/test_legal_qdrant.py`).
 - Links from research documents to provisions ("Art. 6 AI Act" in a paper or manuscript) and the temporal model for manuscript versions (REQ-37 for research projects) are not built yet.
-- Standards: check the licence before storing full texts of ISO/DIN standards.
+- Standards: check the licence before storing full texts of purchased standards.
 - Quick Reference: the ontology page (6) now lists ELI and the corrected FaBiO types and all pages are re-rendered for 3.0.0; the interface screenshots on pages 3 and 4 do not show the new types yet.
 
 ## [2.2.0] - 2026-10-29

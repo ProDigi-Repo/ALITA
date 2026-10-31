@@ -58,9 +58,9 @@
 .bslot{display:flex;min-height:560px}
 #page-graph .bslot{min-height:0}
 .bslot>.tile{flex:1;min-width:0}
-/* REQ-01/24/28: B Interaction Interface = map (whole left side) | projects & clusters (right, 2/3) over the chat (right, 1/3); window to the outside = button + pop-up (css/outside.css) */
-#page-graph .bgrid{flex:none;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:minmax(320px,2fr) minmax(260px,1fr);
-  grid-template-areas:"map cluster" "map chat";gap:14px;height:var(--bH,auto)}   /* REQ-02: --bH = window height below the bars (fitBPage) */
+/* REQ-01/24/28/63: B Interaction Interface = three columns: map | projects & clusters | Graph Chat; window to the outside = button + pop-up (css/outside.css) */
+#page-graph .bgrid{flex:none;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr);grid-template-rows:minmax(320px,1fr);
+  grid-template-areas:"map cluster chat";gap:14px;height:var(--bH,auto)}   /* REQ-02: --bH = window height below the bars (fitBPage) */
 #page-graph .bq-chat>.tile{overflow:auto}
 #page-graph .bq-map{grid-area:map;min-height:0}
 #page-graph .bq-cluster{grid-area:cluster}
@@ -216,3 +216,23 @@
 #page-graph .cg-docslot:empty{display:none}
 
 .cg-legend .cg-flw{display:inline-flex;align-items:center;gap:4px 8px;flex-wrap:wrap}.cg-legend .cg-flw i{display:inline-flex;font-style:normal}.cg-legend .cg-flw i svg{width:15px;height:15px}
+
+/* 3.7.0 (REQ-59): compare the clusters of two databases */
+.xc-pick{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);white-space:nowrap}
+.xc-pick select{font-size:11.5px;padding:2px 6px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--fg);max-width:220px}
+.xc-pick select:not([value=""]):focus{outline:2px solid #7c4dff}
+.cg-side .xc-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;border:1px dashed #7c4dff;border-radius:8px;padding:7px 10px;font-size:12.5px}
+.cg-side .xc-item small{color:var(--muted)}
+.cg-side .xc-act{display:flex;flex-direction:column;gap:4px}
+
+/* REQ-63: the knowledge map alone in a separate browser window (?view=map) */
+html.map-window .top,html.map-window .bar-row,html.map-window .dbbar,html.map-window #page-graph .bq-cluster,html.map-window #page-graph .bq-chat,
+html.map-window .toast-wrap,html.map-window #page-graph .cg-max{display:none!important}
+html.map-window .app{padding:8px;gap:8px}
+html.map-window #page-graph .bgrid{grid-template-columns:minmax(0,1fr);grid-template-areas:"map";height:calc(100vh - 16px)!important}
+@media (max-width:1100px){html.map-window #page-graph .bq-map{height:calc(100vh - 16px);position:static}}
+
+/* REQ-64: larger question input (both chats): 4 lines, grows with the text up to ~11 lines, can be dragged taller */
+.composer textarea,.bslot>.tile.t-graph>.composer textarea{height:auto;min-height:104px!important;max-height:280px;resize:vertical;line-height:1.45;font-size:15px;padding:11px 13px}
+.composer{align-items:stretch}
+.composer .send{align-self:flex-end}

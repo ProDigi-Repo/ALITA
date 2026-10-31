@@ -8,6 +8,7 @@ $$('.cv-toggle').forEach(b=>b.addEventListener('click',()=>{const c=$('#cviz').c
 const cvHue=c=>(c*67)%360, cvCol=(c,l=45)=>`hsl(${cvHue(c)} 60% ${l}%)`;
 const CV_TYPE={research_paper:'Paper',research_notes:'Note',research_project:'Project',legal_project:'Law',legal_guideline:'Guideline',standard:'Standard',guidance:'FAQ'};
 function cvUnits(){
+  if(typeof DOCS==='undefined'||typeof PROJECTS==='undefined')return [];   // a resize can fire before documents.js has run
   const inDb=x=>!SEL_DB.length||(x.db||[]).some(n=>SEL_DB.includes(n));
   const docs=DOCS.filter(d=>d.cb==='summary'&&d.cx!=null&&d.ci!=null);
   const projs=PROJECTS.filter(p=>p.cx!=null&&p.ci!=null).map(p=>({id:null,t:'research_project',ti:p.title||p.name,pn:p.name,ci:p.ci,cl:p.cl,cx:p.cx,cy:p.cy,ca:p.ca,cas:p.cas,db:p.db||[]}));
@@ -240,6 +241,11 @@ function mountGraph3D(units,cls,box=$('#cvGraph'),key='graph',GH=350){ // key/GH
   const byKey=Object.fromEntries(nodes.map(d=>[d.key,d]));
   const L=S.map((sl,i)=>cvLinks(inSlice[i]).map(l=>({...l,i,a:byKey[l.a+'|'+i],b:byKey[l.b+'|'+i]})).filter(l=>l.a&&l.b)).flat();
   const T=[];cls.forEach(c=>{const ks=nodes.filter(d=>d.c.id===c.id).sort((a,b)=>a.i-b.i);for(let k=1;k<ks.length;k++)T.push({a:ks[k-1],b:ks[k],c})});
+  // REQ-59: relations to the clusters of a compared database – one line per relation, between the two cluster nodes
+  // that are closest in time (same period if possible)
+  const XL=(typeof xcLinks==='function'?xcLinks([...new Set(nodes.map(d=>d.c.id))]):[]).map(l=>{let best=null;
+    nodes.filter(d=>d.c.id===l.a).forEach(p=>nodes.filter(d=>d.c.id===l.b).forEach(q=>{const k=Math.abs(p.i-q.i);if(!best||k<best.k)best={k,p,q}}));
+    return best?{...l,pa:best.p,pb:best.q}:null}).filter(Boolean);
   const rad=d=>5+Math.sqrt(d.mem.length)*3.4;
   const docsOf=d=>d.mem.filter(u=>u.t!=='research_paper');
   const DOCSP=3.4,DCOLS=8,{Y_PJ,Y_TOP,Y_SEM,Y_DOC}=v3BBands(R,KY,Math.ceil(Math.max(1,...nodes.map(d=>docsOf(d).length))/DCOLS),DOCSP);
@@ -260,6 +266,8 @@ function mountGraph3D(units,cls,box=$('#cvGraph'),key='graph',GH=350){ // key/GH
     L.forEach(l=>{const p=l.a,q=l.b,dx=q.x-p.x,dy=q.y-p.y,dz=q.z-p.z,d=Math.sqrt(dx*dx+dy*dy+dz*dz)+0.01,k=0.02*(0.4+0.6*l.n/mx)*(d-34)/d;
       if(!p.pin){p.vx+=dx*k;p.vy+=dy*k;p.vz+=dz*k}if(!q.pin){q.vx-=dx*k;q.vy-=dy*k;q.vz-=dz*k}});
     T.forEach(t=>{const p=t.a,q=t.b,k=0.008;['y','z'].forEach(ax=>{const d=(q[ax]-p[ax])*k;if(!p.pin)p['v'+ax]+=d;if(!q.pin)q['v'+ax]-=d})});
+    XL.forEach(l=>{if(l.pa.i!==l.pb.i)return;const p=l.pa,q=l.pb,dx=q.x-p.x,dy=q.y-p.y,dz=q.z-p.z,d=Math.sqrt(dx*dx+dy*dy+dz*dz)+0.01,k=0.008*Math.max(.2,l.s)*(d-44)/d;
+      if(!p.pin){p.vx+=dx*k;p.vy+=dy*k;p.vz+=dz*k}if(!q.pin){q.vx-=dx*k;q.vy-=dy*k;q.vz-=dz*k}});
     let e=0;nodes.forEach(p=>{if(p.pin){p.vx=p.vy=p.vz=0;return}p.vx-=(p.x-p.ax)*0.02;p.vy-=(p.y-(p.ay||0))*0.01;p.vz-=p.z*0.01;
       p.vx*=0.8;p.vy*=0.8;p.vz*=0.8;p.x+=p.vx;p.y+=p.vy;p.z+=p.vz;keep(p);e+=Math.abs(p.vx)+Math.abs(p.vy)+Math.abs(p.vz)});
     return e;
@@ -276,6 +284,11 @@ function mountGraph3D(units,cls,box=$('#cvGraph'),key='graph',GH=350){ // key/GH
     T.forEach(t=>{const p=P(t.a),q=P(t.b);if(!p||!q)return;g.globalAlpha=cvOff(t.c.id)?.15:.55;g.strokeStyle=cvCol(t.c.id);g.lineWidth=1.5;g.setLineDash([2,4]);g.beginPath();g.moveTo(p.x,p.y);g.lineTo(q.x,q.y);g.stroke();g.setLineDash([]);g.globalAlpha=1});
     const mx=Math.max(1,...L.map(l=>l.n));
     L.forEach(l=>{const p=P(l.a),q=P(l.b);if(!p||!q)return;g.strokeStyle='rgba(217,72,15,.45)';g.lineWidth=1+3*l.n/mx;g.beginPath();g.moveTo(p.x,p.y);g.lineTo(q.x,q.y);g.stroke()});
+    if(XL.length){const anyX=CV.sels.size>0;XL.forEach(l=>{const p=P(l.pa),q=P(l.pb);if(!p||!q)return;const hi=anyX&&cvHas(l.a)&&cvHas(l.b);
+      g.globalAlpha=anyX&&!hi&&(cvOff(l.a)||cvOff(l.b))?.25:.9;g.strokeStyle=XC_COL;g.lineWidth=(hi?2:1.2)+l.s*3;g.setLineDash([8,6]);g.beginPath();g.moveTo(p.x,p.y);g.lineTo(q.x,q.y);g.stroke();g.setLineDash([]);
+      const mx=(p.x+q.x)/2,my=(p.y+q.y)/2,lab=l.s.toFixed(2);g.font='600 10.5px "IBM Plex Mono",monospace';const w=g.measureText(lab).width+10;
+      g.fillStyle=css.getPropertyValue('--panel').trim()||'#fff';g.strokeStyle=XC_COL;g.lineWidth=1;g.beginPath();g.roundRect?g.roundRect(mx-w/2,my-8,w,16,8):g.rect(mx-w/2,my-8,w,16);g.fill();g.stroke();
+      g.fillStyle=XC_COL;g.textAlign='center';g.fillText(lab,mx,my+3.5);g.textAlign='left';g.globalAlpha=1;st.hits.push({kind:'xlink',l,x:mx,y:my,r:12})})}
     if(LAY){   // document layer: the cluster's documents below it, joined by a thin stem
       const tc={research_paper:css.getPropertyValue('--t-paper').trim()||'#6b4fa3',research_notes:css.getPropertyValue('--t-notes').trim()||'#2e7d4f',research_project:css.getPropertyValue('--t-project').trim()||'#1f5f8b',
         legal_project:css.getPropertyValue('--t-legal').trim()||'#a23b2a',legal_guideline:css.getPropertyValue('--t-guideline').trim()||'#9a6a00',standard:css.getPropertyValue('--t-standard').trim()||'#3f6f7a',guidance:css.getPropertyValue('--t-guidance').trim()||'#5b6b1f'};
@@ -311,18 +324,19 @@ function mountGraph3D(units,cls,box=$('#cvGraph'),key='graph',GH=350){ // key/GH
     hit:(mx,my)=>[...(st.hits||[])].reverse().find(h=>Math.hypot(h.x-mx,h.y-my)<h.r)||null,
     hover:(h,e)=>{const cv=box.querySelector('canvas'),tip=key==='graphB'?$('#cgTip'):null;if(tip)cvTip(tip,null,'');if(!h){hideProfile();if(cv)cv.style.cursor='grab';return}
       if(h.kind==='project'){if(cv)cv.style.cursor='pointer';if(tip)cvTip(tip,box.parentElement,cvProjTipHtml(h.p),e);return}
+      if(h.kind==='xlink'){if(cv)cv.style.cursor='pointer';if(tip)cvTip(tip,box.parentElement,xcTipHtml(h.l,clusterInfo()),e);return}
       if(h.kind==='doc'){const u=h.u;if(cv)cv.style.cursor='pointer';if(tip)cvTip(tip,box.parentElement,`<b>${esc(u.ti||'')}</b><br>${CV_TYPE[u.t]||''}${u.y?' · '+u.y:''} · C${u.ci}${u.pn?' · '+esc(u.pn):''}<br><i>click to open</i>`,e);return}cv.style.cursor='move';showProfile(h.c.id,e)},
-    grab:h=>{st.dragging=true;h.node.pin=true;run()},
+    grab:h=>{if(!h.node)return;st.dragging=true;h.node.pin=true;run()},
     pull:(h,dx,dy)=>{const W=box.clientWidth,H=GH,cam=st.cam,f=Math.min(W,H)*1.35,k=cam.dist/f,cy=Math.cos(cam.yaw),sy=Math.sin(cam.yaw),cp=Math.cos(cam.pitch),sp=Math.sin(cam.pitch);
       const rx=dx*k,uy=-dy*k,d=h.node;d.x+=rx*cy-uy*sp*sy;d.y+=uy*cp;d.z+=-rx*sy-uy*sp*cy;keep(d)},
     release:(h,moved)=>{st.dragging=false;if(!moved)h.node.pin=false;run()},
-    click:h=>{if(h.kind==='project'){cvSelectProject(h.p);return}if(h.kind==='doc'){if(h.u.id&&typeof openDoc==='function')openDoc(h.u.id);return}if(key==='graphB'){cgPick(h.c.id);return}cvSelect(h.c.id)},
+    click:h=>{if(h.kind==='xlink'){xcSelect(h.l);return}if(h.kind==='project'){cvSelectProject(h.p);return}if(h.kind==='doc'){if(h.u.id&&typeof openDoc==='function')openDoc(h.u.id);return}if(key==='graphB'){cgPick(h.c.id);return}cvSelect(h.c.id)},
     reset:()=>{st.cam={...v3Cam(),yaw:0,pitch:LAY?0.12:0.18,dist:DIST,oy:LAY?10:40};st.nodes={};st.fit=null;mountGraph3D(cvUnits(),cvClusters(cvUnits()),box,key,GH)}};
   if(LAY){const fk=BW+'x'+GH+'|'+n+'|'+NT;   // fit once per tile size / data shape – the user's own zoom survives redraws
     if(st.fit!==fk){st.fit=fk;const x0=-spanX/2-R*0.5,x1=spanX/2+R*0.5;
       v3FitCam(st.cam,[[x0,Y_TOP[1]],[x1,Y_TOP[1]],[x0,Y_DOC[0]],[x1,Y_DOC[0]],[x0,Y_SEM[0]],[x1,Y_SEM[1]]],BW,GH)}}
   draw();v3Wire(st,box.querySelector('canvas'),api);box.querySelector('canvas')._api=api;run();
-  $('#cvGraphHint').textContent=`Per period: node size = documents in that period · orange = bridges within the period · dotted = the same cluster from period to period`;
+  $('#cvGraphHint').textContent=`Per period: node size = documents in that period · orange = bridges within the period · dotted = the same cluster from period to period${XL.length?' · violet dashed = relation to a cluster of the compared database':''}`;
 }
 function v3Toggle(){
   $$('.v3-toggle').forEach(b=>{b.textContent=V3.on?'2D':'3D';b.title=V3.on?'Show the flat 2D views':'Show the cluster views in 3D (rotate, drag clusters)'});
@@ -454,6 +468,7 @@ function renderClusterGraph(units,cls,o={}){
   const W=Math.max(320,box.clientWidth||600),H=big?Math.max(240,box.clientHeight||380):230;
   const isSel=id=>big?CG.sel===id:cvHas(id),anyS=big?CG.sel!=null:CV.sels.size>0,colorDb=big?CG.mode==='db':CV.mode==='db',showDocs=true;
   const links=cvLinks(units),act=cls.filter(c=>c.on.length),info=clusterInfo();
+  const XL=typeof xcLinks==='function'?xcLinks(act.map(c=>c.id)):[];   // REQ-59: relations to the clusters of a compared database
   if(!big){
     $('#cvGraphMeta').textContent=`${act.length} cluster nodes · ${links.length} bridges`;
     $('#cvGraphHint').textContent='Node size = data points · line = documents whose second-closest cluster is the other node · click a node to ask the Graph Chat';
@@ -467,6 +482,7 @@ function renderClusterGraph(units,cls,o={}){
   for(let it=0;it<320;it++){
     for(let i=0;i<N.length;i++)for(let j=i+1;j<N.length;j++){const a=N[i],b=N[j];let dx=a.x-b.x,dy=a.y-b.y,d=Math.hypot(dx,dy)||.01;const f=5200*K*K/(d*d);dx/=d;dy/=d;a.vx+=dx*f;a.vy+=dy*f;b.vx-=dx*f;b.vy-=dy*f}
     links.forEach(l=>{const a=N[idx.get(l.a)],b=N[idx.get(l.b)];if(!a||!b)return;const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||.01,f=(d-(R(a.c)+R(b.c)+(big?120:60)*K))*.02*Math.min(3,1+l.n/4);a.vx+=dx/d*f;a.vy+=dy/d*f;b.vx-=dx/d*f;b.vy-=dy/d*f});
+    XL.forEach(l=>{const a=N[idx.get(l.a)],b=N[idx.get(l.b)];if(!a||!b)return;const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||.01,f=(d-(R(a.c)+R(b.c)+(big?150:70)*K))*.012*Math.max(.2,l.s);a.vx+=dx/d*f;a.vy+=dy/d*f;b.vx-=dx/d*f;b.vy-=dy/d*f});
     N.forEach(n=>{n.vx+=(W/2-n.x)*.01;n.vy+=(H/2-n.y)*.02;n.x+=n.vx*.5;n.y+=n.vy*.5;n.vx*=.6;n.vy*=.6});
   }
   // fit into the box
@@ -478,6 +494,10 @@ function renderClusterGraph(units,cls,o={}){
   links.forEach(l=>{const a=N[idx.get(l.a)],b=N[idx.get(l.b)];if(!a||!b)return;const hi=anyS&&(isSel(l.a)||isSel(l.b)),dim=anyS&&!hi;
     g+=`<line class="cnode" data-l="${l.a}-${l.b}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="var(--c2)" stroke-width="${(1.2+l.n/maxN*6)*(big?1.4:1)}" stroke-linecap="round" opacity="${dim?.12:hi?.85:.45}"/>`;
     if(big&&!dim){const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;g+=`<g><rect x="${mx-11}" y="${my-9}" width="22" height="16" rx="8" fill="var(--panel)" stroke="var(--c2)" stroke-opacity=".5"/><text x="${mx}" y="${my+3}" text-anchor="middle" font-size="10.5" class="muted">${l.n}</text></g>`}
+  });
+  XL.forEach((l,k)=>{const a=N[idx.get(l.a)],b=N[idx.get(l.b)];if(!a||!b)return;const hi=anyS&&(isSel(l.a)||isSel(l.b)),dim=anyS&&!hi;
+    g+=`<line class="cnode xlink" data-x="${k}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#7c4dff" stroke-width="${(1+l.s*4)*(big?1.3:1)}" stroke-dasharray="7 5" stroke-linecap="round" opacity="${dim?.15:hi?.95:.7}" style="cursor:pointer"/>`;
+    if(big&&!dim){const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;g+=`<g class="cnode xlink" data-x="${k}" style="cursor:pointer"><rect x="${mx-17}" y="${my-9}" width="34" height="16" rx="8" fill="var(--panel)" stroke="#7c4dff"/><text x="${mx}" y="${my+3}" text-anchor="middle" font-size="10.5" style="fill:#7c4dff">${l.s.toFixed(2)}</text></g>`}
   });
   if(PJ.length){
     const mxp=Math.max(1,...PJ.flatMap(p=>[...p.by.values()])),py=30;
@@ -513,7 +533,9 @@ function renderClusterGraph(units,cls,o={}){
     el.addEventListener('click',e=>{e.stopPropagation();cvTip(tip,null,'');cvSelectProject(p)})});
   box.querySelectorAll('.cnode').forEach(el=>{
     let html='';
-    if(el.classList.contains('doc')){
+    if(el.classList.contains('xlink')){const l=XL[+el.dataset.x];if(!l)return;html=xcTipHtml(l,info);
+      el.addEventListener('click',e=>{e.stopPropagation();xcSelect(l)});
+    }else if(el.classList.contains('doc')){
       const u=units.find(x=>(el.dataset.u&&x.id===el.dataset.u)||(el.dataset.pn&&x.t==='research_project'&&x.pn===el.dataset.pn));if(!u)return;
       html=`<b>${esc(u.ti||'')}</b><br>${CV_TYPE[u.t]||''} · ${esc(dbNames(u.db).join(', '))}${u.cs!=null?' · similarity '+(+u.cs).toFixed(2):''}${u.ca!=null?`<br>also close to C${u.ca}`:''}<br><i>click to open</i>`;
       el.addEventListener('click',e=>{e.stopPropagation();if(u.id&&typeof openDoc==='function')openDoc(u.id);else{CG.sel=u.ci;renderClusterPage()}});
@@ -522,7 +544,7 @@ function renderClusterGraph(units,cls,o={}){
       el.addEventListener('click',()=>{if(big){cgPick(c.id);return}
         cvSelect(c.id)});
     }else{const [a,b]=el.dataset.l.split('-').map(Number),l=links.find(x=>x.a===a&&x.b===b);html=`<b>C${a} ↔ C${b}</b><br>${l.n} document${l.n>1?'s':''} bridge these clusters · mean similarity ${l.s.toFixed(2)}`}
-    const isC=!el.classList.contains('doc')&&el.dataset.c&&!el.dataset.l;
+    const isC=!el.classList.contains('doc')&&!el.classList.contains('xlink')&&el.dataset.c&&!el.dataset.l;
     el.addEventListener('mousemove',ev=>isC?showProfile(+el.dataset.c,ev):cvTip(tip,box.parentElement,html,ev));
     el.addEventListener('mouseleave',()=>{cvTip(tip,null,'');hideProfile()});
   });
@@ -576,19 +598,21 @@ function renderClusterPage(){
   if(typeof cpRenderSel==='function')cpRenderSel();
   if($('#page-graph').hidden)return;
   const units=cvUnits(),cls=cvClusters(units),info=clusterInfo();
+  if(typeof xcRenderSelect==='function'){xcRenderSelect();if(XC.pair&&!XC.data&&!XC.busy)xcLoad().then(()=>{if(XC.data)renderClusterPage()})}   // REQ-59
   if(CG.sel!=null&&!cls.find(c=>c.id===CG.sel))CG.sel=null;
   const box=$('#cgGraph');
   if(units.length<2){box.innerHTML='<div class="cv-empty" style="height:360px">No cluster analysis yet.</div>';$('#cgSide').innerHTML='';$('#cgLegend').innerHTML='';$('#cgMeta').textContent='';return}
   const r=renderClusterGraph(units,cls,{big:true,box});
   if(V3.on)mountGraph3D(units,cls,box,'graphB',Math.round(Math.min(B_MAP_MAX_H,Math.max(240,box.parentElement.clientHeight||480))));   // same 2D/3D switch as on A/B
   const run=(!LIVE&&DEMO&&DEMO.clusters&&DEMO.clusters.run)||'';
-  $('#cgMeta').textContent=`${r.act.length} clusters · ${units.filter(u=>u.on).length} documents · ${r.links.length} bridges${SEL_DB.length?' · '+dbNames(SEL_DB).join('+'):''}${run?' · run '+run.slice(0,10):''}`;
+  const nx=typeof xcLinks==='function'?xcLinks(r.act.map(c=>c.id)).length:0;
+  $('#cgMeta').textContent=`${r.act.length} clusters · ${units.filter(u=>u.on).length} documents · ${r.links.length} bridges${nx?` · ${nx} cross-database relation${nx>1?'s':''}`:''}${SEL_DB.length?' · '+dbNames(SEL_DB).join('+'):''}${run?' · run '+run.slice(0,10):''}`;
   const dbs=DATABASES.filter(n=>units.some(u=>u.on&&(u.db||[]).includes(n)));
   $('#cgLegend').innerHTML=(CG.mode==='db'?dbs.map(n=>`<span><i style="--c:var(--db-${n})"></i>${esc(dbName(n))}</span>`).join(''):`<span><i style="--c:var(--t-paper);border-radius:2px"></i>Paper</span><span><i style="--c:var(--t-notes)"></i>Note</span><span><i style="--c:var(--t-project);transform:rotate(45deg);border-radius:1px"></i>Project</span>`+[...new Set(units.filter(u=>LEGAL_T.has(u.t)).map(u=>u.t))].map(t=>`<span><i style="--c:${TYPE_COLOR[t]};border-radius:0;clip-path:polygon(50% 0,100% 100%,0 100%)"></i>${esc(CV_TYPE[t])}</span>`).join(''))+
     (dbs.length>1?`<span class="cg-flw">${dbs.map(n=>`<i style="color:var(--db-${n})">${DB_FLOWER[n]||''}</i>${esc(dbName(n))}`).join(' ')}</span>`:'')+
-    `<span>Node = cluster (size = documents) · line = documents whose second-closest cluster is the other node (number on the line) · click a cluster for details, a document to open it</span>`;
+    `<span>Node = cluster (size = documents) · line = documents whose second-closest cluster is the other node (number on the line)${nx?' · <b style="color:#7c4dff">violet dashed</b> = relation between clusters of the compared databases (similarity)':''} · click a cluster for details, a document to open it</span>`;
   const dbsAll=DATABASES.filter(x=>units.some(u=>(u.db||[]).includes(x)));
-  let h='';
+  let h=typeof xcSideHtml==='function'?xcSideHtml(info):'';   // REQ-59: cross-database relations first
   // the cluster list always stays (the separate detail view was removed – descriptions of the selected clusters sit above the list)
   h+=`<h4>Clusters (${r.act.length})</h4><p class="srcnote" style="margin:0">Click a cluster to select it for the chats and read its description above. The database selection in the bar above applies here too.</p><div class="cglist">`+
     r.act.map(c=>`<button class="cgitem" type="button" data-c="${c.id}" aria-pressed="${cvHas(c.id)}" style="--h:${cvHue(c.id)}"><b>C${c.id}</b><span>${esc(cvName(c,info))}<br><small>${esc(c.label)}</small></span><small>${c.on.length}</small></button>`).join('')+'</div>';
@@ -597,6 +621,7 @@ function renderClusterPage(){
   $('#cgSide').innerHTML=h;
   try{cgRenderProj(units)}catch(e){console.error('project card',e)}
   $$('#cgSide .cgitem').forEach(b=>b.addEventListener('click',()=>cgPick(+b.dataset.c)));
+  if(typeof xcWireSide==='function')xcWireSide(info);
   $$('#cgSide [data-cl]').forEach(b=>b.addEventListener('click',()=>{cvSelect(+b.dataset.cl,true);try{toast('C'+b.dataset.cl+' selected for both chats')}catch(e){}}));   // REQ-02: stay on the B page
   $$('#cgSide [data-ask]').forEach(b=>b.addEventListener('click',()=>{const c=cls.find(x=>x.id===+b.dataset.ask);const inp=$('#graphInput');if(inp){inp.value=`What connects the documents in cluster C${c.id} (${cvName(c,info)})?`;inp.focus();inp.scrollIntoView({block:'center',behavior:'smooth'})}}));
   $$('#cgSide details [data-open]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();openDoc(a.dataset.open)}));
