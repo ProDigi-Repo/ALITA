@@ -20,6 +20,22 @@
 - Duplicates and older versions are marked rather than deleted; *latest version only* is a filter.
 - A metadata backup (JSON/CSV) can be exported at any time (`GET /api/export`).
 
+## Copyright status of the database "EU AI Act"
+
+The database **EU AI Act** (`EUAIA`) consists of legal texts and other official documents of public bodies. The legal texts are **not protected by copyright**; the other documents may be reused freely with the source acknowledged. ALITA may therefore store their full text, split it into passages, embed it and quote it in answers.
+
+| Documents in the database | Status |
+|---|---|
+| **Legal acts and their drafts:** Regulation (EU) 2024/1689 (AI Act, Official Journal), Regulation (EU) 2026/1744 (Digital Omnibus) and the consolidated version, the Commission proposal COM(2021) 206 with annexes, the committee amendments of the European Parliament (IMCO/LIBE, 2023) | Laws and regulations are official works without copyright protection – e.g. in Germany § 5(1) UrhG: laws, regulations, official decrees and notices "genießen keinen urheberrechtlichen Schutz". At EU level, the legal documents published in EUR-Lex may be reused for commercial and non-commercial purposes (Commission Decision 2011/833/EU on the reuse of Commission documents); EUR-Lex's consolidated texts are under CC BY 4.0. |
+| **Official documents of the Commission:** guidelines C(2025) 5052 (prohibited AI practices) and C(2025) 5053 (AI system definition), White Paper COM(2020) 65, AI Literacy Q&A of the AI Office (web page snapshot) | Published for general information; reuse authorised under Decision 2011/833/EU / CC BY 4.0, provided the source is acknowledged ("© European Union"). |
+| **NIST SP 800-18 Rev. 2** | Work of employees of the US federal government: not subject to copyright in the United States (17 U.S.C. § 105); NIST permits use abroad as well. |
+
+ALITA acknowledges the source with every passage it uses (norm, version and article, e.g. "AI Act, Art. 31, in force since …"). Exception to keep in mind: **purchased standards** (ISO/IEC, CEN-CENELEC …) are protected by copyright and licensed, usually to one user – they are not part of this database, and adding one requires checking the licence first (see `research/EUAIA/standards/README.md`).
+
+The research papers in the database **Wachter** are not covered by this: they are copyrighted works published open access; their licences (as stated in each article) apply.
+
+*This is a description of the sources and their reuse terms, not legal advice.*
+
 ## Logging
 
 | Event | Logged | Gap |
