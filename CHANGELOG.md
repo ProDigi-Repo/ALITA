@@ -19,6 +19,16 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 - Require an explicit Neo4j password instead of a committed default; restrict CORS, downloads and ZIP expansion, and cap HTTP uploads at 50 MiB.
 - Keep keys and chat history in page memory only, with Access logout. Export existing chats before upgrading: old browser-persisted keys/history are removed on first load.
 
+## [3.6.3] - 2026-10-31
+
+> **Patch release – release notes behind the password.** Without the password the tab "Release Notes" is hidden too, the version number in the header is plain text instead of a link, and `#release`/`#release-notes` open the B Interaction Interface. Without the password the tabs are B, A/B and Documents.
+
+### Requirements
+- **REQ-58 Hide the release notes as well** – ✅ done; checked in a headless browser (locked: three tabs, `#release-notes` and a click on the version open nothing; unlocked: six tabs, the version opens the release notes; Lock while on the release notes: back to B).
+
+### Changed
+- `release` added to `LOCKED_PAGES`; the version button is disabled while locked. Display only: `/api/release-notes` still answers.
+
 ## [3.6.2] - 2026-10-31
 
 > **Patch release – documentation tabs behind the password.** Without the password the tabs "ISO 42001/EUAIACT Docs" and "Technical Documentation" are hidden as well; a link to them (`#compliance`, `#tech`) opens the B Interaction Interface instead. Entering the password shows them again, "Lock" hides them and leaves the tab if one of them is open.
