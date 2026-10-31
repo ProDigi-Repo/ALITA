@@ -15,6 +15,9 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 - Optional anonymous reviewer host with expiring invitation codes, read-only sessions, document downloads and each reviewer's own OpenRouter key. Includes an issue/revoke CLI; private Cloudflare Access remains unchanged.
 - Hetzner Compose profile and mailcode setup guide for a shared workspace behind Cloudflare Access/Tunnel; no published host ports.
 
+### Changed
+- README translated into English (content unchanged apart from the current version in the header and a short section on papers linked to the provisions they discuss).
+
 ### Security
 - Verify Access JWT signatures, issuer, audience and expiry; reserve uploads and mutations for configured admins. Chat keeps using each user's own OpenRouter key.
 - Require an explicit Neo4j password instead of a committed default; restrict CORS, downloads and ZIP expansion, and cap HTTP uploads at 50 MiB.
