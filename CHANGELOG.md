@@ -19,20 +19,6 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 - Require an explicit Neo4j password instead of a committed default; restrict CORS, downloads and ZIP expansion, and cap HTTP uploads at 50 MiB.
 - Keep keys and chat history in page memory only, with Access logout. Export existing chats before upgrading: old browser-persisted keys/history are removed on first load.
 
-## [3.8.0] - 2026-10-31
-
-> **Minor release – an optional default OpenRouter key.** An instance can now have a default key (`OPENROUTER_API_KEY` in `.env`). It is used for chats, uploads, clustering and ingestion whenever no key was entered in the interface; a key entered in the interface always wins. The key status in the header then shows **default key**. Anonymous reviewers still need their own key unless `SERVER_KEY_FOR_REVIEWERS=true`. Leave `OPENROUTER_API_KEY` empty to keep the previous behaviour (every person brings their own key). **Note:** with a default key every person with access to the instance spends its credit; `seed`, which runs on every `docker compose up`, uses it for new folders too. **Update:** put the key into `.env` (never into the repository), then `docker compose up -d --build backend frontend`.
-
-### Requirements
-- **REQ-66 Default OpenRouter key, another one can still be entered** – ✅ done; tests: without an own key the default key reaches the endpoints, an entered key wins, no default configured → no key, reviewers only with `SERVER_KEY_FOR_REVIEWERS`.
-
-### Added
-- `main.effective_key` (FastAPI dependency behind `X-OpenRouter-Key`): own key, else the default key if allowed for the request; `/api/health` reports `server_key`.
-- Front end: key status **default key**, placeholder "optional – default key set".
-
-### Changed
-- `.env.example` and README document `OPENROUTER_API_KEY` and `SERVER_KEY_FOR_REVIEWERS`.
-
 ## [3.7.3] - 2026-10-31
 
 > **Patch release – larger question field, aligned top row.** The question field of both chats shows four lines, grows with the text (up to about eleven lines) and can be dragged taller; after sending it shrinks back. On the B page the database bar now spans the column of the knowledge map, and the "Window to the outside" and the B explainer sit above the other two columns.

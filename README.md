@@ -259,8 +259,7 @@ und `APP_VERSION` im Frontend angleichen. Der Test `test_changelog_follows_keepa
 
 | Version | Datum | Inhalt | früher |
 |---|---|---|---|
-| **3.8.0** | 2026-10-31 | **Minor Release – optionaler Standard-Key (REQ-66):** `OPENROUTER_API_KEY` in `.env` gilt, wenn im Interface kein eigener Key eingetragen ist; ein eingetragener Key hat Vorrang; anonyme Reviewer nur mit `SERVER_KEY_FOR_REVIEWERS=true`. | 3.7.3 |
-| 3.7.3 | 2026-10-31 | **Patch Release – größeres Eingabefeld, ausgerichtete obere Zeile (REQ-64, REQ-65):** Fragefeld beider Chats vier Zeilen hoch und wachsend; Datenbankleiste so breit wie die Spalte der Wissenskarte. | 3.7.2 |
+| **3.7.3** | 2026-10-31 | **Patch Release – größeres Eingabefeld, ausgerichtete obere Zeile (REQ-64, REQ-65):** Fragefeld beider Chats vier Zeilen hoch und wachsend; Datenbankleiste so breit wie die Spalte der Wissenskarte. | 3.7.2 |
 | 3.7.2 | 2026-10-31 | **Patch Release – B-Seite in drei Spalten (REQ-63):** Wissenskarte, „Projects & clusters“ und Graph Chat nebeneinander; „Enlarge“ öffnet die Wissenskarte in einem eigenen Browserfenster, die Cluster-Auswahl gilt in beiden Fenstern. | 3.7.1 |
 | 3.7.1 | 2026-10-31 | **Patch Release – eine Zeile auf der B-Seite (REQ-62):** Datenbankleiste, „Window to the outside“ und B-Erklärung stehen als drei Kästen nebeneinander; die Wissenskarte rückt nach oben. | 3.7.0 |
 | 3.7.0 | 2026-10-31 | **Minor Release – Cluster zweier Datenbanken vergleichen (REQ-59 – REQ-61):** Dropdown „Compare“ zeichnet die Beziehungen zwischen den Clustern zweier Datenbanken (z. B. EU AI Act ↔ Wachter) in die Wissenskarte; der Graph Chat befragt ausgewählte Cluster mehrerer Datenbanken je Datenbank und führt die Treffer zusammen; neuer Endpunkt `/api/clusters/relations`, neues Kommando `ingest delete --norm`; der in 3.3.1 aufgenommene Standard ist vollständig entfernt. | 3.6.3 |
@@ -380,7 +379,7 @@ lassen sich dort wieder öffnen und löschen. Vor Reload/Schließen bei Bedarf a
 - **Exakte Duplikate** (gleicher Hash, z. B. dieselbe `Figures_v5.pptx` in jedem Journal-Ordner) stehen in der Liste, ihr Inhalt wird aber nur einmal eingebettet.
 - **LLM-Kosten**: `ENRICH_SCOPE=latest` erzeugt Summaries nur für die neueste Version textreicher Rollen. Paper und Notes bekommen immer eine eigene Summary. Mit `all` bekommt jede Version eine.
 - **Methoden-Glossar**: `glossary/methods.yaml` ist ein Platzhalter. Die IDs landen in `method_ids` und sind filterbar (`@methode:survey`). Wenn das richtige Glossar kommt, wird nur diese Datei getauscht und neu eingelesen.
-- **API-Key**: Der Key aus dem Interface hat Vorrang (Header `X-OpenRouter-Key`, im Browser nur im Seitenspeicher; zur Verarbeitung an Backend/OpenRouter übertragen). Seit 3.8.0 kann die Instanz einen Standard-Key haben (`OPENROUTER_API_KEY` in `.env`), der gilt, wenn kein eigener Key eingetragen ist – anonyme Reviewer nur mit `SERVER_KEY_FOR_REVIEWERS=true`. Ohne beides antwortet das Backend mit 401. Das Einlese-CLI nimmt `--api-key` oder `-e OPENROUTER_API_KEY=…` für den einen Lauf.
+- **API-Key**: Nur der Key aus dem Interface zählt (Header `X-OpenRouter-Key`, im Browser nur im Seitenspeicher; zur Verarbeitung an Backend/OpenRouter übertragen). Ohne Key antwortet das Backend mit 401; ein Server-Key wird nie benutzt. Das Einlese-CLI nimmt `--api-key` oder `-e OPENROUTER_API_KEY=…` für den einen Lauf.
 
 ## API
 

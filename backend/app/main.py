@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Annotated
 
-from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -37,21 +37,7 @@ app = FastAPI(title="ALITA Prototype API", version=__version__)
 app.middleware("http")(protect_request)  # Frontend/API are same-origin; no permissive CORS.
 app.include_router(reviewer_router)
 
-def server_key_allowed(request: Request) -> bool:
-    """REQ-66: may this request fall back to the instance's default OpenRouter key?"""
-    s = get_settings()
-    return bool(s.openrouter_api_key) and (s.server_key_for_reviewers or getattr(request.state, "auth_mode", "local") != "reviewer")
-
-
-def effective_key(request: Request, x_openrouter_key: Annotated[str | None, Header(alias="X-OpenRouter-Key")] = None) -> str | None:
-    """The key of the request (entered in the interface) – else the default key of the instance, if allowed."""
-    key = (x_openrouter_key or "").strip()
-    if key:
-        return key
-    return get_settings().openrouter_api_key if server_key_allowed(request) else None
-
-
-KeyHeader = Annotated[str | None, Depends(effective_key)]
+KeyHeader = Annotated[str | None, Header(alias="X-OpenRouter-Key")]
 JOBS: dict[str, dict] = {}
 
 
@@ -94,12 +80,10 @@ def _graph_team(name: str, team: list[str], editors: dict) -> None:
 
 
 @app.get("/api/health")
-def health(request: Request) -> dict:
+def health() -> dict:
     s = get_settings()
-    default = server_key_allowed(request)
     return {"status": "ok", "version": __version__, "chat_model": s.chat_model, "embedding_model": s.embedding_model,
-            "server_key": default, "key_source": "interface or default" if default else "interface",
-            "databases": s.databases, "database_names": s.database_names}
+            "server_key": False, "key_source": "interface", "databases": s.databases, "database_names": s.database_names}
 
 
 @app.get("/api/me")

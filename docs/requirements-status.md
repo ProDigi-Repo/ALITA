@@ -1,4 +1,4 @@
-# ALITA – requirements status (3.8.0, 2026-10-31)
+# ALITA – requirements status (3.7.3, 2026-10-31)
 
 Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wording, the request as a requirement, acceptance criterion).
 
@@ -69,7 +69,7 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 | REQ-63 | B page in three columns (map, projects & clusters, Graph Chat); Enlarge opens the map in a separate window | ✅ done – needs deploy (frontend) | 3.7.2 | Grid `map cluster chat`; `map-window.js` (`?view=map`, BroadcastChannel sync of selection). |
 | REQ-64 | Larger question input | ✅ done – needs deploy (frontend) | 3.7.3 | 4 lines, grows to ~11, resizable (both chats). |
 | REQ-65 | Extend the first box (database bar) | ✅ done – needs deploy (frontend) | 3.7.3 | Top row on the B page uses the three columns of the page: database bar over the map. |
-| REQ-66 | Default OpenRouter key; another key can still be entered | ✅ done – needs deploy + key in `.env` | 3.8.0 | `effective_key` dependency; header key wins; reviewers only with `SERVER_KEY_FOR_REVIEWERS`; status pill "default key". |
+| REQ-66 | Default OpenRouter key; another key can still be entered | ❌ withdrawn by the requester (built as 3.8.0, reverted) | – | Every person keeps entering their own key; a key in `.env` is not used for chats. |
 
 ## Open points for the requirement owners
 - REQ-10, REQ-15 – REQ-18: main document chain per project, inferred links between versions and analyses, threshold for "substantive", AI stage texts automatic or on demand, versions without full text.
