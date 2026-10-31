@@ -721,7 +721,8 @@ def main() -> None:
                     help="all = ingest every subfolder of PATH; cluster = recompute clusters only (--db X: only database X, other clusters stay); graph = (re)build the Neo4j graph; "
                          "citations = recompute the citation network from the reference lists already in the index (no LLM, no embeddings); "
                          "legal / guideline / standard = ingest a legal project folder, guidelines or standards (folder or file, see _legal.yaml); "
-                         "delete --db X = remove all data of database X from the index")
+                         "delete --db X = remove all data of database X from the index; "
+                         "delete --norm ID = remove one law, guideline or standard (all versions) from index, graph and model store")
     ap.add_argument("path", type=Path, nargs="?")
     ap.add_argument("--k", type=int, default=0, help="cluster: fixed number of clusters (0 = automatic)")
     ap.add_argument("--files", action="store_true",
@@ -729,6 +730,7 @@ def main() -> None:
     ap.add_argument("--force", action="store_true", help="all: re-ingest projects that were already ingested")
     ap.add_argument("--project", help="link paper/notes to a research project")
     ap.add_argument("--db", help="database(s), comma-separated, e.g. ML or AL,JSW")
+    ap.add_argument("--norm", help="delete: norm_id of a law, guideline or standard (see _legal.yaml)")
     ap.add_argument("--no-llm", action="store_true", help="no LLM summary")
     ap.add_argument("--no-embed", action="store_true", help="no embeddings (metadata only in Qdrant)")
     ap.add_argument("--dry-run", type=Path, metavar="OUT.json", help="analyze only and write the result as JSON")
@@ -748,6 +750,10 @@ def main() -> None:
     if a.kind == "citations":
         from .citations import rebuild
         print(json.dumps(rebuild(), ensure_ascii=False, indent=1, default=str))
+        return
+    if a.kind == "delete" and a.norm:
+        from .purge import delete_norm
+        print(json.dumps(delete_norm(a.norm, dry_run=bool(a.dry_run)), ensure_ascii=False, indent=1, default=str))
         return
     if a.kind == "delete":
         if not a.db or "," in a.db:

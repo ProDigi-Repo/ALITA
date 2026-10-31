@@ -216,3 +216,11 @@
 #page-graph .cg-docslot:empty{display:none}
 
 .cg-legend .cg-flw{display:inline-flex;align-items:center;gap:4px 8px;flex-wrap:wrap}.cg-legend .cg-flw i{display:inline-flex;font-style:normal}.cg-legend .cg-flw i svg{width:15px;height:15px}
+
+/* 3.7.0 (REQ-59): compare the clusters of two databases */
+.xc-pick{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);white-space:nowrap}
+.xc-pick select{font-size:11.5px;padding:2px 6px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--fg);max-width:220px}
+.xc-pick select:not([value=""]):focus{outline:2px solid #7c4dff}
+.cg-side .xc-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;border:1px dashed #7c4dff;border-radius:8px;padding:7px 10px;font-size:12.5px}
+.cg-side .xc-item small{color:var(--muted)}
+.cg-side .xc-act{display:flex;flex-direction:column;gap:4px}

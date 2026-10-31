@@ -19,6 +19,24 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 - Require an explicit Neo4j password instead of a committed default; restrict CORS, downloads and ZIP expansion, and cap HTTP uploads at 50 MiB.
 - Keep keys and chat history in page memory only, with Access logout. Export existing chats before upgrading: old browser-persisted keys/history are removed on first load.
 
+## [3.7.0] - 2026-10-31
+
+> **Minor release – compare the clusters of two databases, and re-query inside them.** Every database is clustered on its own, so the knowledge map had no lines between, for example, the EU AI Act and Wachter clusters. A new dropdown **Compare** above the map draws the relations between the clusters of two databases as violet dashed lines (2D and 3D, with the similarity on the line); the side panel lists them with **Select** and **Ask**. When the selected clusters come from several databases, the Graph Chat searches them database by database, merges the hits alternately and tells the language model how the clusters relate. With the current data, EU AI Act "Scope and Guidance" (C6) and Wachter "AI Act Trustworthiness and Risk" (C8) are closely related (0.76). The standard that was added in 3.3.1 is removed from the repository, the data folder and the local index (REQ-60). **Update:** `docker compose up -d --build backend frontend`; then `docker compose run --rm ingest delete --norm <norm_id>` removes a law, guideline or standard from index, graph and model store, and `docker compose run --rm -e OPENROUTER_API_KEY=… ingest cluster --db EUAIA` refreshes the EU AI Act cluster descriptions. Roll back with `git checkout v3.6.3`.
+
+### Requirements
+- **REQ-59 Cluster analysis for EU AI Act and Wachter together, chosen from a dropdown, drawn on the map; Graph Chat re-queries inside the clusters across databases** – ✅ done; checked with the live index (C6 ↔ C8 0.76, C7 ↔ C8 0.33) and in a headless browser (dropdown, lines in 2D and 3D, Select/Ask, Graph Chat plan with both databases and both clusters).
+- **REQ-60 Remove the standard added in 3.3.1 completely** – ✅ done; file and `_legal.yaml` entry deleted, all mentions removed from code comments, tests, documentation, release notes and the requirements log; its 141 passages and its document removed from the local index and stale cluster descriptions cleared. The parser features and the removal of licence stamps stay.
+- **REQ-61 Refactor the whole code base** – 🔄 staged: the new cluster-comparison code lives in its own modules (`backend/app/cluster_relations.py`, `frontend/js/cluster-compare.js`); further stages follow in separate pull requests.
+
+### Added
+- `GET /api/clusters/relations?databases=EUAIA,WACHTER`: clusters of the given databases with their database, and the relations between clusters of different databases (centroid similarity of the summary vectors, bridging documents); per cluster at least its best partner, further ones from similarity 0.55 or with bridges.
+- B page: dropdown **Compare** (pairs of visible databases with clusters, EU AI Act ↔ Wachter first); violet dashed relation lines with similarity in the 2D graph and the 3D map; side panel "Cluster relations" with **Select** / **Ask**; a click on a line selects both clusters.
+- Graph Chat: clusters from several databases are searched one database at a time (top-k shared, hits interleaved, retried without role/graph path if empty); the prompt gets the relations between the selected clusters; the answer shows **Clusters across databases**.
+- `ingest delete --norm ID [--dry-run OUT]`: removes one law, guideline or standard with all versions from Qdrant, Neo4j and `DATA_DIR/legal`.
+
+### Removed
+- The standard added in 3.3.1, everywhere (see REQ-60).
+
 ## [3.6.3] - 2026-10-31
 
 > **Patch release – release notes behind the password.** Without the password the tab "Release Notes" is hidden too, the version number in the header is plain text instead of a link, and `#release`/`#release-notes` open the B Interaction Interface. Without the password the tabs are B, A/B and Documents.
@@ -96,28 +114,28 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [3.3.2] - 2026-10-30
 
-> **Patch release – NIST SP 800-18 Rev. 2.** Second standard of the database "EU AI Act": NIST Special Publication 800-18 Revision 2, "Developing Security, Privacy, and Cybersecurity Supply Chain Risk Management Plans for Systems" (June 2026, 70 pages, free of charge). NIST documents have "Appendix A." instead of "Annex A" and an unnumbered "References" section; the appendices were not found and the reference list ended up in section 4.7. Checked on the real file: sections 1–4.7 (28 clauses), References, Appendices A–D; DIN SPEC 92005 and all other documents are split as before. One new requirement (REQ-50). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest standard /research/EUAIA/standards` (reads both standards – check the DIN licence first, see 3.3.1). Roll back with `git checkout v3.3.1`.
+> **Patch release – NIST SP 800-18 Rev. 2.** Second standard of the database "EU AI Act": NIST Special Publication 800-18 Revision 2, "Developing Security, Privacy, and Cybersecurity Supply Chain Risk Management Plans for Systems" (June 2026, 70 pages, free of charge). NIST documents have "Appendix A." instead of "Annex A" and an unnumbered "References" section; the appendices were not found and the reference list ended up in section 4.7. Checked on the real file: sections 1–4.7 (28 clauses), References, Appendices A–D; all other documents are split as before. One new requirement (REQ-50). **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest standard /research/EUAIA/standards` (reads the standards folder). Roll back with `git checkout v3.3.1`.
 
 ### Requirements
-- **REQ-50 Add another standard (NIST SP 800-18 Rev. 2)** – ✅ prepared and checked offline; second entry in `research/EUAIA/standards/_legal.yaml`; ingestion runs in Docker. (The first upload for this request was the DIN SPEC 92005 file again; nothing was changed for it.)
+- **REQ-50 Add another standard (NIST SP 800-18 Rev. 2)** – ✅ prepared and checked offline; second entry in `research/EUAIA/standards/_legal.yaml`; ingestion runs in Docker.
 
 ### Fixed
 - Standards: "Appendix A. …" is recognised as an annex (NIST); an unnumbered "References", "Bibliography" or "Literaturhinweise" heading starts a supplement of its own (cited as "References") instead of continuing the last clause.
 
 ## [3.3.1] - 2026-10-30
 
-> **Patch release – the first standard.** DIN SPEC 92005:2024-03 "Artificial Intelligence – Uncertainty quantification in machine learning" (46 pages, text in English) as the first standard of the database "EU AI Act". The file is a personal DIN Media download: every page carries a stamp with the buyer's name, customer number, download ID and time. ALITA now removes such licence stamps when reading a PDF, so they reach neither the index nor the language model. Checked on the real file: no stamp left; sections 1–7 with all subclauses, 28 terms, Annexes A–C with clauses C.1 … C.2.x – 92 parts, 174 text units. One new requirement (REQ-49). **Licence:** a standard bought from DIN Media is usually licensed to one person; storing its full text in a shared ALITA instance and sending it to an external AI service (summaries, embeddings) may not be covered – check before ingesting. **Update:** `docker compose up -d --build backend frontend`, then `docker compose run --rm -e OPENROUTER_API_KEY=… ingest standard /research/EUAIA/standards`. Roll back with `git checkout v3.3.0`.
+> **Patch release – licence stamps and standards parsing.** Purchased standards downloads carry a stamp with the buyer's name, customer number, download ID and time on every page. ALITA now removes such licence stamps when reading a PDF, so they reach neither the index nor the language model. The standards parser learned terms, annex status and annex clauses. One requirement (REQ-49; the standard it was built for was removed again in 3.7.0). **Licence:** a purchased standard is usually licensed to one person; storing its full text in a shared ALITA instance and sending it to an external AI service may not be covered – check before ingesting. **Update:** `docker compose up -d --build backend frontend`. Roll back with `git checkout v3.3.0`.
 
 ### Requirements
-- **REQ-49 Add a standard (DIN SPEC 92005:2024-03)** – ✅ prepared and checked offline; file and `_legal.yaml` in `research/EUAIA/standards/`; ingestion runs in Docker after the licence is checked.
+- **REQ-49 Add a first standard** – parser and licence-stamp removal done; the standard itself was removed again in 3.7.0 (REQ-60).
 
 ### Added
-- Licence stamps of standards downloads ("Normen-Download-DIN Media-<name>-KdNr.<n>-ID.<id>-<date time>") are removed from the text of every PDF (`extract.strip_licence_stamps`).
+- Licence stamps of standards downloads ("Normen-Download-<publisher>-<name>-KdNr.<n>-ID.<id>-<date time>") are removed from the text of every PDF (`extract.strip_licence_stamps`).
 - Standards: terms in "Terms and definitions" are parts of their own (`3.1` on its own line followed by the term; type `term`, cited as "Clause 3.1", title = the term).
 
 ### Fixed
 - Standards: the annex status "(informative)" / "(normative)" was taken as the annex title; now the real title follows ("Use cases (informative)").
-- Standards: clauses inside annexes ("C.1.2 Solution via uncertainty quantification") are recognised, and numbered table rows inside annexes ("3 GPS Outage") no longer become clause 3 again.
+- Standards: clauses inside annexes ("C.1.2 …") are recognised, and numbered table rows inside annexes ("3 …") no longer become clause 3 again.
 
 ## [3.3.0] - 2026-10-29
 
@@ -290,7 +308,7 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 - No real law has been ingested in this release: please put the AI Act files into `research/EUAIA/legal/EU-AI-Act/` (file names as in `_legal.yaml`) and run `ingest all /research`; the segmentation is tested on structured samples, not yet on the Official Journal PDF.
 - The time filter in Qdrant is covered by `tests/test_legal_qdrant.py`, which needs the backend container (`docker compose run --rm backend pytest tests/test_legal_qdrant.py`).
 - Links from research documents to provisions ("Art. 6 AI Act" in a paper or manuscript) and the temporal model for manuscript versions (REQ-37 for research projects) are not built yet.
-- Standards: check the licence before storing full texts of ISO/DIN standards.
+- Standards: check the licence before storing full texts of purchased standards.
 - Quick Reference: the ontology page (6) now lists ELI and the corrected FaBiO types and all pages are re-rendered for 3.0.0; the interface screenshots on pages 3 and 4 do not show the new types yet.
 
 ## [2.2.0] - 2026-10-29

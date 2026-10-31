@@ -88,6 +88,37 @@ def path_for(plan: dict, doc: dict | None) -> list:
     return p
 
 
+def _interleave(lists: list[list]) -> list:
+    """Treffer mehrerer Suchen abwechselnd zusammenführen (beste zuerst je Liste), Dubletten einmal."""
+    out, seen = [], set()
+    for k in range(max((len(x) for x in lists), default=0)):
+        for x in lists:
+            if k < len(x) and str(x[k].id) not in seen:
+                seen.add(str(x[k].id))
+                out.append(x[k])
+    return out
+
+
+async def retrieve_across(query: str, creq, key: str, groups: dict[str, list[int]], by_id: dict[str, dict]) -> list:
+    """REQ-59: ausgewählte Cluster aus mehreren Datenbanken – je Datenbank in ihren Clustern suchen und die Treffer
+    abwechselnd zusammenführen, damit eine große Datenbank (z. B. ein Gesetz mit Tausenden Stellen) eine kleine
+    (zwei Paper) nicht verdrängt."""
+    from .rag import retrieve
+
+    per = max(2, -(-creq.top_k // len(groups)))
+    lists = []
+    for db, cids in groups.items():
+        f = creq.filters
+        ids = [i for i in f.doc_ids if db in ((by_id.get(i) or {}).get("databases") or [])]
+        f = f.model_copy(update={"cluster": cids, "database": [db], "doc_ids": ids})
+        sub = creq.model_copy(update={"filters": f, "top_k": per})
+        hits = await retrieve(query, sub, key)
+        if not hits and (f.deo or f.doc_ids):     # Rolle/Graphpfad zu eng: nur in den Clustern suchen
+            hits = await retrieve(query, sub.model_copy(update={"filters": f.model_copy(update={"deo": [], "doc_ids": []})}), key)
+        lists.append(hits)
+    return _interleave(lists)[: max(creq.top_k, per * len(groups))]
+
+
 async def answer_stream(req: GraphRequest, api_key: str | None = None):
     from pydantic_ai import Agent
 
@@ -127,9 +158,21 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
                             doc_ids=doc_ids, year_from=plan["year_from"], year_to=plan["year_to"], as_of=lf.as_of,
                             legal_stage=lf.legal_stage, legal_from=lf.legal_from, legal_all_versions=lf.legal_all_versions)
     creq = ChatRequest(message=search_q, filters=filters, top_k=req.top_k, model=model_name)
-    hits = await retrieve(search_q, creq, key)
-    if not hits and filters.deo:                       # DEO-Filter zu eng: ohne Rolle erneut
-        hits = await retrieve(search_q, creq.model_copy(update={"filters": filters.model_copy(update={"deo": []})}), key)
+    from .cluster_relations import group_by_database, relations_context
+    from .config import db_name
+    groups = group_by_database(plan["clusters"], all_docs) if len(plan["clusters"]) > 1 else {}
+    if len(groups) > 1:                                # REQ-59: Cluster aus mehreren Datenbanken gemeinsam befragen
+        hits = await retrieve_across(search_q, creq, key, groups, {d["doc_id"]: d for d in all_docs})
+        try:
+            rel_head, rel_links = relations_context(plan["clusters"], list(groups), db_name)
+        except Exception as e:                         # Beziehungen sind Zusatz: nie die Antwort blockieren
+            log.warning("Cluster-Beziehungen nicht verfügbar: %s", e)
+            rel_head, rel_links = "", []
+    else:
+        hits = await retrieve(search_q, creq, key)
+        if not hits and filters.deo:                   # DEO-Filter zu eng: ohne Rolle erneut
+            hits = await retrieve(search_q, creq.model_copy(update={"filters": filters.model_copy(update={"deo": []})}), key)
+        rel_head, rel_links = "", []
     sources = to_sources(hits)
     top = next((d for d in graph_docs if any(h.payload["doc_id"] == d["doc_id"] for h in hits)), graph_docs[0] if graph_docs else None)
     path = path_for(plan, top)
@@ -145,6 +188,8 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
             "graph": {"available": graph_ok, "documents": len(graph_docs), "neighbours": len(neighbours)},
             "model": model_name, "memory_turns": len(memory), "retrieval_query": search_q,
             "system_prompt_source": sp_source, "system_prompt_id": sp_id}
+    if groups and len(groups) > 1:
+        meta["cluster_scope"] = {"by_database": groups, "relations": rel_links}
     if temporal:
         meta["temporal"] = temporal
     if legal_table:
@@ -162,7 +207,7 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
     if req.overview:
         from .rag import scope_overview
         overview = scope_overview(plan["databases"])
-    if not sources and not graph_docs and not overview and not prog_head and not legal_head:
+    if not sources and not graph_docs and not overview and not prog_head and not legal_head and not rel_head:
         text = "I found nothing in the knowledge graph or the documents that answers this question with the current settings."
         yield "delta", {"t": text}
         yield "done", {**meta, "answer": text, "sources": [], "intent": plan["intent"], "entities": plan["entities"], "usage": await usage.summary_async(meter)}
@@ -177,7 +222,7 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
     cite_ctx = citation_context(req.message if req.relation != "cites" else req.message + " cites", all_docs,
                                 [d["doc_id"] for d in graph_docs], plan["databases"])
     who = people_context([r.project_name for r in sources] + list(req.projects), plan["persons"] if req.persons else None)
-    prompt = (f"Overview of the whole knowledge map (all projects and clusters in scope):\n{overview}\n\n" if overview else "") + who + prog_head + cite_ctx + legal_head + (f"Graph path: {' '.join(x if isinstance(x, str) else f'{x[0]} [{x[1]}]' for x in path) or '–'}\n"
+    prompt = (f"Overview of the whole knowledge map (all projects and clusters in scope):\n{overview}\n\n" if overview else "") + rel_head + who + prog_head + cite_ctx + legal_head + (f"Graph path: {' '.join(x if isinstance(x, str) else f'{x[0]} [{x[1]}]' for x in path) or '–'}\n"
               f"Discourse elements asked for: {', '.join(plan['deo']) or 'any'}\n\n"
               f"Knowledge graph context:\n{graph_ctx or '–'}\n\nSources for this question:\n{ctx or '–'}\n\nQuestion: {req.message}")
     from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart

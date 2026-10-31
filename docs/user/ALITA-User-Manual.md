@@ -1,4 +1,4 @@
-# ALITA – User Manual (front-end, v3.6.3)
+# ALITA – User Manual (front-end, v3.7.0)
 
 ALITA lets you ask questions of your research documents and get answers with numbered, clickable sources.
 The quick visual version is [`ALITA-Cheat-Sheet-Comic.pdf`](ALITA-Cheat-Sheet-Comic.pdf).
@@ -71,9 +71,13 @@ The database bar stays visible on every chat page: **ⓘ Cluster descriptions** 
 
 9. **Info banner:** says what B does: it searches the knowledge graph. For what a document says in detail, use A.
 10. **Knowledge map:** all data in three layers: projects and papers on top, semantic clusters in the middle, documents below. Color by **Document type** or **Database**. Hover to preview, click to open.
-11. **Map controls:** **2D**, **Reset view**, **3D · time** (years as depth), **⇄ Citations** (which papers cite each other) and **Enlarge** to fill the screen.
+11. **Map controls:** **Compare** (draws the relations between the clusters of two databases, e.g. EU AI Act ↔ Wachter, as violet dashed lines with their similarity; see below), **2D**, **Reset view**, **3D · time** (years as depth), **⇄ Citations** (which papers cite each other) and **Enlarge** to fill the screen.
 12. **Projects & clusters:** every cluster with its topic, key terms and number of documents; click one to select it for the chats. Below, the strongest bridges between clusters. Project cards and document details open here too.
 13. **Graph Chat header:** **History** reopens earlier conversations; **+ New** starts a fresh one.
+
+**Compare the clusters of two databases (since 3.7.0)**
+
+Each database is clustered on its own, so the map normally shows no lines between, say, EU AI Act and Wachter. Choose a pair in **Compare** above the map: both databases are selected, and violet dashed lines connect each cluster with its most similar clusters in the other database (the number is the similarity of the cluster contents, 0–1). The side panel lists the relations: **Select** puts both clusters into the search space of the chats, **Ask** also writes a comparison question into the Graph Chat. A click on a violet line does the same as **Select**. The Graph Chat then searches the selected clusters **database by database** and merges the results, so a small database (two papers) is not drowned by a large one (a law with thousands of passages); under the answer, **Clusters across databases** shows what was searched and how the clusters relate.
 14. **Answer:** the answer with [n] citations, the **graph path** it followed, the **sources used**, and **Copy**.
 15. **Advanced settings and your questions:** databases, parameters (entities, relation, period, hops) and the system prompt. Below, your questions; click one to jump to its answer.
 16. **Scope and question:** shows what the chat searches; **restrict to a person** narrows it. Type your question and click **Send**.

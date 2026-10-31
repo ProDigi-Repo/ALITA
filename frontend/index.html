@@ -23,7 +23,7 @@
   <header class="top">
     <div class="brand">
       <h1>ALITA PROTOTYPE</h1>
-      <button class="ver" id="appVersion" type="button" title="Open release notes">v3.6.3</button>
+      <button class="ver" id="appVersion" type="button" title="Open release notes">v3.7.0</button>
       <span class="mode" id="mode" title="">Demo</span>
     </div>
     <nav class="nav" role="tablist" aria-label="Sections">
@@ -313,6 +313,7 @@
       <section class="cg-main t-graph bq-map" aria-label="Knowledge map: all clusters">
         <div class="cv-head"><span class="badge">B</span><h3>Knowledge map</h3>
           <div class="cv-mode" id="cgMode" role="group" aria-label="Color documents by"><button type="button" data-m="type" aria-pressed="true">Document type</button><button type="button" data-m="db" aria-pressed="false">Database</button></div>
+          <label class="xc-pick" title="Draw the relations between the clusters of two databases on the map">Compare <select id="cgCompare" aria-label="Compare the clusters of two databases"><option value="">No comparison</option></select></label>
           <button class="mini v3-toggle" type="button">2D</button><button class="mini v3-reset" type="button" title="Back to the start view: zoom, rotation and moved clusters">⟲ Reset view</button>
           <button class="mini s3btn" type="button" data-open3d title="Walk through the clusters in 3D, with the years as depth">3D · time</button>
           <button class="mini cg-cite" type="button" id="cgCite" aria-pressed="false" title="Show which papers cite each other (found in their reference lists)">⇄ Citations</button>
@@ -590,6 +591,7 @@
 <script src="js/databases.js"></script>
 <script src="js/release-compliance.js"></script>
 <script src="js/clusters.js"></script>
+<script src="js/cluster-compare.js"></script>
 <script src="js/outside.js"></script>
 <script src="js/cluster-profile.js"></script>
 <script src="js/chat-tools.js"></script>

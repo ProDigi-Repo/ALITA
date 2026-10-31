@@ -380,6 +380,17 @@ def clusters():
 
 
 
+@app.get("/api/clusters/relations")
+def cluster_relations(databases: Annotated[list[str] | None, Query(description="zwei oder mehr Datenbanken, z. B. EUAIA,WACHTER")] = None):
+    """REQ-59: Beziehungen zwischen den Clustern verschiedener Datenbanken (Ähnlichkeit der Zentroide, Brücken),
+    ohne neu zu clustern. Für das Dropdown „Compare“ auf der Wissenskarte und den Graph Chat."""
+    from .cluster_relations import relations
+    dbs = get_settings().normalize_databases([x for v in databases or [] for x in v.split(",") if x])
+    if len(dbs) < 2:
+        raise HTTPException(422, "Give at least two databases, e.g. ?databases=EUAIA,WACHTER")
+    return relations(dbs)
+
+
 @app.post("/api/clusters/recompute")
 async def recompute_clusters(k: int = 0, x_key: KeyHeader = None,
                              database: Annotated[list[str] | None, Query(description="nur diese Datenbank(en) clustern, z. B. JSW")] = None,

@@ -597,7 +597,7 @@ def test_guidance_faq_topics_and_questions():
     assert L.component_label("q_2.1") == "Q 2.1" and L.KIND_OF_TYPE["guidance"] == "faq"
 
 
-ISO_STYLE = """DIN SPEC 92005:2024-03
+ISO_STYLE = """EXAMPLE STANDARD 0001:2024-03
 Contents
 1 Scope . . . . . . . . . . . . . . . . . . . . . . . 7
 1 Scope
@@ -608,32 +608,32 @@ AI system
 engineered system that generates outputs
 3.2
 algorithmic transparency
-property of the model
-4 Uncertainties in machine learning
-4.1 Elements of an ML system
+property of a model
+4 Requirements
+4.1 General
 Text.
 Annex A
 (informative)
-Types of uncertainty: aleatoric and epistemic
-Table A.1 lists the types.
+Overview of examples
+Table A.1 lists the examples.
 Annex C (informative) Use cases
-C.1 Uncertainty quantification for sensor fusion
+C.1 First use case
 C.1.1 Use case definition
-3 GPS Outage
-4 POD Fusion
+3 Signal loss
+4 Data merge
 """
 
 
 def test_standard_terms_annex_status_and_annex_clauses():
     from app.extract import strip_licence_stamps
-    stamp = "Normen-Download-DIN Media-Erika Muster-KdNr.1234567-ID.AbC123xyz-2026-10-29 23:53:33"
+    stamp = "Normen-Download-Beispielverlag-Erika Muster-KdNr.1234567-ID.AbC123xyz-2026-10-29 23:53:33"
     assert strip_licence_stamps(f"text\n{stamp}\nmore") == "text\n\nmore"
     cs = {c.cid: c for c in L.parse_components(ISO_STYLE, "standard")}
     assert cs["cl_3.1"].type == "term" and cs["cl_3.1"].title == "AI system" and cs["cl_3.2"].title == "algorithmic transparency"
     assert cs["cl_4.1"].parent == "cl_4" and cs["cl_3.2"].parent == "cl_3"
-    assert cs["anx_A"].title == "Types of uncertainty: aleatoric and epistemic (informative)"
+    assert cs["anx_A"].title == "Overview of examples (informative)"
     assert cs["anx_C"].title == "Use cases (informative)" and cs["anx_C/cl_C.1.1"].parent == "anx_C/cl_C.1"
-    assert "cl_3~2" not in cs and "GPS Outage" in cs["anx_C/cl_C.1.1"].text      # Tabellenzeilen im Anhang sind Text
+    assert "cl_3~2" not in cs and "Signal loss" in cs["anx_C/cl_C.1.1"].text      # Tabellenzeilen im Anhang sind Text
 
 
 NIST_STYLE = """NIST SP 800-18r2
@@ -672,3 +672,35 @@ def test_accompanying_documents_from_legal_yaml(tmp_path):
     assert [v["path"] for v in norms[0]["versions"]] == [a] and support == [w]
     from app.schemas import ProjectRole
     assert ProjectRole("white_paper") == ProjectRole.white_paper
+
+
+def test_delete_norm_removes_documents_units_and_model(tmp_path, monkeypatch):
+    """3.7.0 (REQ-60): `ingest delete --norm ID` removes every trace of one norm."""
+    from types import SimpleNamespace
+
+    from app import legal_ingest, purge, store
+    model = tmp_path / "legal" / "x-norm.json"
+    model.parent.mkdir()
+    model.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(legal_ingest, "_model_file", lambda nid: model)
+    calls = []
+
+    class C:
+        def count(self, col, count_filter=None, exact=True):
+            return SimpleNamespace(count=7)
+
+        def delete(self, col, selector):
+            calls.append((col, type(selector).__name__))
+
+    s = SimpleNamespace(col_chunks="chunks", col_documents="docs", graph_enabled=False)
+    monkeypatch.setattr(purge, "get_settings", lambda: s)
+    monkeypatch.setattr(store, "client", lambda: C())
+    monkeypatch.setattr(store, "scroll_documents", lambda: [
+        {"doc_id": "d1", "filename": "a.pdf", "legal": {"norm_id": "x-norm"}},
+        {"doc_id": "d2", "filename": "b.pdf", "legal": {"norm_id": "other"}}])
+    deleted = []
+    monkeypatch.setattr(store, "delete_document", lambda doc_id: deleted.append(doc_id))
+    dry = purge.delete_norm("x-norm", dry_run=True)
+    assert dry["documents"] == ["a.pdf"] and dry["norm_units"] == 7 and model.is_file() and not deleted
+    res = purge.delete_norm("x-norm")
+    assert deleted == ["d1"] and ("chunks", "FilterSelector") in calls and not model.exists() and res["graph"] is None
