@@ -1,4 +1,4 @@
-# ALITA – User Manual (front-end, v3.10.0)
+# ALITA – User Manual (front-end, v3.11.0)
 
 ALITA lets you ask questions of your research documents and get answers with numbered, clickable sources.
 The quick visual version is [`ALITA-Cheat-Sheet-Comic.pdf`](ALITA-Cheat-Sheet-Comic.pdf).
@@ -89,6 +89,8 @@ Name the clusters in your question – *"Describe the link between C8 and C9"*, 
 **Papers and the articles they discuss (since 3.10.0)**
 
 ALITA reads the references in papers, notes and project files ("Art. 33(4) AI Act", "Article 5(1)(c)", "Annex III", "Recital 27") and links each paper to the articles of the law it discusses. Papers cite the version their authors had in front of them, so ALITA works out that version and gives today's number as well: Laux, Wachter & Mittelstadt discuss Art. 33 of the 2021 proposal ("Notified bodies"), which is **Art. 31** today. References to other acts (GDPR, the Treaties, the Charter) are left out. You see the links in the **document details** (section **Discusses**) and in the Graph Chat: ask *"What do the papers say about Art. 31?"* or *"Describe the link between C8 and C9"*, and the answer uses the papers' passages together with the wording of the article in force; **Provisions discussed** under the answer shows paper → article (→ today's number) and the cluster of the law, and the graph path reads cluster → paper → discusses → article → part of → law → cluster.
+
+The other way round: open a version of the law in the document list (e.g. *AI Act – Proposal*). The section **Discussed in papers** lists, for each article, annex and recital of that version, the papers that discuss it – in the numbering of that version, also for papers that cite another version ("cited as Art. 33 of the proposal"). A click on a paper opens it; **Ask** puts the question about this article into the Graph Chat.
 
 ## Document Chat (A) and Graph Chat (B)
 

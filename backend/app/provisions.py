@@ -371,7 +371,7 @@ def by_article(discusses: list[dict]) -> list[dict]:
                                "current_article": e.get("current_article"),
                                "current_label": label(e["current_article"]) if e.get("current_article") else None,
                                "current_title": e.get("current_title"), "renumbered": e.get("renumbered"),
-                               "stage": e.get("stage"), "stage_date": e.get("stage_date"), "count": 0, "parts": []})
+                               "seq": e.get("seq"), "stage": e.get("stage"), "stage_date": e.get("stage_date"), "count": 0, "parts": []})
         a["count"] += e["count"]
         if e["cid"] != e["article"] and e["label"] not in a["parts"]:
             a["parts"].append(e["label"])
@@ -582,3 +582,45 @@ async def chat_passages(scope: dict, query: str, key: str, have: set[str]) -> li
             have.add(str(h.id))
             res.append(h)
     return res
+
+
+# ----------------------------------------------------------------- Rechtstext-Ansicht (REQ-69)
+def discussed_in(model: dict, documents: list[dict], seq: int | None = None) -> list[dict]:
+    """Je Artikel einer Fassung: die Paper, die ihn diskutieren – in der Nummerierung dieser Fassung (über die Konkordanz:
+    Art. 31 heute = Art. 33 des Vorschlags). -> [{article, label, title, papers: [{doc_id, title, year, authors, cited_as,
+    stage, count, parts}]}], nach Zahl der Paper und Reihenfolge im Gesetz."""
+    nid = model["norm"]["norm_id"]
+    rv = Resolver(model)
+    seq = seq or rv.current
+    if seq not in rv._valid:
+        return []
+    roots = [c for c in rv._valid[seq] if "/" not in c and c.split("_")[0] in ("art", "anx", "rec")]
+    back: dict[str, list[str]] = defaultdict(list)          # heutige Nummer -> Nummer(n) in Fassung seq
+    for r in roots:
+        cur = rv.to_current(seq, r) if seq != rv.current else r
+        if cur:
+            back[cur].append(r)
+    comps = model["components"]
+    out: dict[str, dict] = {}
+    for d in documents:
+        for a in d.get("discusses") or []:
+            if a["norm_id"] != nid:
+                continue
+            if a.get("seq") == seq and a["article"] in rv._valid[seq]:
+                targets = [a["article"]]                     # Paper zitiert genau diese Fassung
+            else:
+                targets = back.get(a.get("current_article") or "", [])
+            for t in targets:
+                cur = t if seq == rv.current else rv.to_current(seq, t)
+                e = out.setdefault(t, {"article": t, "label": label(t), "title": rv.title(seq, t),
+                                       "current_label": label(cur) if cur else None,
+                                       "order": comps.get(t, {}).get("order", 0), "papers": []})
+                if any(p["doc_id"] == d["doc_id"] for p in e["papers"]):
+                    continue
+                e["papers"].append({"doc_id": d["doc_id"], "title": d.get("title") or d.get("filename"), "year": d.get("year"),
+                                    "authors": (d.get("authors") or [])[:3], "databases": d.get("databases") or [],
+                                    "cited_as": a["label"], "stage": a.get("stage"), "count": a["count"],
+                                    "parts": a.get("parts") or []})
+    for e in out.values():
+        e["papers"].sort(key=lambda p: -p["count"])
+    return sorted(out.values(), key=lambda e: (-len(e["papers"]), e["order"]))

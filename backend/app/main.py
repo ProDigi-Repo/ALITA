@@ -232,6 +232,23 @@ def legal_norm(norm_id: str, as_of: str | None = None, stage: str | None = None,
     return {**summary_of(m), "as_of": as_of, "stage": stage, "seq": seq, "items": comps}
 
 
+@app.get("/api/legal/norms/{norm_id}/discussed")
+def legal_discussed(norm_id: str, seq: int | None = None, databases: Annotated[list[str] | None, Query()] = None):
+    """REQ-69: Je Artikel (Anhang, Erwägungsgrund) einer Fassung die Paper, die ihn diskutieren – in der Nummerierung
+    dieser Fassung; ohne seq die geltende Fassung."""
+    from .legal_ingest import load_model
+    from .provisions import discussed_in
+    m = load_model(norm_id)
+    if not m:
+        raise HTTPException(404, "Unknown norm")
+    try:
+        dbs = get_settings().normalize_databases([x for v in databases or [] for x in v.split(",") if x])
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    docs = [d for d in store.scroll_documents() if d.get("discusses") and (not dbs or set(dbs) & set(d.get("databases") or []))]
+    return {"norm_id": norm_id, "seq": seq or m.get("current_seq"), "articles": discussed_in(m, docs, seq)}
+
+
 @app.get("/api/legal/norms/{norm_id}/actions")
 def legal_actions(norm_id: str, frm: Annotated[str | None, Query(alias="from")] = None, to: str | None = None,
                   component: str | None = None, seq: int | None = None):

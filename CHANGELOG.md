@@ -19,6 +19,18 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 - Require an explicit Neo4j password instead of a committed default; restrict CORS, downloads and ZIP expansion, and cap HTTP uploads at 50 MiB.
 - Keep keys and chat history in page memory only, with Access logout. Export existing chats before upgrading: old browser-persisted keys/history are removed on first load.
 
+## [3.11.0] - 2026-10-31
+
+> **Minor release – which papers discuss which article, seen from the law.** The document details of a law version (e.g. "AI Act – Proposal") have a new section **Discussed in papers**: for every article, annex and recital of that version, the papers that discuss it – in the numbering of that version. Papers that cite another version are mapped over: in the proposal, Art. 33 "Notified bodies" lists Laux, Wachter & Mittelstadt (who cite the proposal) and would list a paper citing today's Art. 31; in the consolidated version the same papers appear under Art. 31, with "cited as Art. 33 of the proposal". Each paper opens with a click; **Ask** puts the question "What do the papers say about Art. 31 of the AI Act (numbered 33 in the proposal)?" into the Graph Chat. Only papers of the visible databases are listed.
+
+### Requirements
+- **REQ-69 Show per article of a law which papers discuss it** – ✅ done; checked offline with the four versions of the AI Act and both Wachter papers (consolidated version: 72 provisions discussed; proposal: 42, Ho & Caals' Recital 143 shown under the proposal's Recital 73), in a headless browser (list, hidden paper filtered, click opens the paper, Ask fills the Graph Chat) and with tests.
+
+### Added
+- `GET /api/legal/norms/{norm_id}/discussed?seq=` – per article of a version the discussing papers (title, authors, year, number as cited, version cited, count, parts) and today's number; `provisions.discussed_in`.
+- Document details of a law version: section **Discussed in papers** with **Ask** per article (`frontend/js/legal.js`).
+- Payload `discusses` keeps the `seq` of the cited version.
+
 ## [3.10.0] - 2026-10-31
 
 > **Minor release – papers linked to the articles they discuss.** ALITA now reads the references in papers, notes and project files ("Art. 33(4) AI Act", "Article 5(1)(c)", "Annex III", "Recital 27") and turns them into edges of the knowledge graph: Document –discusses→ article of the law. References to other acts (GDPR, TFEU, the Treaty, the Charter …) are skipped. Because papers cite the version they had in front of them, ALITA works out that version (versions up to the paper's date; the one in which the cited provisions exist and quoted wording appears) and maps the number to today's: Laux, Wachter & Mittelstadt cite Art. 33 of the 2021 proposal ("Notified bodies") – today Art. 31 "Requirements relating to notified bodies"; their Recital 27 is today's Recital 46. The Graph Chat uses these edges: questions about an article ("What do the papers say about Art. 31?") or about clusters (C8 Wachter ↔ C9 EU AI Act) get the papers' passages and the wording of the article in force, and the graph path reads cluster → paper → discusses → article → part of → law → cluster. Document details list the articles a paper discusses. No LLM and no embeddings needed.

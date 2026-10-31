@@ -119,3 +119,19 @@ def test_graph_statements_point_to_current_components():
     st = graph.build_provision_statements(edges, {"c1": ["eu-ai-act#art_31"]})
     assert "DELETE r" in st[0][0] and "DISCUSSES" in st[2][0] and st[2][1]["rows"][0]["comp"] == "eu-ai-act#art_31"
     assert st[3][1]["rows"] == [{"chunk": "c1", "comp": "eu-ai-act#art_31"}]
+
+
+def test_discussed_in_uses_the_numbering_of_each_version():
+    m = model()
+    res = P.link_document({"date": "2023-11-01"}, [{"chunk_id": "c", "text": "The AI Act's notified bodies (Art. 33(4) AI Act) and "
+                                                                              "Art. 9 AI Act."}], P.laws_of([m]), {"eu-ai-act": P.Resolver(m)})
+    docs = [{"doc_id": "paper", "title": "Trustworthy AI", "year": 2024, "discusses": P.by_article(res["discusses"])},
+            {"doc_id": "other", "title": "Recent", "year": 2025,
+             "discusses": [{"norm_id": "eu-ai-act", "article": "art_31", "label": "Art. 31", "seq": 2, "stage": "adopted",
+                            "current_article": "art_31", "count": 1}]}]
+    assert {a["seq"] for a in docs[0]["discusses"]} == {1}
+    now = {e["label"]: [p["doc_id"] for p in e["papers"]] for e in P.discussed_in(m, docs)}
+    assert now["Art. 31"] == ["paper", "other"] and now["Art. 9"] == ["paper"]
+    then = {e["label"]: e for e in P.discussed_in(m, docs, seq=1)}
+    assert [p["doc_id"] for p in then["Art. 33"]["papers"]] == ["paper", "other"]
+    assert then["Art. 33"]["title"] == "Notified bodies" and then["Art. 33"]["papers"][0]["cited_as"] == "Art. 33"
