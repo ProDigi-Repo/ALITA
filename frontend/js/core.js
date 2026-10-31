@@ -14,7 +14,7 @@ const DATE_SRC={doc_properties:'document properties',pdf_metadata:'PDF metadata'
 const SUM_FIELDS=[['purpose','Purpose'],['design_methodology_approach','Design / Methodology / Approach'],['findings','Findings'],['research_limitations_implications','Research limitations / implications'],['originality_value','Originality / value']];
 
 /* ---------- Backend or demo ---------- */
-const APP_VERSION='3.7.3';let LIVE=false;let BACKEND_VERSION='';let IS_ADMIN=false;let AUTH_MODE='local';
+const APP_VERSION='3.8.0';let LIVE=false;let BACKEND_VERSION='';let IS_ADMIN=false;let AUTH_MODE='local';let SERVER_KEY=false;   /* REQ-66: the instance has a default OpenRouter key */
 const DEMO = window.DEMO_DATA || null;
 let METHOD_LABEL={lab_experiment:'Lab experiment',simulation_game:'Simulation / business game',survey:'Survey',interview:'Qualitative interviews',case_study:'Case study',literature_review:'Literature review',regression:'Regression analysis',multilevel:'Multilevel analysis (HLM)',sem:'Structural equation modeling',interrater_reliability:'Interrater reliability',mental_model_elicitation:'Mental model elicitation',system_dynamics:'System dynamics',qualitative_content_analysis:'Qualitative content analysis'};
 async function detectBackend(){
@@ -22,7 +22,7 @@ async function detectBackend(){
     const ctl=new AbortController();setTimeout(()=>ctl.abort(),2500);
     const r=await fetch('api/health',{signal:ctl.signal});
     if(!r.ok&&r.status>=500)setTimeout(()=>toast(`Backend not reachable (HTTP ${r.status}) – showing the demo. Restart the frontend container: docker compose restart frontend`),800);
-    if(r.ok && (r.headers.get('content-type')||'').includes('json')){LIVE=true;const h=await r.json();BACKEND_VERSION=h.version||'';if(Array.isArray(h.databases)&&h.databases.length)DATABASES=h.databases;if(typeof applyDbGate==='function')applyDbGate();if(h.database_names&&typeof h.database_names==='object')Object.assign(DB_NAME,h.database_names)}
+    if(r.ok && (r.headers.get('content-type')||'').includes('json')){LIVE=true;const h=await r.json();BACKEND_VERSION=h.version||'';SERVER_KEY=h.server_key===true;if(typeof renderKey==='function')renderKey();if(Array.isArray(h.databases)&&h.databases.length)DATABASES=h.databases;if(typeof applyDbGate==='function')applyDbGate();if(h.database_names&&typeof h.database_names==='object')Object.assign(DB_NAME,h.database_names)}
   }catch(e){}
   if(LIVE){
     try{

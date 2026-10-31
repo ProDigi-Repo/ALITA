@@ -6,7 +6,9 @@ window.addEventListener('pagehide',()=>{apiKey='';$('#apiKey').value=''});
 function renderKey(){
   const s=$('#keyStatus');
   if(apiKey){s.className='pill ok';s.innerHTML='<span class="dot"></span>Key …'+esc(apiKey.slice(-4));$('#apiKey').value=apiKey}
+  else if(SERVER_KEY){s.className='pill ok';s.innerHTML='<span class="dot"></span>default key';s.title='This instance has a default OpenRouter key; enter your own to use it instead'}   // REQ-66
   else{s.className='pill';s.innerHTML='<span class="dot"></span>no key'}
+  const i=$('#apiKey');if(i)i.placeholder=SERVER_KEY?'optional – default key set':'sk-or-v1-…';
 }
 function renderDbLock(){
   const p=$('#dbPass'),l=$('#dbLock');if(!p)return;
@@ -33,7 +35,7 @@ $('#keyForm').addEventListener('submit',e=>{
   const v=$('#apiKey').value.trim();
   if(v && !v.startsWith('sk-or-')){toast('The key should start with "sk-or-"');return}
   apiKey=v;
-  renderKey();toast(v?'Key set · until this page is closed or reloaded':'Key removed');
+  renderKey();toast(v?'Key set · until this page is closed or reloaded':SERVER_KEY?'Own key removed · the default key of this instance is used':'Key removed');
 });
 $('#toggleKey').addEventListener('click',()=>{const i=$('#apiKey');i.type=i.type==='password'?'text':'password'});
 const CHAT_MODEL_ID='openai/gpt-6-luna';   // fixed model, no selection (backend: CHAT_MODEL)

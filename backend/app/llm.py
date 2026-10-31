@@ -19,7 +19,7 @@ class MissingApiKey(RuntimeError):
 def resolve_key(request_key: str | None = None) -> str:
     key = (request_key or "").strip()
     if not key:
-        raise MissingApiKey("No OpenRouter API key. Enter your key in the interface (top right).")
+        raise MissingApiKey("No OpenRouter API key. Enter your key in the interface (top right) – this instance has no default key.")
     return key
 
 

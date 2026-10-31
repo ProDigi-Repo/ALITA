@@ -55,7 +55,11 @@ class Settings(BaseSettings):
         return self
 
     # --- OpenRouter -------------------------------------------------------
+    # 3.8.0 (REQ-66): optional default key of the instance. Used when a request brings no key of its own
+    # (header X-OpenRouter-Key from the interface); a key entered in the interface always wins.
+    # Anonymous reviewers do not get the default key unless SERVER_KEY_FOR_REVIEWERS=true.
     openrouter_api_key: str = ""
+    server_key_for_reviewers: bool = False
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     chat_model: str = "openai/gpt-6-luna"   # das eine Sprachmodell der App (Antworten, Graph RAG, Anschlussfragen, DEO, Cluster); keine Auswahl im UI
     enrich_model: str = "openai/gpt-6-luna"  # Structured Summaries beim Einlesen
