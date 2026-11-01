@@ -7,7 +7,7 @@ Die Karte zeigt Cluster und ihre Beziehungen (Brücken, über Datenbanken hinweg
             ──enthält──▶ Textstelle
 
 1. Cluster in der Frage erkennen (`named_clusters`) – sie werden zum Suchraum, auch wenn gerade ein Projekt gewählt ist.
-2. Je Cluster die passenden Textstellen suchen (graphrag.retrieve_across).
+2. Je Cluster die passenden Textstellen suchen (retrieval.retrieve_across).
 3. Brücken-Stellen (`bridge_passages`): zu den besten Stellen eines Clusters die ähnlichste Stelle im anderen Cluster
    (Kosinus der Text-Vektoren) – die Belege für die Linie in der Karte.
 4. Dem Sprachmodell Cluster-Profile, Beziehung und Stellenpaare mitgeben; der Graphpfad zeigt den Weg über die Ontologie.

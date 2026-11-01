@@ -53,7 +53,7 @@ def test_group_by_database_and_relations_context(monkeypatch):
 
 
 def test_graph_chat_searches_each_database_and_interleaves(monkeypatch):
-    from app import graphrag, rag
+    from app import retrieval
     from app.schemas import ChatRequest, SearchFilters
 
     calls = []
@@ -66,11 +66,11 @@ def test_graph_chat_searches_each_database_and_interleaves(monkeypatch):
             return []                                           # graph path held no Wachter document
         n = 5 if db == "EUAIA" else 1
         return [SimpleNamespace(id=f"{db}-{i}") for i in range(n)]
-    monkeypatch.setattr(rag, "retrieve", fake_retrieve)
+    monkeypatch.setattr(retrieval, "retrieve", fake_retrieve)
     creq = ChatRequest(message="q", filters=SearchFilters(database=["EUAIA", "WACHTER"], cluster=[6, 8], doc_ids=["e1", "w1"],
                                                           deo=["Results"]), top_k=6)
     by_id = {"e1": {"databases": ["EUAIA"]}, "w1": {"databases": ["WACHTER"]}}
-    hits = asyncio.run(graphrag.retrieve_across("q", creq, "k", {"EUAIA": [6], "WACHTER": [8]}, by_id))
+    hits = asyncio.run(retrieval.retrieve_across("q", creq, "k", {"EUAIA": [6], "WACHTER": [8]}, by_id))
     assert [h.id for h in hits][:3] == ["EUAIA-0", "WACHTER-0", "EUAIA-1"]       # both databases represented first
     assert calls[0][:4] == (("EUAIA",), (6,), 3, ("e1",))
     assert calls[1][:4] == (("WACHTER",), (8,), 3, ("w1",)) and calls[2][3:] == ((), ())   # retried without path/role
@@ -125,3 +125,38 @@ def test_bridge_passages_finds_closest_passage_across_the_cluster_boundary(monke
     assert res[0]["similarity"] == 0.71 and res[0]["left"].id == "w-1" and res[0]["right"].id == "a-7"
     assert all(r["a"] == 8 and r["b"] == 9 for r in res)
     assert len({tuple(sorted((r["left"].id, r["right"].id))) for r in res}) == len(res)           # no duplicate pairs
+
+
+# ---------- refactoring stage 2 (REQ-61): one retrieval scope for Document Chat and Graph Chat ----------
+def test_scope_splits_by_database_and_cluster(monkeypatch):
+    from app import retrieval
+    from app.retrieval import Scope
+    from app.schemas import ChatRequest, SearchFilters
+
+    docs = [{"doc_id": "e1", "cluster_id": 6, "databases": ["EUAIA"]}, {"doc_id": "w1", "cluster_id": 8, "databases": ["WACHTER"]},
+            {"doc_id": "w2", "cluster_id": 9, "databases": ["WACHTER"]}]
+    one = Scope.build(SearchFilters(database=["WACHTER"]), docs)
+    assert not one.split and one.groups == {}
+    every = Scope.build(SearchFilters(), docs)                      # no selection = all databases in one search
+    assert not every.split
+    two = Scope.build(SearchFilters(database=["EUAIA", "WACHTER"]), docs)
+    assert two.split and two.groups == {"EUAIA": [], "WACHTER": []}
+    clusters = Scope.build(SearchFilters(database=["EUAIA", "WACHTER"], cluster=[8, 9]), docs)
+    assert not clusters.split and clusters.groups == {"WACHTER": [8, 9]}   # both clusters in one database
+    named = Scope.build(SearchFilters(cluster=[8, 9]), docs, named=[8, 9])
+    assert named.split and named.per_cluster
+
+    calls = []
+
+    async def fake_retrieve(q, req, key):
+        f = req.filters
+        calls.append((tuple(f.database), tuple(f.cluster), tuple(f.deo)))
+        return [] if f.deo else [SimpleNamespace(id=f"{','.join(f.database) or 'all'}-{i}") for i in range(4)]
+    monkeypatch.setattr(retrieval, "retrieve", fake_retrieve)
+    req = ChatRequest(message="q", top_k=4)
+    hits = asyncio.run(two.retrieve("q", req, "k", docs))
+    assert [h.id for h in hits][:2] == ["EUAIA-0", "WACHTER-0"] and calls == [(("EUAIA",), (), ()), (("WACHTER",), (), ())]
+    calls.clear()
+    narrow = Scope.build(SearchFilters(database=["WACHTER"], deo=["Results"]), docs)
+    assert asyncio.run(narrow.retrieve("q", req, "k", docs, relax=())) == []           # Document Chat: no relaxing
+    assert len(asyncio.run(narrow.retrieve("q", req, "k", docs, relax=("deo",)))) == 4  # Graph Chat: drop the role

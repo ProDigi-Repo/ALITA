@@ -9,15 +9,16 @@ from pydantic import BaseModel, Field
 
 from . import store, usage
 from .config import get_settings
-from .filters import parse_prompt_filters, to_qdrant
-from .llm import chat_model, embed_query, resolve_key
-from .memory import heuristic_query, is_follow_up, select_memory, transcript
-from .people import doc_ids_for_persons, people_context
+from .filters import parse_prompt_filters
+from .llm import chat_model, resolve_key
+from .memory import heuristic_query, is_follow_up, model_history, select_memory, transcript
+from .people import people_context
 from .progress import chat_context as progress_chat_context
 from .prompts import resolve as resolve_prompt
 from .prompts import system_prompt
 from .query_meta import Entity, Intent, analyze, vocab_from_documents
-from .ranking import cited_numbers, diversify
+from .ranking import cited_numbers
+from .retrieval import Scope
 from .schemas import ChatRequest, ChatResponse, SourceRef
 
 log = logging.getLogger("rag")
@@ -33,22 +34,6 @@ class Answer(BaseModel):
 def _snippet(text: str, n: int = 320) -> str:
     t = " ".join(text.split())
     return t if len(t) <= n else t[:n].rsplit(" ", 1)[0] + " …"
-
-
-async def retrieve(query: str, req: ChatRequest, api_key: str):
-    vec = await embed_query(query, api_key)
-    # mehr holen als nötig, dann pro Dokument begrenzen (verhindert, dass 6 Versionen eines Artikels alles belegen)
-    flt = req.filters
-    if flt.person:                                      # REQ-19: nur Daten dieser Person(en)
-        ids = doc_ids_for_persons(flt.person, store.scroll_documents(), store.list_projects())
-        if flt.doc_ids:
-            ids = [i for i in ids if i in set(flt.doc_ids)]
-        if not ids:
-            return []
-        flt = flt.model_copy(update={"doc_ids": ids})
-    hits = store.search_chunks(vec, to_qdrant(flt), limit=req.top_k * 8)
-    out = diversify([h.payload for h in hits], req.top_k, bool(req.filters.project))
-    return [hits[i] for i in out]
 
 
 def legal_ref(p: dict) -> dict | None:
@@ -189,8 +174,6 @@ def scope_overview(databases: list[str] | None = None, docs: list[dict] | None =
 
 async def prepare(req: ChatRequest, api_key: str | None) -> tuple[ChatRequest, Prepared]:
     """Gemeinsamer Teil von answer() und answer_stream(): Filter, Gedächtnis, Suche, Quellen, Prompt."""
-    from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
-
     key = resolve_key(api_key)
     s = get_settings()
     query, filters, prompt_filters = parse_prompt_filters(req.message, req.filters)
@@ -205,7 +188,7 @@ async def prepare(req: ChatRequest, api_key: str | None) -> tuple[ChatRequest, P
     search_q = await standalone_query(query or req.message, memory, model_name, key, s.memory_rewrite)
     extra = {"system_prompt_source": sp_source, "system_prompt_id": sp_id,
              "memory_turns": len(memory), "retrieval_query": search_q}
-    hits = await retrieve(search_q, req, key)
+    hits = await Scope.build(filters, all_docs).retrieve(search_q, req, key, all_docs, relax=())   # REQ-61 stage 2
     sources = to_sources(hits)
     if temporal:
         extra["temporal"] = temporal
@@ -226,16 +209,13 @@ async def prepare(req: ChatRequest, api_key: str | None) -> tuple[ChatRequest, P
             p.extra["progress"] = prog
         if prog_head and not sources and not overview:
             p.prompt = f"{head}Question: {p.query}"
-            p.history = [ModelRequest(parts=[UserPromptPart(content=t.content)]) if t.role == "user"
-                         else ModelResponse(parts=[TextPart(content=t.content)]) for t in memory]
+            p.history = model_history(memory)
     if not sources and legal_head and not overview and not p.prompt:   # REQ-37: Antwort aus Wortlaut/Änderungen der Legal-Ontologie
         p.prompt = f"{head}Question: {p.query}"
-        p.history = [ModelRequest(parts=[UserPromptPart(content=t.content)]) if t.role == "user"
-                     else ModelResponse(parts=[TextPart(content=t.content)]) for t in memory]
+        p.history = model_history(memory)
     if not sources and overview:   # top-level question without a matching passage: answer from the overview
         p.prompt = f"{head}No single document passage matched this question; answer from the overview.\n\nQuestion: {p.query}"
-        p.history = [ModelRequest(parts=[UserPromptPart(content=t.content)]) if t.role == "user"
-                     else ModelResponse(parts=[TextPart(content=t.content)]) for t in memory]
+        p.history = model_history(memory)
     if sources:
         context = "\n\n".join(
             f"[{r.n}] {r.title} ({r.doc_type}{', ' + r.project_name if r.project_name else ''}, {r.filetype}"
@@ -243,8 +223,7 @@ async def prepare(req: ChatRequest, api_key: str | None) -> tuple[ChatRequest, P
             for r, h in zip(sources, hits))
         who = people_context([r.project_name for r in sources], filters.person)
         p.prompt = f"{head}{who}Sources for this question:\n{context}\n\nQuestion: {p.query}"
-        p.history = [ModelRequest(parts=[UserPromptPart(content=t.content)]) if t.role == "user"
-                     else ModelResponse(parts=[TextPart(content=t.content)]) for t in memory]
+        p.history = model_history(memory)
     return req, p
 
 

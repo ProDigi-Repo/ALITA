@@ -41,3 +41,10 @@ def transcript(memory: list, max_chars: int = 6000) -> str:
     lines = [f"{'Researcher' if t.role == 'user' else 'ALITA'}: {t.content}" for t in memory]
     text = "\n".join(lines)
     return text[-max_chars:]
+
+
+def model_history(memory: list) -> list:
+    """The selected turns as pydantic-ai message history (user -> request, assistant -> response)."""
+    from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
+    return [ModelRequest(parts=[UserPromptPart(content=t.content)]) if t.role == "user"
+            else ModelResponse(parts=[TextPart(content=t.content)]) for t in memory]
