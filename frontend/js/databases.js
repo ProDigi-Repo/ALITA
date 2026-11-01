@@ -44,8 +44,9 @@ function applyDbRegistry(list){
   applyDbGate();
 }
 /* 3.6.2 (REQ-57): the tabs "ISO 42001/EUAIACT Docs" and "Technical Documentation" are hidden while locked;
-   3.6.3 (REQ-58): "Release Notes" too – the version number in the header then is plain text, not a link */
-const LOCKED_PAGES=['release','compliance','tech'];
+   3.6.3 (REQ-58): "Release Notes" too – the version number in the header then is plain text, not a link;
+   3.13.0 (REQ-76): "A/B Interaction Interface" too – without the password only B and Documents are shown */
+const LOCKED_PAGES=['chat','release','compliance','tech'];
 function applyPageGate(){
   LOCKED_PAGES.forEach(p=>{const b=document.getElementById('tab-'+p);if(b)b.hidden=!DB_UNLOCKED});
   const v=document.getElementById('appVersion');

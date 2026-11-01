@@ -78,6 +78,8 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 | REQ-72 | Add an MIT licence | ✅ done, on `main` since PR #10 | 3.13.0 | `LICENSE` (MIT, "ProDigi-Repo – ALITA contributors"), section "Lizenz" in the README; covers code and docs, not documents loaded into ALITA. |
 | REQ-73 | Describe that the data in the EU AI Act database is legal text and therefore not protected by copyright | ✅ done (PR #11) | 3.13.0 | Section in `docs/compliance/05-data-governance-and-oversight.md` (per document group: legal acts – official works, § 5(1) UrhG, EUR-Lex reuse 2011/833/EU; Commission documents – CC BY 4.0 with attribution; NIST – 17 U.S.C. § 105), README "Lizenz", `research/EUAIA/README.md`. |
 | REQ-74 | A big, clean refactoring so new features can follow | ✅ done – no visible change | 3.13.0 | REQ-61 stages 1–5. Checked against `main`: same routes, same GET responses on the same data (plus registry fields), same UI state after the same clicks (password gate, databases, clusters, Compare, map window, guided tour); access tests walk every route again (`route_table`). |
+| REQ-75 | Remove the row "Window to the outside" and the B explainer | ✅ done | 3.13.0 | Row, pop-up window, `outside.js`, `outside.css`, `desert.css` removed; the database bar spans the full width. REQ-20 stays planned. |
+| REQ-76 | A/B Interaction Interface only with the password | ✅ done | 3.13.0 | `LOCKED_PAGES` gets `chat`; locked: only B and Documents; `#chat` opens B. |
 
 ## Open points for the requirement owners
 - REQ-10, REQ-15 – REQ-18: main document chain per project, inferred links between versions and analyses, threshold for "substantive", AI stage texts automatic or on demand, versions without full text.

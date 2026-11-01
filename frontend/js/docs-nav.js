@@ -79,8 +79,7 @@ function placeGraphTile(p){   // the Graph Chat tile moves between the A/B page 
 }
 function showPage(p){
   if(!PAGES.includes(p))p='chat';
-  if(!DB_UNLOCKED&&LOCKED_PAGES.includes(p))p='graph';   // REQ-57: compliance and technical docs only after the password
-  {const bt=document.getElementById('bTop');if(bt)bt.hidden=p!=='graph'}   // REQ-62: B explainer in the database bar only on B
+  if(!DB_UNLOCKED&&LOCKED_PAGES.includes(p))p='graph';   // REQ-57/58/76: A/B page, release notes, compliance and technical docs only after the password
   if(p!=='graph'&&$('#drawer').classList.contains('docked')&&typeof closeDrawer==='function')closeDrawer();
   if(p==='graph')setTimeout(()=>{if(typeof fitBPage==='function')fitBPage()},0);
   $$('.nav button').forEach(b=>b.setAttribute('aria-selected',b.dataset.page===p));

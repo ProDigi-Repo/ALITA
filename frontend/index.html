@@ -12,8 +12,6 @@
 <link rel="stylesheet" href="css/cluster-profile.css">
 <link rel="stylesheet" href="css/space3d.css">
 <link rel="stylesheet" href="css/clusters.css">
-<link rel="stylesheet" href="css/desert.css">
-<link rel="stylesheet" href="css/outside.css">
 <link rel="stylesheet" href="css/progress.css">
 <link rel="stylesheet" href="css/citations.css">
 <link rel="stylesheet" href="css/legal.css">
@@ -57,7 +55,6 @@
     </form>
   </header>
 
-  <!-- REQ-62: three boxes side by side – database bar, and on the B page "Window to the outside" and the B explainer -->
   <div class="bar-row">
   <section class="dbbar" aria-label="Databases">
     <div class="avatar" id="avatar" role="img" aria-label="ALITA avatar: cyberpunk girl with rainbow hair and seashell earrings who follows your cursor">
@@ -152,7 +149,6 @@
     <span class="unas" id="dbUnassigned"></span>
     <button class="clear" id="dbClear" type="button" hidden title="Deselect all databases and clusters">Clear selection</button>
   </section>
-  <div class="b-top" id="bTop" hidden><button type="button" class="b-outside-btn" id="bOutsideBtn" aria-haspopup="dialog" aria-controls="bOutside" title="Window to the outside – external challenge (planned, REQ-20). Click to open."><span class="bo-scene" id="bOutsideScene" aria-hidden="true"></span><span class="bo-label"><span aria-hidden="true">🚧</span> Window to the outside</span></button><div class="chat-why cw-b b-why"><button type="button" class="cw-tag" title="Say hello to ALITA" aria-label="Say hello to ALITA">i</button><p><b>B searches the knowledge graph</b> – the connections between people, projects, methods, clusters and document parts (Graph RAG). Ask it <i>how</i> things are connected – e.g. <q>Who worked with whom on project X?</q> Answers follow paths in the graph and show them. <span class="cw-alt">For what a document says in detail use <b>A</b>.</span></p></div></div>
   </div>
 
   <!-- ============ PAGE: CHAT ============ -->
@@ -311,8 +307,7 @@
 
   <!-- ============ PAGE: CLUSTER GRAPH ============ -->
   <div class="page" id="page-graph" hidden>
-    <!-- REQ-01: workspace in four areas – knowledge map | project/cluster view
-                                          window to the outside | chat -->
+    <!-- REQ-01: workspace – knowledge map | project/cluster view | chat -->
     <div class="cgwrap bgrid">
       <div class="cg-max-scrim" id="cgMaxScrim" hidden></div>
       <section class="cg-main t-graph bq-map" aria-label="Knowledge map: all clusters">
@@ -335,97 +330,6 @@
           <div class="cpdock" id="cgProjCard" hidden aria-live="polite"></div>
           <div class="cpdock" id="cgDock" hidden aria-live="polite"></div>
           <aside class="cg-side" id="cgSide" aria-label="Cluster details"></aside>
-        </div>
-      </section>
-      <div class="b-outside-scrim" id="bOutsideScrim" hidden></div>
-      <section class="bq bq-outside" id="bOutside" role="dialog" aria-modal="true" hidden aria-label="Window to the outside: external challenge (planned)">
-        <div class="bq-head"><h3>Window to the outside</h3><span class="meta">External challenge · 🚧 planned · REQ-20</span><button type="button" class="icon-btn b-outside-close" id="bOutsideClose" aria-label="Close" title="Close (Esc)">✕</button></div>
-        <div class="bq-body desert" aria-hidden="false">
-          <svg class="dz" viewBox="0 0 800 420" preserveAspectRatio="xMidYMax slice" role="img" aria-label="Animated desert construction site: the window to the outside is still being built">
-            <defs>
-              <linearGradient id="dzSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7cc4e8"/><stop offset=".55" stop-color="#cfe6ee"/><stop offset="1" stop-color="#fbe3b8"/></linearGradient>
-              <radialGradient id="dzSun" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff6c8"/><stop offset=".45" stop-color="#ffd86b"/><stop offset="1" stop-color="#ffd86b" stop-opacity="0"/></radialGradient>
-              <linearGradient id="dzDune1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3cf8e"/><stop offset="1" stop-color="#e2b06a"/></linearGradient>
-              <linearGradient id="dzDune2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eebd72"/><stop offset="1" stop-color="#d79a52"/></linearGradient>
-              <linearGradient id="dzDune3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e3a95c"/><stop offset="1" stop-color="#c98940"/></linearGradient>
-              <pattern id="dzStripe" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="16" fill="#e8423a"/><rect x="8" width="8" height="16" fill="#fff"/></pattern>
-              <pattern id="dzHazard" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="14" fill="#1b1b1b"/><rect x="7" width="7" height="14" fill="#ffc21a"/></pattern>
-              <filter id="dzHeat" x="-5%" y="-20%" width="110%" height="140%"><feTurbulence type="fractalNoise" baseFrequency="0.012 0.09" numOctaves="1" seed="3" result="n"><animate attributeName="seed" values="3;9;3" dur="4s" repeatCount="indefinite"/></feTurbulence><feDisplacementMap in="SourceGraphic" in2="n" scale="5"/></filter>
-            </defs>
-
-            <rect width="800" height="420" fill="url(#dzSky)"/>
-            <g class="dz-sun"><circle cx="640" cy="88" r="70" fill="url(#dzSun)"/><circle cx="640" cy="88" r="26" fill="#fff3b0"/></g>
-            <!-- clouds -->
-            <g class="dz-cloud" opacity=".85"><ellipse cx="120" cy="70" rx="46" ry="12" fill="#fff"/><ellipse cx="148" cy="62" rx="26" ry="12" fill="#fff"/></g>
-            <g class="dz-cloud dz-cloud2" opacity=".7"><ellipse cx="420" cy="48" rx="36" ry="9" fill="#fff"/><ellipse cx="440" cy="42" rx="20" ry="9" fill="#fff"/></g>
-            <!-- birds -->
-            <g class="dz-birds" fill="none" stroke="#5a4a3a" stroke-width="2" stroke-linecap="round"><path d="M0 0q6-6 12 0q6-6 12 0"/><path d="M34 10q5-5 10 0q5-5 10 0"/></g>
-
-            <!-- far mesas, shimmering in the heat -->
-            <g filter="url(#dzHeat)">
-              <path d="M0 250 L60 250 L80 214 L170 214 L188 250 L330 250 L350 226 L410 226 L424 250 L560 250 L590 200 L700 200 L722 250 L800 250 L800 290 L0 290Z" fill="#d79a6a" opacity=".55"/>
-            </g>
-            <!-- dunes (drifting slowly) -->
-            <g class="dz-dune dz-d1"><path d="M-60 268 C60 238 160 240 260 262 S470 290 580 258 S760 236 860 262 L860 420 L-60 420Z" fill="url(#dzDune1)"/></g>
-            <g class="dz-dune dz-d2"><path d="M-60 300 C80 270 200 286 320 304 S540 322 660 292 S800 280 860 300 L860 420 L-60 420Z" fill="url(#dzDune2)"/></g>
-
-            <!-- cacti -->
-            <g fill="#4f8a4b" stroke="#3b6d38" stroke-width="2" stroke-linejoin="round">
-              <path d="M88 300 v-74 a10 10 0 0 1 20 0 v74Z"/><path d="M88 262 h-14 a8 8 0 0 1 -8 -8 v-20 a6 6 0 0 1 12 0 v16 h10Z"/><path d="M108 248 h12 v-16 a6 6 0 0 1 12 0 v20 a8 8 0 0 1 -8 8 h-16Z"/>
-              <path d="M735 296 v-44 a7 7 0 0 1 14 0 v44Z"/><path d="M749 270 h8 v-10 a4 4 0 0 1 8 0 v14 a6 6 0 0 1 -6 6 h-10Z"/>
-            </g>
-
-            <!-- construction pit -->
-            <path d="M300 336 C330 322 420 320 470 336 Z" fill="#b97a37"/>
-            <g class="dz-pile"><path d="M480 338 C500 300 540 300 560 338Z" fill="#c98a45"/><path d="M500 334 C514 316 532 316 546 334Z" fill="#d89c56"/></g>
-
-            <!-- excavator -->
-            <g class="dz-exc" transform="translate(330 262)">
-              <rect x="0" y="52" width="120" height="22" rx="11" fill="#2b2b2b"/>
-              <g fill="#555"><circle cx="14" cy="63" r="7"/><circle cx="38" cy="63" r="7"/><circle cx="62" cy="63" r="7"/><circle cx="86" cy="63" r="7"/><circle cx="106" cy="63" r="7"/></g>
-              <rect x="10" y="30" width="96" height="24" rx="3" fill="#ffc21a" stroke="#c99406" stroke-width="2"/>
-              <path d="M54 30 v-30 h40 l12 30Z" fill="#ffc21a" stroke="#c99406" stroke-width="2"/>
-              <path d="M62 6 h26 l8 20 h-34Z" fill="#9fd3ec" stroke="#c99406" stroke-width="1.5"/>
-              <rect x="10" y="44" width="96" height="6" fill="url(#dzHazard)"/>
-              <circle class="dz-beacon" cx="74" cy="-4" r="4" fill="#ff7a1a"/>
-              <g class="dz-boom">
-                <path d="M54 34 L4 -22" stroke="#ffc21a" stroke-width="10" stroke-linecap="round"/>
-                <path d="M54 34 L4 -22" stroke="#c99406" stroke-width="2" stroke-linecap="round" fill="none"/>
-                <g class="dz-stick">
-                  <path d="M4 -22 L-30 26" stroke="#ffc21a" stroke-width="8" stroke-linecap="round"/>
-                  <g class="dz-bucket"><path d="M-30 26 l-16 2 l-6 14 l22 4 l8 -10Z" fill="#7a7a7a" stroke="#4a4a4a" stroke-width="1.5"/><path d="M-50 42 l-3 5 M-44 43 l-2 5 M-38 44 l-1 5" stroke="#4a4a4a" stroke-width="2"/></g>
-                </g>
-              </g>
-            </g>
-            <!-- dust puffs from the bucket -->
-            <g class="dz-dust" fill="#e9c58b"><circle cx="292" cy="328" r="6"/><circle cx="304" cy="324" r="4"/><circle cx="284" cy="322" r="3"/></g>
-
-            <!-- barrier + cones + sign -->
-            <g transform="translate(560 300)">
-              <path d="M6 44 l10 -36 M70 44 l-10 -36" stroke="#8a8a8a" stroke-width="4"/>
-              <rect x="0" y="6" width="76" height="12" rx="2" fill="url(#dzStripe)" stroke="#9b2b25" stroke-width="1"/>
-              <rect x="0" y="24" width="76" height="10" rx="2" fill="url(#dzStripe)" stroke="#9b2b25" stroke-width="1"/>
-              <circle class="dz-blink" cx="6" cy="2" r="4" fill="#ffb21a"/><circle class="dz-blink dz-blink2" cx="70" cy="2" r="4" fill="#ffb21a"/>
-            </g>
-            <g class="dz-cone" transform="translate(250 330)"><path d="M0 18 L8 -14 L16 18Z" fill="#ff6a1a"/><path d="M3 6 h10 l-1.5 -6 h-7Z" fill="#fff"/><rect x="-4" y="16" width="24" height="5" rx="1" fill="#e5560f"/></g>
-            <g class="dz-cone" transform="translate(660 340)"><path d="M0 18 L8 -14 L16 18Z" fill="#ff6a1a"/><path d="M3 6 h10 l-1.5 -6 h-7Z" fill="#fff"/><rect x="-4" y="16" width="24" height="5" rx="1" fill="#e5560f"/></g>
-            <g transform="translate(180 236)">
-              <rect x="27" y="40" width="6" height="74" fill="#8a6a4a"/>
-              <g class="dz-sign"><path d="M30 0 L62 32 L30 64 L-2 32Z" fill="#ffc21a" stroke="#1b1b1b" stroke-width="3" stroke-linejoin="round"/>
-                <g fill="#1b1b1b"><circle cx="28" cy="20" r="3.5"/><path d="M27 25 l-6 12 l4 2 l3 -6 l4 4 v8 h4 v-10 l-4 -5 l2 -4 l5 3 l2 -3 l-7 -4Z"/><path d="M36 44 l8 -3 v4 l-8 2Z"/></g></g>
-            </g>
-
-            <!-- tumbleweed rolling through -->
-            <g class="dz-tumble"><g class="dz-roll" fill="none" stroke="#9b7444" stroke-width="1.6" stroke-linecap="round">
-              <circle cx="0" cy="0" r="13"/><path d="M-12 -4 C-4 -14 8 -10 12 2 M-10 8 C-2 -2 6 4 10 10 M-6 -12 C2 -4 -2 6 -8 12 M2 -13 C8 -4 4 6 -2 13"/>
-            </g></g>
-            <!-- blowing sand -->
-            <g class="dz-sand" fill="#f6dba5"><circle cx="0" cy="360" r="1.6"/><circle cx="40" cy="378" r="1.2"/><circle cx="90" cy="350" r="1.4"/><circle cx="150" cy="384" r="1.1"/><circle cx="210" cy="366" r="1.5"/></g>
-          </svg>
-          <div class="dz-card"><b>🚧 External challenge – under construction</b>
-            <span>Selected content – a cluster, a chat answer or a document – can be <b>checked and questioned against external databases</b>. The results will appear here, next to your own knowledge.</span>
-            <ol class="dz-steps"><li>Select content in the map, the cluster view or the chat</li><li>Challenge it against external databases</li><li>See confirmations, contradictions and gaps here</li></ol>
-            <small>REQ-20 · concept part of the proposal / call; implementation follows later.</small></div>
         </div>
       </section>
       <div class="bslot bq-chat" id="bTileSlot"></div>
@@ -603,7 +507,6 @@
 <script src="js/database-info.js"></script>
 <script src="js/cluster-compare.js"></script>
 <script src="js/map-window.js"></script>
-<script src="js/outside.js"></script>
 <script src="js/cluster-profile.js"></script>
 <script src="js/chat-tools.js"></script>
 <script src="js/info-alita.js"></script>
