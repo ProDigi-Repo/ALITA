@@ -9,24 +9,48 @@ function renderKey(){
   else{s.className='pill';s.innerHTML='<span class="dot"></span>no key'}
 }
 function renderDbLock(){
-  const p=$('#dbPass'),l=$('#dbLock');if(!p)return;
-  p.placeholder=DB_UNLOCKED?'all databases unlocked':'show all databases';p.disabled=DB_UNLOCKED;l.hidden=!DB_UNLOCKED;
+  const p=$('#dbPass'),l=$('#dbLock'),u=$('#dbUser');if(!p)return;
+  if(ACCOUNTS_ON){
+    p.placeholder=ACCOUNT?(ACCOUNT.all?'all databases unlocked':'logged in · '+dbName(ACCOUNT.database)):'password of this user';
+    p.disabled=!!ACCOUNT;l.hidden=!ACCOUNT;if(u){u.disabled=!!ACCOUNT;if(ACCOUNT)u.value=ACCOUNT.user}
+    l.textContent=ACCOUNT?'Log out':'Lock';l.title=ACCOUNT?'Log out '+ACCOUNT.user+' – only the public databases stay visible':'';
+  }else{p.placeholder=DB_UNLOCKED?'all databases unlocked':'show all databases';p.disabled=DB_UNLOCKED;l.hidden=!DB_UNLOCKED}
   applyPageGate();
+}
+/* REQ-77: after login or logout the server's view of this browser decides databases, pages and upload rights */
+async function accountChanged(msg){
+  await refreshMe();
+  Store.emit('gate',DB_UNLOCKED);
+  if(LOCKED_PAGES.some(x=>!$('#page-'+x).hidden&&!pageOpen(x)))showPage('graph');
+  if(msg)toast(msg);
+}
+async function accountLogin(user,password){
+  try{
+    const r=await fetch('api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user,password})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok){toast(r.status===401?'Wrong user name or password':(j.detail||'Login failed'));return}
+    await accountChanged(j.account.all?'Logged in · all databases are shown':'Logged in as '+j.account.user+' · only the database '+dbName(j.account.database)+' is shown');
+  }catch(e){toast('Login failed: '+e.message)}
 }
 /* lock/unlock without a page reload: the OpenRouter key lives in page memory only and would be lost */
 function setDbUnlocked(on){
   DB_UNLOCKED=on;try{on?localStorage.setItem('db_unlocked','1'):localStorage.removeItem('db_unlocked')}catch(e){}
-  DATABASES=[...DB_ALL];applyDbGate();renderDbLock();if(typeof loadDocs==='function')loadDocs();
+  DATABASES=[...DB_ALL];applyDbGate();Store.emit('gate',on);
   if(!on&&LOCKED_PAGES.some(x=>!$('#page-'+x).hidden))showPage('graph');   // locked while on a hidden tab
 }
-$('#dbLock').addEventListener('click',()=>{setDbUnlocked(false);toast('Locked · only the public databases are shown')});
+Store.on('gate',()=>renderDbLock(),10);
+Store.on('gate',()=>loadDocs(),20);
+$('#dbLock').addEventListener('click',async()=>{
+  if(ACCOUNTS_ON){try{await fetch('api/logout',{method:'POST'})}catch(e){}await accountChanged('Logged out · only the public databases are shown');return}
+  setDbUnlocked(false);toast('Locked · only the public databases are shown')});
 renderDbLock();
 $('#keyForm').addEventListener('submit',e=>{
   e.preventDefault();
   const pw=$('#dbPass').value;
   if(pw){
     $('#dbPass').value='';
-    if(pw===DB_PASSWORD){setDbUnlocked(true);toast('Password correct · all databases are shown')}
+    if(ACCOUNTS_ON)accountLogin($('#dbUser').value,pw);
+    else if(pw===DB_PASSWORD){setDbUnlocked(true);toast('Password correct · all databases are shown')}
     else toast('Wrong password');
     if(!$('#apiKey').value.trim()||$('#apiKey').value.trim()===apiKey)return;
   }
@@ -65,8 +89,11 @@ async function loadDocs(){
   DOCS=dbGateFilter(DOCS);PROJECTS=dbGateFilter(PROJECTS);
   [...DOCS,...PROJECTS].forEach(x=>{x.cl=dbRelabel(x.cl);if(x.ct)x.ct=dbRelabel(x.ct);if(x.cd)x.cd=dbRelabel(x.cd)});
   if(!LIVE&&DEMO&&DEMO.clusters&&DEMO.clusters.desc&&!DEMO.clusters._relabeled){Object.values(DEMO.clusters.desc).forEach(v=>{v.title=dbRelabel(v.title);v.description=dbRelabel(v.description)});DEMO.clusters._relabeled=true}
-  fillFacetSelects();renderDbBar();renderDocs();renderClusterViz();renderClusterPage();loadClusterProfiles();
+  Store.emit('documents');   // facets, database bar, table, cluster views and profiles update themselves (state.js)
 }
+Store.on('documents',()=>fillFacetSelects(),10);
+Store.on('documents',()=>renderDocs(),30);
+Store.on('databases',()=>{D.shown=100;renderDocs()},40);
 
 function opt(v,l){return `<option value="${esc(v)}">${esc(l)}</option>`}
 function fillFacetSelects(){

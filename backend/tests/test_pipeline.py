@@ -8,7 +8,7 @@ from app.chunking import chunk_segments
 from app.enrich import parse_structured_abstract
 from app.extract import Segment
 from app.filters import parse_prompt_filters
-from app.ingest import scan_project
+from app.ingestion.scan import scan_project
 from app.project_meta import detect_role, detect_venue, parse_version
 from app.schemas import DocType, SearchFilters
 
@@ -96,7 +96,7 @@ def test_databases_prompt_and_normalize():
 
 
 def test_detect_database_from_folder(tmp_path: Path):
-    from app.ingest import detect_databases
+    from app.ingestion.scan import detect_databases
     p = tmp_path / "research" / "LDK" / "11-Projekt"
     p.mkdir(parents=True)
     assert detect_databases(p) == ["LDK"]
@@ -104,7 +104,7 @@ def test_detect_database_from_folder(tmp_path: Path):
 
 
 def test_curated_summary(tmp_path: Path):
-    from app.ingest import apply_curated_summary, build_record
+    from app.ingestion.scan import apply_curated_summary, build_record
     folder = tmp_path / "LDK" / "notes"
     _docx(folder / "Note A.docx", "Some note text " * 50)
     (folder / "_summaries.yaml").write_text("Note A.docx:\n  purpose: P\n  findings: F\n", encoding="utf-8")
@@ -494,7 +494,7 @@ def test_delete_database(tmp_path):
 
 def test_literature_folders_excluded():
     from app.config import Settings
-    from app.ingest import _excluded
+    from app.ingestion.scan import is_excluded as _excluded
     pats = Settings().project_exclude
     assert _excluded("Projekt Gamification/Literatur/x.pdf", pats)
     assert _excluded("SET/1-Literatur/Literatur Olli/y.pdf", pats)
@@ -598,7 +598,7 @@ def test_excluded_files_are_counted_per_pattern():
     """REQ-08: files skipped by PROJECT_EXCLUDE (e.g. literature folders) are counted with their pattern."""
     import tempfile
 
-    from app.ingest import count_excluded
+    from app.ingestion.scan import count_excluded
     with tempfile.TemporaryDirectory() as d:
         root = Path(d)
         for rel in ["paper/main.docx", "Literatur/a.pdf", "Literatur/b.pdf", "x/Literatur zum Thema/c.bib", "paper/~$main.docx"]:
@@ -755,7 +755,7 @@ def test_overall_date_keeps_document_dates():
     from datetime import datetime, timezone
     from types import SimpleNamespace as NS
 
-    from app.ingest import apply_overall_date
+    from app.ingestion.scan import apply_overall_date
     old = datetime(2021, 3, 1, tzinfo=timezone.utc)
     items = [NS(record=NS(date=old, date_source="doc_properties", year=2021)),
              NS(record=NS(date=datetime(2026, 10, 10, tzinfo=timezone.utc), date_source="file_mtime", year=2026)),

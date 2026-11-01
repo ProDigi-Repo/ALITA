@@ -11,6 +11,7 @@ from functools import lru_cache
 from qdrant_client import QdrantClient
 from qdrant_client import models as qm
 
+from . import visibility
 from .config import get_settings
 from .schemas import Chunk, DocumentRecord, ProjectRecord, make_project_id
 
@@ -151,6 +152,10 @@ def replace_legal_units(norm_id: str, units: list[dict], vectors: list[list[floa
 
 
 def scroll_legal_units(norm_id: str, unit_kind: str | None = None) -> list[dict]:
+    if visibility.allowed() is not None:      # REQ-77: units of a law only when its model is visible
+        from .legal_ingest import load_model
+        if load_model(norm_id) is None:
+            return []
     s, c = get_settings(), client()
     must = [qm.FieldCondition(key="norm_id", match=qm.MatchValue(value=norm_id))]
     if unit_kind:
@@ -192,7 +197,8 @@ def delete_document(doc_id: str) -> None:
 # ------------------------------------------------------------------- Lesen
 def search_chunks(vector: list[float], flt: qm.Filter | None, limit: int):
     return client().query_points(
-        get_settings().col_chunks, query=vector, using="text", query_filter=flt, limit=limit, with_payload=True
+        get_settings().col_chunks, query=vector, using="text", query_filter=visibility.qdrant_filter(flt), limit=limit,
+        with_payload=True,
     ).points
 
 
@@ -213,7 +219,7 @@ def scroll_documents(flt: qm.Filter | None = None, limit: int = 10_000) -> list[
     s, c = get_settings(), client()
     out, offset = [], None
     while True:
-        pts, offset = c.scroll(s.col_documents, scroll_filter=flt, limit=min(512, limit), offset=offset,
+        pts, offset = c.scroll(s.col_documents, scroll_filter=visibility.qdrant_filter(flt), limit=min(512, limit), offset=offset,
                                with_payload=True, with_vectors=False)
         out += [p.payload for p in pts]
         if offset is None or len(out) >= limit:
@@ -244,6 +250,8 @@ def scroll_chunk_provisions() -> dict[str, list[str]]:
 
 def scroll_chunks(doc_id: str) -> list[dict]:
     """Alle Chunks eines Dokuments (Payload inkl. Text, DEO, Abschnitt), sortiert nach Reihenfolge."""
+    if visibility.allowed() is not None and get_document(doc_id) is None:   # REQ-77: not visible -> no text
+        return []
     s, c = get_settings(), client()
     flt = qm.Filter(must=[qm.FieldCondition(key="doc_id", match=qm.MatchValue(value=doc_id))])
     out, offset = [], None
@@ -261,17 +269,17 @@ def find_by_content(content_hash: str) -> list[dict]:
 
 def get_document(doc_id: str) -> dict | None:
     pts = client().retrieve(get_settings().col_documents, [doc_id], with_payload=True)
-    return pts[0].payload if pts else None
+    return pts[0].payload if pts and visibility.visible(pts[0].payload) else None
 
 
 def list_projects() -> list[dict]:
     pts, _ = client().scroll(get_settings().col_projects, limit=1000, with_payload=True)
-    return [p.payload for p in pts]
+    return [p.payload for p in pts if visibility.visible(p.payload)]
 
 
 def get_project(name: str) -> dict | None:
     pts = client().retrieve(get_settings().col_projects, [make_project_id(name)], with_payload=True)
-    return pts[0].payload if pts else None
+    return pts[0].payload if pts and visibility.visible(pts[0].payload) else None
 
 
 def set_project_team(name: str, team: list[str]) -> dict[str, list[str]]:

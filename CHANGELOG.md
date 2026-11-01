@@ -8,20 +8,45 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [Unreleased]
 
+## [3.13.0] - 2026-11-01
+
+> **Minor release – a clean code base for the next features.** The interface is unchanged apart from two requests of the same day: the row "Window to the outside" with the B explainer is removed (REQ-75), the A/B Interaction Interface needs the password (REQ-76), and a login per database with one account per user (REQ-77). The refactoring planned in 3.7.0 (REQ-61) is done: API routes are grouped by domain, both chats share one retrieval scope, ingestion is a package of small steps, every database is described in one place (registry) and the front-end views follow change events instead of calling each other. The REST API and the command line stay compatible; the one intended change in behaviour: the Document Chat, like the Graph Chat, now searches each selected database on its own. Checked against 3.12.0 on the same data: same routes, same answers of every GET endpoint (plus the registry fields), same interface state after the same clicks, guided tour and map window unchanged. This release also carries the licence, copyright and deployment changes merged after 3.12.0.
+
+### Requirements
+- **REQ-77 A login per database** – ✅ done: next to the password field a dropdown with the user names; each user's password opens only their own database – documents, clusters, both chats, files and uploads, enforced by the server (not only hidden in the page). "All databases" with the former shared password shows everything. Without a login only EU AI Act and Wachter are shown, now also on the server. 23 accounts and their databases created (`.secrets/accounts/accounts.json` on the local instance, scrypt hashes only, not in the repository).
+- **REQ-78 Admin account gengar** – ✅ done: the account `gengar` sees all databases (database `*`); it replaces the account `admin`.
+- **REQ-75 Remove the row "Window to the outside" + B explainer** – ✅ done: the row below the database bar on the B page is gone (button, pop-up window, `outside.js`, `outside.css`, `desert.css`); the database bar spans the full width.
+- **REQ-76 A/B Interaction Interface only with the password** – ✅ done: without the password only the tabs **B Interaction Interface** and **Documents** are shown; `#chat` then opens the B page, locking while on A/B returns to B.
+- **REQ-74 A big, clean refactoring so new features can follow** – ✅ done (REQ-61 stages 1–5, see `docs/technical/architecture/01-refactoring-plan.md`, section "How to add things now").
+- **REQ-72 MIT licence** and **REQ-73 copyright status of the EU AI Act database** – released with this version.
+
 ### Added
+- `backend/app/routes/` – one FastAPI router per domain (`system`, `chat`, `documents`, `clusters`, `projects`, `legal`, `graph`, `ingest`) with shared helpers in `routes/common.py`; `main.py` only builds the app. `routes.route_table()` lists every route, so the access tests check each route again (recent FastAPI versions no longer list the routes of included routers in `app.routes`).
+- `backend/app/retrieval.py` – `Scope`: where a question searches (databases, clusters, named clusters, all filters), built once per question and used by both chats.
+- `backend/app/ingestion/` – `scan`, `summaries`, `index`, `followups`, `pipeline`, `cli`; `python -m app.ingestion …` (the compose services use it; `python -m app.ingest …` still works).
+- `backend/app/registry.py` – the database registry (id, name, light and dark colour, public flag, description); `PUBLIC_DATABASES` in the `.env`; `GET /api/health` returns `registry`, `GET /api/databases` adds `display_name`, colours and `public`. `tools/build_frontend.py data` generates `frontend/css/databases.css` and `DB_REGISTRY` in `data.js` (checked by CI).
+- Accounts per database (REQ-77): `backend/app/accounts.py` (scrypt hashes, signed session cookie `alita-account`, 12 h; CLI `python -m app.accounts import|set|remove|list`), `backend/app/visibility.py` (allowed databases per request, applied where data is read: Qdrant documents/chunks/projects, legal models, Neo4j results), `POST /api/login`, `POST /api/logout`, `GET /api/accounts`; `/api/me` reports the account and its databases. Settings `ACCOUNTS_FILE` (compose: `./.secrets/accounts/accounts.json`), `ACCOUNT_SESSION_SECRET`, `ACCOUNT_SESSION_HOURS`. Databases of accounts are added automatically and get a stable colour. Repeated wrong passwords are slowed down.
+- `frontend/js/state.js` – change events (`documents`, `databases`, `clusters`, `cluster-page`, `gate`) that the views subscribe to.
 - User guide `docs/user/ALITA-Getting-Started.pdf` (two pages, A4; HTML source next to it; marked as AI-generated on top and in the footer of every page): what needs an OpenRouter key, how to get and enter one, the guided tour and the propositions of the research submission it follows, everyday use in five points; linked from the README (section "Getting started as a user") and the user manual. The first step of the guided tour mentions the key.
 - MIT licence (`LICENSE`): applies to the code and documentation of this repository; documents loaded into ALITA keep their own licences.
 
-### Documentation
+### Changed
+- Document Chat (A) now searches database by database when several databases are selected, like the Graph Chat since 3.7.0 – a large database (the AI Act with thousands of passages) no longer crowds out a small one.
+- Database parameters accept ids or names, repeated or comma-separated, in every endpoint (`?databases=EUAIA,WACHTER` and `?database=EUAIA&database=WACHTER`); unknown names give 400 everywhere.
+- `frontend/js/clusters.js` split without code changes into `cluster-core.js`, `cluster-3d.js`, `cluster-map2d.js`, `cluster-page.js` and `database-info.js`; the citation network and the map window follow the B page through events instead of wrapping `renderClusterPage`.
+- Database colours live only in the generated `css/databases.css` (removed from `base.css` and `space3d.css`); names, order and the public list of the front end come from the registry.
+- Cluster overview (`cluster_overview.py`), project teams (`project_teams.py`) and the history conversion for the language model (`memory.model_history`) each in one place.
+- README: section "How this software was built – AI disclosure" – ALITA was developed with Claude (Anthropic); who did what, how it was checked (no independent code review or audit), where the trail is (requirements log, commit trailers, pull requests, CHANGELOG), and the separate runtime use of GPT-6 Luna and OpenAI embeddings.
+- README translated into English (content unchanged apart from the current version in the header and a short section on papers linked to the provisions they discuss).
 - Copyright status of the database "EU AI Act": legal texts are not protected by copyright (official works, e.g. § 5(1) UrhG; EUR-Lex reuse under Decision 2011/833/EU), the Commission documents may be reused with the source acknowledged (CC BY 4.0), NIST SP 800-18r2 is a US government work (17 U.S.C. § 105). In `docs/compliance/05-data-governance-and-oversight.md`, the README and `research/EUAIA/README.md`.
 - Read-only GitHub Actions CI for PRs and main: secret scanning, Python/auth/deployment tests, Ruff, shell/JavaScript/nginx checks and generated frontend data validation. No production credentials or automatic deployment.
 - Reusable manual Hetzner code-deployment script with candidate import/health checks, rollback, private configuration backups and data-count checks; optional 4-GB pilot limits and an operations runbook. No automatic GitHub deployment or production configuration change.
 - Optional anonymous reviewer host with expiring invitation codes, read-only sessions, document downloads and each reviewer's own OpenRouter key. Includes an issue/revoke CLI; private Cloudflare Access remains unchanged.
 - Hetzner Compose profile and mailcode setup guide for a shared workspace behind Cloudflare Access/Tunnel; no published host ports.
 
-### Changed
-- README: section "How this software was built – AI disclosure" – ALITA was developed with Claude (Anthropic); who did what, how it was checked (no independent code review or audit), where the trail is (requirements log, commit trailers, pull requests, CHANGELOG), and the separate runtime use of GPT-6 Luna and OpenAI embeddings.
-- README translated into English (content unchanged apart from the current version in the header and a short section on papers linked to the provisions they discuss).
+### Fixed
+- The parameter line of the Document Chat (A) follows a cluster chosen in its dropdown (it kept showing the previous clusters).
+- The parameter line of the Graph Chat (B) shows a clicked project at once (it showed the scope before the click).
 
 ### Security
 - Verify Access JWT signatures, issuer, audience and expiry; reserve uploads and mutations for configured admins. Chat keeps using each user's own OpenRouter key.

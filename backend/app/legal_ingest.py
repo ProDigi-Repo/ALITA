@@ -74,14 +74,14 @@ def read_meta(folder: Path) -> dict:
 
 
 def _files(path: Path, exclude: list[str]) -> list[Path]:
-    from .ingest import _excluded
+    from .ingestion.scan import is_excluded
 
     if path.is_file():
         return [path]
     out = []
     for p in sorted(x for x in path.rglob("*") if x.is_file()):
         rel = p.relative_to(path).as_posix()
-        if p.name.startswith((".", "~$", "_")) or p.name.lower() in ("readme.md", "readme.txt") or _excluded(rel, exclude):
+        if p.name.startswith((".", "~$", "_")) or p.name.lower() in ("readme.md", "readme.txt") or is_excluded(rel, exclude):
             continue
         out.append(p)
     return out
@@ -144,17 +144,10 @@ async def ingest_legal(path: Path, doc_type: DocType, opts):
     """Legal project (Ordner) oder Leitlinie/Standard (Ordner oder Einzeldatei) einlesen. Gibt ProjectRecord bzw. das
     DocumentRecord der aktuellen Fassung zurück."""
     from . import store
-    from .ingest import (
-        _aggregate_project,
-        _apply_databases,
-        build_record,
-        detect_databases,
-        enrich_items,
-        index_items,
-        maybe_citations,
-        maybe_provisions,
-        maybe_recluster,
-    )
+    from .ingestion.followups import maybe_citations, maybe_provisions, maybe_recluster
+    from .ingestion.index import index_items
+    from .ingestion.scan import aggregate_project, apply_databases, build_record, detect_databases
+    from .ingestion.summaries import enrich_items
 
     s = get_settings()
     path = path.resolve()
@@ -171,7 +164,7 @@ async def ingest_legal(path: Path, doc_type: DocType, opts):
         rel = p.relative_to(folder).as_posix()
         ctx = None
         if is_project:
-            from .ingest import detect_role, filetype_of, folder_parts_of
+            from .ingestion.scan import detect_role, filetype_of, folder_parts_of
             ctx = ProjectContext(project_id=pid, project_name=name, rel_path=rel, folder="/".join(folder_parts_of(rel)),
                                  role=detect_role(p.name, filetype_of(p), folder_parts_of(rel)))
         it = build_record(p, doc_type, scope=name if is_project else doc_type.value, rel_path=rel if is_project else f"{folder.name}/{p.name}",
@@ -209,7 +202,7 @@ async def ingest_legal(path: Path, doc_type: DocType, opts):
     dbs = s.normalize_databases(opts.databases) or detect_databases(path)
     if not dbs and is_project:
         dbs = (store.get_project(name) or {}).get("databases") or []
-    _apply_databases(None, items, dbs)
+    apply_databases(None, items, dbs)
     # 2. Fassungen der Normen: Metadaten, Bestandteile, Fassungsgeschichte
     models, version_items = [], []
     for n in norms:
@@ -335,7 +328,7 @@ async def ingest_legal(path: Path, doc_type: DocType, opts):
             log.warning("Graph (Legal) nicht aktualisiert: %s", e)
     result = None
     if is_project:
-        project = _aggregate_project(folder, items, s.project_exclude)
+        project = aggregate_project(folder, items, s.project_exclude)
         project.databases = dbs
         project.indexed_count = sum(1 for it in items if it.record.indexed)
         cur = next((it.record for it in current), None)
@@ -366,11 +359,14 @@ def save_model(model: dict) -> None:
 
 
 def load_model(norm_id: str) -> dict | None:
+    from . import visibility
     f = _model_file(norm_id)
-    return json.loads(f.read_text(encoding="utf-8")) if f.is_file() else None
+    m = json.loads(f.read_text(encoding="utf-8")) if f.is_file() else None
+    return m if m is None or visibility.allowed() is None or visibility.visible(m) else None   # REQ-77
 
 
 def list_models(databases: list[str] | None = None) -> list[dict]:
+    from . import visibility
     d = get_settings().data_dir / "legal"
     out = []
     for f in sorted(d.glob("*.json")) if d.is_dir() else []:
@@ -379,6 +375,8 @@ def list_models(databases: list[str] | None = None) -> list[dict]:
         except Exception:
             continue
         if databases and not set(databases) & set(m.get("databases") or []):
+            continue
+        if not visibility.visible(m) and visibility.allowed() is not None:   # REQ-77: only allowed databases
             continue
         out.append(m)
     return out

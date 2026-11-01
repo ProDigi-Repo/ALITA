@@ -189,9 +189,8 @@ function ciToggle(on){
 (function wireCitations(){
   const btn=$('#cgCite');if(!btn)return;
   btn.addEventListener('click',()=>ciToggle(!CI.on));
-  // database selection, colour mode and resizing redraw the network as well
-  const base=window.renderClusterPage;
-  if(typeof base==='function')window.renderClusterPage=function(){const r=base.apply(this,arguments);if(CI.on)ciRender();return r};
+  // every redraw of the B page (database selection, colour mode) and resizing redraw the network as well
+  Store.on('cluster-page',()=>{if(CI.on)ciRender()},20);
   if(window.ResizeObserver){let t;new ResizeObserver(()=>{clearTimeout(t);t=setTimeout(()=>{if(CI.on)ciRender()},120)}).observe($('#cgCiteView'))}
   try{if(localStorage.getItem('ci_on')==='1')setTimeout(()=>ciToggle(true),0)}catch(e){}
 })();

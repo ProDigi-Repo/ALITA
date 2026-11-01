@@ -12,12 +12,10 @@ if(MW.ch)MW.ch.onmessage=e=>{
   const m=e.data||{};if(m.type!=='state'||m.state===mwState())return;
   MW.last=m.state;const st=JSON.parse(m.state);
   if(JSON.stringify([...SEL_DB].sort())!==JSON.stringify(st.db)){SEL_DB=[...st.db];try{saveDbSel()}catch(_){}}
-  CV.sels=new Set(st.sel);const r=document.getElementById('rCluster');if(r)r.value=CV.sels.size===1?String(st.sel[0]):'';
-  try{syncParams('rag');syncParams('graph')}catch(_){}
-  try{renderClusterViz()}catch(_){}try{renderClusterPage()}catch(_){}
+  CV.sels=new Set(st.sel);cvChanged();try{renderClusterPage()}catch(_){}
 };
 /* every redraw of the B page reports a changed selection to the other window */
-{const orig=renderClusterPage;renderClusterPage=function(){const r=orig.apply(this,arguments);try{mwSync()}catch(e){}return r}}
+Store.on('cluster-page',()=>mwSync(),10);
 function mwOpen(){
   if(MW.child&&!MW.child.closed){MW.child.focus();return true}
   const w=Math.min(screen.availWidth||1600,1700),h=Math.min(screen.availHeight||1000,1100);

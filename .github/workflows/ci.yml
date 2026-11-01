@@ -102,4 +102,4 @@ jobs:
       - name: Generated frontend data is current
         run: |
           .venv/bin/python tools/build_frontend.py data
-          git diff --exit-code -- frontend/js/data.js
+          git diff --exit-code -- frontend/js/data.js frontend/css/databases.css

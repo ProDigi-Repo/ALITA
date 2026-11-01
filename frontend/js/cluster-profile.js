@@ -90,3 +90,4 @@ document.addEventListener('click',ev=>{
 },true);
 document.addEventListener('keydown',ev=>{const d=cpS3();if(ev.key==='Escape'&&d&&d.dataset.pin){delete d.dataset.pin;cpS3Render(d,+d.dataset.c)}});
 function wireProfileHover(sel){$$(sel).forEach(b=>{if(b._cp)return;b._cp=1;b.addEventListener('mousemove',ev=>showProfile(+b.dataset.c,ev));b.addEventListener('mouseleave',hideProfile)})}
+Store.on('documents',()=>loadClusterProfiles(),60);

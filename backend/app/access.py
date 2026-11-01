@@ -8,7 +8,7 @@ from fastapi import Request
 from fastapi.responses import JSONResponse, Response
 from starlette.concurrency import run_in_threadpool
 
-from . import reviewers
+from . import accounts, reviewers, visibility
 from .config import get_settings
 
 # Everything else that writes is admin-only, including future API routes.
@@ -65,16 +65,49 @@ async def protect_request(request: Request, call_next: Callable[[Request], Await
         except jwt.PyJWTError:
             return denied(401, "Invalid Cloudflare Access token")
         request.state.is_admin = request.state.email in s.admin_emails
-    if s.access_enabled and request.method not in {"GET", "HEAD", "OPTIONS"}:
-        # Both login modes use browser cookies; reviewer mutations always require Origin.
+    allowed = apply_account(request, s)          # REQ-77: databases this request may see (None = all)
+    account_endpoint = request.method == "POST" and request.url.path in accounts.SESSION_PATHS
+    mutating = request.method not in {"GET", "HEAD", "OPTIONS"}
+    if mutating and (s.access_enabled or request.state.accounts_enabled):
+        # Login modes use browser cookies; reviewer mutations always require Origin.
         origin = request.headers.get("origin")
-        expected = s.review_origin if review_host else s.public_origin
-        if ((origin is not None or review_host) and origin != expected) or request.headers.get("sec-fetch-site") == "cross-site":
+        expected = s.review_origin if review_host else (s.public_origin or None)
+        if (((origin is not None or review_host) and expected is not None and origin != expected)
+                or request.headers.get("sec-fetch-site") == "cross-site"):
             return denied(403, "Cross-site requests are not allowed")
-        if ((request.method, request.url.path) not in CHAT_ROUTES and not review_session_endpoint
-                and not request.state.is_admin):
+        account_upload = (request.method, request.url.path) == ("POST", "/api/ingest") and request.state.account is not None
+        if ((request.method, request.url.path) not in CHAT_ROUTES and not review_session_endpoint and not account_endpoint
+                and not account_upload and not request.state.is_admin):
             return denied(403, "Admin access required")
-    response = await call_next(request)
+    token = visibility.restrict(allowed)
+    try:
+        response = await call_next(request)
+    finally:
+        visibility.reset(token)
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
+
+
+def apply_account(request: Request, s) -> list[str] | None:
+    """REQ-77: with accounts configured, the login decides what a request sees: one database, all of them ("*"),
+    or – without a login – the public databases (admins of Cloudflare Access still see everything).
+    Without accounts nothing changes (None = no restriction)."""
+    request.state.accounts_enabled = accounts.enabled(s)
+    request.state.account = None
+    if not request.state.accounts_enabled:
+        return None
+    acc = accounts.session_account(request.cookies.get(accounts.COOKIE_NAME), s)
+    if acc is not None:
+        request.state.account = acc
+        if acc.all_databases:
+            if not s.access_enabled and request.state.auth_mode == "local":
+                request.state.is_admin = True     # the former shared password: full rights on a local instance
+            return None
+        request.state.is_admin = False
+        return [acc.database]
+    if s.access_enabled and request.state.is_admin:
+        return None
+    if not s.access_enabled:
+        request.state.is_admin = False            # local instance with accounts: anonymous visitors only read
+    return list(s.public_databases)

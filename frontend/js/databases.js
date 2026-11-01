@@ -1,7 +1,9 @@
 /* ---------- Databases ---------- */
-let DATABASES=['AL','CNN_DM','DL','JSW','LDK','ML','UM','EUAIA','WACHTER','OTH'];
-/* Display names (flowers). The IDs above stay the internal keys: folders research/<ID>/, Qdrant payload, API filters, CSS colors. */
-const DB_NAME={AL:'Aster',CNN_DM:'Camellia',DL:'Dahlia',JSW:'Jasmine',LDK:'Peony',ML:'Magnolia',UM:'Orchid',EUAIA:'EU AI Act',WACHTER:'Wachter',OTH:'Others'};
+/* Registry (backend/app/registry.py): id, name, colours, public flag. DB_REGISTRY in data.js is the offline copy;
+   /api/health sends the configured one (applyDbRegistry). IDs stay the internal keys: folders research/<ID>/,
+   Qdrant payload, API filters, CSS colours --db-<ID> (css/databases.css, generated). */
+let DATABASES=DB_REGISTRY.map(d=>d.id);
+const DB_NAME=Object.fromEntries(DB_REGISTRY.map(d=>[d.id,d.name]));   // display names (flowers)
 const dbName=n=>DB_NAME[n]||n;
 const dbNames=l=>(l||[]).map(dbName);
 /* Database IDs inside texts that come from the server (cluster labels "JSW · …", cluster titles and
@@ -20,22 +22,45 @@ let SEL_DB=[];
 try{SEL_DB=JSON.parse(localStorage.getItem('sel_db')||'[]')}catch(e){}
 /* Access gate (3.5.0): without the password only the public databases are shown. The other databases appear
    once the password is entered next to the OpenRouter key (stored in this browser only). */
-const PUBLIC_DBS=['EUAIA','WACHTER'];   // 3.6.1 (REQ-56): Wachter is public too
+let PUBLIC_DBS=DB_REGISTRY.filter(d=>d.public).map(d=>d.id);   // visible without the password (REQ-56: EU AI Act, Wachter)
 const DB_PASSWORD='password';
 let DB_UNLOCKED=false;
 try{DB_UNLOCKED=localStorage.getItem('db_unlocked')==='1'}catch(e){}
 let DB_ALL=[...DATABASES];   // full list (from /api/health), kept for unlocking without a reload
+/* REQ-77: accounts per database. With accounts the server decides (GET /api/me): ACCOUNT = the logged-in user
+   (null = nobody), ACCOUNT_DBS = the databases this login may see (null = all). DB_UNLOCKED = an account with all
+   databases. Without accounts the shared password below works as before. */
+let ACCOUNTS_ON=false,ACCOUNT=null,ACCOUNT_DBS=null;
 function applyDbGate(){
+  if(ACCOUNTS_ON){
+    DATABASES=ACCOUNT_DBS===null?[...DB_ALL]:DB_ALL.filter(n=>ACCOUNT_DBS.includes(n));
+    if(ACCOUNT_DBS&&!DATABASES.length)DATABASES=[...ACCOUNT_DBS];
+    SEL_DB=SEL_DB.filter(n=>DATABASES.includes(n));
+    return;
+  }
   if(DATABASES.some(n=>!PUBLIC_DBS.includes(n)))DB_ALL=[...DATABASES];   // a full list (default or /api/health), not the filtered one
   if(DB_UNLOCKED)return;
   DATABASES=DATABASES.filter(n=>PUBLIC_DBS.includes(n));if(!DATABASES.length)DATABASES=[...PUBLIC_DBS];
   SEL_DB=SEL_DB.filter(n=>DATABASES.includes(n));
 }
+/* Registry from the server (/api/health): order, names, public flag; colours of databases the generated CSS does not know */
+function applyDbRegistry(list){
+  if(!Array.isArray(list)||!list.length)return;
+  DATABASES=list.map(d=>d.id);DB_ALL=[...DATABASES];
+  list.forEach(d=>{DB_NAME[d.id]=d.name||d.id});
+  PUBLIC_DBS=list.filter(d=>d.public).map(d=>d.id);
+  const root=document.documentElement,cs=getComputedStyle(root),dark=root.dataset.theme==='dark'||(root.dataset.theme!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches);
+  list.forEach(d=>{if(!cs.getPropertyValue('--db-'+d.id).trim()&&d.color)root.style.setProperty('--db-'+d.id,dark?d.color_dark||d.color:d.color)});
+  applyDbGate();
+}
 /* 3.6.2 (REQ-57): the tabs "ISO 42001/EUAIACT Docs" and "Technical Documentation" are hidden while locked;
-   3.6.3 (REQ-58): "Release Notes" too – the version number in the header then is plain text, not a link */
-const LOCKED_PAGES=['release','compliance','tech'];
+   3.6.3 (REQ-58): "Release Notes" too – the version number in the header then is plain text, not a link;
+   3.13.0 (REQ-76): "A/B Interaction Interface" too – without the password only B and Documents are shown */
+const LOCKED_PAGES=['chat','release','compliance','tech'];
+/* a user account opens the A/B page too, the documentation tabs stay with the account for all databases */
+function pageOpen(p){return DB_UNLOCKED||(p==='chat'&&!!ACCOUNT)}
 function applyPageGate(){
-  LOCKED_PAGES.forEach(p=>{const b=document.getElementById('tab-'+p);if(b)b.hidden=!DB_UNLOCKED});
+  LOCKED_PAGES.forEach(p=>{const b=document.getElementById('tab-'+p);if(b)b.hidden=!pageOpen(p)});
   const v=document.getElementById('appVersion');
   if(v){v.disabled=!DB_UNLOCKED;v.classList.toggle('locked',!DB_UNLOCKED);v.title=(DB_UNLOCKED?'Release notes · ':'')+'Frontend v'+APP_VERSION+(typeof BACKEND_VERSION!=='undefined'&&BACKEND_VERSION?' · Backend v'+BACKEND_VERSION:'')}
 }
@@ -189,9 +214,10 @@ function syncHairFlowers(){
   });
 }
 function saveDbSel(){try{localStorage.setItem('sel_db',JSON.stringify(SEL_DB))}catch(e){}
-  // every view on its own, so one failing view cannot stop the others (parameter lines first)
-  [()=>{if(typeof cvPruneSel==='function')cvPruneSel()},()=>{syncParams('rag');syncParams('graph')},renderDbBar,()=>{D.shown=100;renderDocs()},renderClusterViz,renderClusterPage,()=>{if(typeof loadPeople==='function')loadPeople()}].forEach(fn=>{try{fn()}catch(e){console.error('database selection:',e)}});
+  Store.emit('databases');   // each view updates itself (state.js); parameter lines first
 }
+Store.on('databases',()=>renderDbBar(),30);
+Store.on('documents',()=>renderDbBar(),20);
 $('#dbClear').addEventListener('click',()=>typeof clearAllSel==='function'?clearAllSel():setDbSel([]));
 function dbPickerButtons(sel){return DATABASES.map(n=>`<button type="button" data-db="${esc(n)}" aria-pressed="${(sel||[]).includes(n)}" style="--c:${dbColor(n)}">${esc(dbName(n))}</button>`).join('')}
 function wirePick(sel){$$(sel+' button[data-db]').forEach(b=>b.addEventListener('click',()=>b.setAttribute('aria-pressed',b.getAttribute('aria-pressed')!=='true')))}

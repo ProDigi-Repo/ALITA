@@ -44,7 +44,7 @@ Keep the invitation code confidential; it is sent separately and not printed in 
 | Tab | What you do there |
 | --- | --- |
 | **B Interaction Interface** | Full-width knowledge map on the left; **Projects & clusters** and Graph Chat on the right |
-| **A/B Interaction Interface** | Document Chat and Graph Chat side by side, each with its cluster view above it |
+| **A/B Interaction Interface** | Document Chat and Graph Chat side by side, each with its cluster view above it (only with the password, since 3.13.0) |
 | **Documents** | Browse, search, filter and download files; open a document's details. Uploads are admin-only |
 | **Release Notes** | What changed in each version (also via the version number in the header) |
 | **ISO 42001/EUAIACT Docs** | Compliance documentation |
@@ -63,16 +63,17 @@ The database bar stays visible on every chat page: **ⓘ Cluster descriptions** 
 1. **Title and version:** click the version number to open the Release Notes. The DEMO badge appears when the page runs without the backend.
 2. **Tabs:** switch between B, A/B, Documents, Release Notes and the compliance and technical documentation.
 3. **API key:** paste your OpenRouter key and click **Save**; the eye shows or hides it. Once saved, the status shows **Key …** with the last four characters; the key stays in this page's memory only. The model is fixed.
-   **Password:** without it only the databases **EU AI Act** and **Wachter** are shown, and the tabs **Release Notes**, **ISO 42001/EUAIACT Docs** and **Technical Documentation** are hidden (the version number then does not open the release notes). Enter the password you were given in the field **Password** next to the key and click **Save** to show all databases and these tabs; **Lock** hides them again. The unlock is remembered in this browser (the key is not).
+   **Password:** without it only the databases **EU AI Act** and **Wachter** are shown, and the tabs **A/B Interaction Interface**, **Release Notes**, **ISO 42001/EUAIACT Docs** and **Technical Documentation** are hidden (the version number then does not open the release notes). Enter the password you were given in the field **Password** next to the key and click **Save** to show all databases and these tabs; **Lock** hides them again. The unlock is remembered in this browser (the key is not).
+   **User name (since 3.13.0, REQ-77):** where accounts are set up, choose your user name in the dropdown before the password field and enter its password: you then see and work only in your own database (documents, map, both chats, uploads), plus the A/B Interaction Interface. **All databases** with the shared password shows everything. **Log out** returns to EU AI Act and Wachter.
 4. **ALITA avatar:** follows your cursor. The small **i** buttons on the page say hello and explain the view.
 5. **Database selection:** shows what is selected; it applies to A and B. **Cluster descriptions** explains all clusters and how the databases share them.
 6. **Database tiles:** click a tile to select or deselect it; it shows its number of documents and projects. **ⓘ** opens its contents and cluster descriptions.
 7. **Upload (admins only):** papers, notes or a project ZIP are uploaded in **Documents → + Upload** (the database bar no longer has an upload button).
-8. **Window to the outside:** planned external challenge (REQ-20). Opens a concept preview; not active yet.
+8. *(Window to the outside – removed in 3.13.0; external challenge stays planned, REQ-20.)*
 
 **Map, projects and Graph Chat**
 
-9. **Info banner:** says what B does: it searches the knowledge graph. For what a document says in detail, use A.
+9. *(Info banner about B – removed in 3.13.0 together with the window to the outside.)*
 10. **Knowledge map:** all data in three layers: projects and papers on top, semantic clusters in the middle, documents below. Color by **Document type** or **Database**. Hover to preview, click to open.
 11. **Map controls:** **Compare** (draws the relations between the clusters of two databases, e.g. EU AI Act ↔ Wachter, as violet dashed lines with their similarity; see below), **2D**, **Reset view**, **3D · time** (years as depth), **⇄ Citations** (which papers cite each other) and **Enlarge**, which opens the knowledge map in a separate browser window (e.g. for a second screen; clusters you select there are the search space of the chats in the main window and vice versa – if the browser blocks pop-ups, the map is enlarged over the page instead).
 12. **Projects & clusters:** every cluster with its topic, key terms and number of documents; click one to select it for the chats. Below, the strongest bridges between clusters. Project cards and document details open here too.

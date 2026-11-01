@@ -5,8 +5,9 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from fastapi.testclient import TestClient
 
-from app import access, main, reviewers
+from app import access, accounts, config, main, reviewers, store
 from app.config import Settings
+from app.routes import route_table
 
 ORIGIN = "https://review.example.org"
 CODE = "test-invitation-with-at-least-32-characters"
@@ -20,9 +21,9 @@ def setup(monkeypatch):
                         admin_emails="admin@example.org", review_origin=ORIGIN,
                         review_session_secret="test-signing-secret-with-more-than-32-characters",
                         review_invites={DIGEST: datetime.now(timezone.utc) + timedelta(days=1)})
-    for module in (access, main, reviewers):
+    for module in (access, config, reviewers):
         monkeypatch.setattr(module, "get_settings", lambda: settings)
-    monkeypatch.setattr(main.store, "scroll_documents", lambda *args: [])
+    monkeypatch.setattr(store, "scroll_documents", lambda *args: [])
     return settings, TestClient(main.app, base_url=ORIGIN)
 
 
@@ -66,11 +67,11 @@ def test_reviewer_cannot_write_or_claim_an_admin_email(setup):
     _, client = setup
     assert login(client).status_code == 200
     spoof = {"Origin": ORIGIN, "Cf-Access-Authenticated-User-Email": "admin@example.org"}
-    for route in main.app.routes:
-        for method in getattr(route, "methods", set()) - {"GET", "HEAD", "OPTIONS"}:
-            if (method, route.path) in access.CHAT_ROUTES or route.path in reviewers.SESSION_PATHS:
-                continue
-            assert client.request(method, route.path, headers=spoof).status_code == 403, route.path
+    for method, path in route_table():
+        if (method in {"GET", "HEAD", "OPTIONS"} or (method, path) in access.CHAT_ROUTES or path in reviewers.SESSION_PATHS
+                or path in accounts.SESSION_PATHS):
+            continue
+        assert client.request(method, path, headers=spoof).status_code == 403, path
     assert client.get("/api/projects/test/progress?recompute=true").status_code == 403
     assert client.get("/api/me", headers=spoof).json()["is_admin"] is False
 
@@ -80,7 +81,7 @@ def test_reviewer_can_download_originals(setup, monkeypatch, tmp_path):
     assert login(client).status_code == 200
     document = tmp_path / "paper.pdf"
     document.write_bytes(b"%PDF-1.4 test")
-    monkeypatch.setattr(main.store, "get_document", lambda _: {
+    monkeypatch.setattr(store, "get_document", lambda _: {
         "source_path": str(document), "filename": "paper.pdf", "mime": "application/pdf"})
     response = client.get("/files/test")
     assert response.status_code == 200 and response.content == document.read_bytes()
