@@ -181,9 +181,9 @@ function renderProjectCard(f){
       <h3>${esc(p.title||p.name)}</h3>
       <div class="stats"><span><b>${p.files}</b> files</span><span><b>${esc(p.from_)}</b> to <b>${esc(p.to)}</b></span><span><b>${(p.venues||[]).length}</b> submissions</span>${p.excluded&&p.excluded.length?`<span title="${esc(p.excluded.join(', '))}">excluded: ${esc(p.excluded[0])}${p.excluded.length>1?' …':''}</span>`:''}</div>
       <div class="venues">${(p.venues||[]).map((v,i)=>`<span class="tagl">${i+1} ${esc(v)}</span>`).join('')}</div>
-      <h4 style="margin:6px 0 0;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Databases ${(p.db||[]).length?'':'<span class="prov">unassigned</span>'}</h4>
+      <h4 style="margin:6px 0 0;font-size:calc(11px * var(--fs-scale,1));color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Databases ${(p.db||[]).length?'':'<span class="prov">unassigned</span>'}</h4>
       ${dbPicker('pcDb',p.db)}
-      <h4 style="margin:6px 0 0;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Methods <span class="prov" title="The methods glossary is a temporary placeholder">Draft glossary</span></h4>
+      <h4 style="margin:6px 0 0;font-size:calc(11px * var(--fs-scale,1));color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Methods <span class="prov" title="The methods glossary is a temporary placeholder">Draft glossary</span></h4>
       <div class="mchips">${(p.methods||[]).map(m=>`<span class="mchip">${esc(METHOD_LABEL[m[0]]||m[1])}<i>${Math.round(m[2]*100)}%</i></span>`).join('')||'<span class="srcnote">none yet</span>'}</div>
       ${(p.keywords||[]).length?`<div class="mchips">${p.keywords.map(k=>`<span class="tagl">${esc(k)}</span>`).join('')}</div>`:''}
     </div>
