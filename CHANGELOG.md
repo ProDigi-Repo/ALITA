@@ -9,6 +9,7 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 ## [Unreleased]
 
 ### Added
+- User guide `docs/user/ALITA-Getting-Started.pdf` (two pages, A4; HTML source next to it; marked as AI-generated on top and in the footer of every page): what needs an OpenRouter key, how to get and enter one, the guided tour and the propositions of the research submission it follows, everyday use in five points; linked from the README (section "Getting started as a user") and the user manual. The first step of the guided tour mentions the key.
 - MIT licence (`LICENSE`): applies to the code and documentation of this repository; documents loaded into ALITA keep their own licences.
 
 ### Documentation
@@ -17,6 +18,10 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 - Reusable manual Hetzner code-deployment script with candidate import/health checks, rollback, private configuration backups and data-count checks; optional 4-GB pilot limits and an operations runbook. No automatic GitHub deployment or production configuration change.
 - Optional anonymous reviewer host with expiring invitation codes, read-only sessions, document downloads and each reviewer's own OpenRouter key. Includes an issue/revoke CLI; private Cloudflare Access remains unchanged.
 - Hetzner Compose profile and mailcode setup guide for a shared workspace behind Cloudflare Access/Tunnel; no published host ports.
+
+### Changed
+- README: section "How this software was built – AI disclosure" – ALITA was developed with Claude (Anthropic); who did what, how it was checked (no independent code review or audit), where the trail is (requirements log, commit trailers, pull requests, CHANGELOG), and the separate runtime use of GPT-6 Luna and OpenAI embeddings.
+- README translated into English (content unchanged apart from the current version in the header and a short section on papers linked to the provisions they discuss).
 
 ### Security
 - Verify Access JWT signatures, issuer, audience and expiry; reserve uploads and mutations for configured admins. Chat keeps using each user's own OpenRouter key.

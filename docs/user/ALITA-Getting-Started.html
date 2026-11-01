@@ -1,0 +1,161 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>ALITA – Getting started</title>
+<style>
+@page{size:A4;margin:16mm 16mm 20mm 16mm}
+body{font-family:Inter,'DejaVu Sans',sans-serif;font-size:9.7pt;line-height:1.42;color:#1d2731;margin:0}
+h1{font-size:22pt;margin:0 0 2pt;color:#0F2A44;letter-spacing:-.01em}
+.sub{color:#5A6676;font-size:10.5pt;margin:0 0 10pt}
+h2{font-size:13pt;color:#0F2A44;margin:11pt 0 4pt;padding-top:5pt;border-top:1px solid #E1E6EC;break-after:avoid}
+p,li{margin:0 0 5pt} ol,ul{margin:0 0 6pt;padding-left:16pt}
+a{color:#1D5FD1;text-decoration:none}
+code{font-family:'DejaVu Sans Mono',monospace;font-size:8.8pt;background:#F1F4F8;border-radius:3px;padding:0 3px}
+table{border-collapse:collapse;width:100%;margin:4pt 0 8pt;font-size:9.3pt;break-inside:avoid}
+th,td{border:1px solid #D6DCE4;padding:3pt 6pt;text-align:left;vertical-align:top}
+th{background:#F1F4F8;color:#0F2A44}
+blockquote{margin:6pt 0 8pt;padding:7pt 10pt;background:#F6F8FB;border-left:3px solid #1D5FD1;color:#2B3644}
+blockquote p{margin:0}
+.ai{display:flex;gap:10pt;align-items:center;border:1.5px solid #8A3BC9;background:#F6EFFC;border-radius:8pt;padding:8pt 11pt;margin:0 0 12pt;color:#3B1D57}
+.ai .badge{flex:none;font-weight:800;font-size:11pt;color:#fff;background:#8A3BC9;border-radius:6pt;padding:5pt 8pt;letter-spacing:.04em}
+.ai b{color:#2a1340}
+</style></head><body>
+<div class="ai"><span class="badge">AI</span><div><b>AI-generated guide.</b> This guide was written entirely by the AI assistant Claude (Anthropic) and has not been edited by the ALITA team. Check it against the application; if something differs, the application is right.</div></div>
+<h1>ALITA – Getting started</h1>
+<p class="sub">OpenRouter key · guided tour · first steps &nbsp;·&nbsp; ALITA 3.12.0 · October 2026</p>
+<p>ALITA turns research material – projects in all their versions, papers, notes, laws – into a knowledge map and a
+knowledge graph you can question. This page gets you from opening ALITA to your first answer in a few minutes.</p>
+<h2>1. What works without a key, and what needs one</h2>
+<table>
+<thead>
+<tr>
+<th>Without an OpenRouter key</th>
+<th>Needs your own OpenRouter API key</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Look at the knowledge map, clusters, the 3D/time view</td>
+<td><strong>Asking questions</strong> in the Graph Chat (B) and the Document Chat (A)</td>
+</tr>
+<tr>
+<td>Browse and open documents and their details</td>
+<td><strong>Ask now</strong> in the guided tour</td>
+</tr>
+<tr>
+<td>Take the <strong>guided tour</strong> (reading the steps, putting example questions into the chat)</td>
+<td>Uploading documents (summaries and embeddings)</td>
+</tr>
+</tbody>
+</table>
+<p>ALITA has no shared key: <strong>every user – reviewers too – brings their own key</strong>. Questions are processed by the
+language model GPT-6 Luna through <a href="https://openrouter.ai">OpenRouter</a>; each answer shows what it cost.</p>
+<h2>2. Get an OpenRouter API key (once)</h2>
+<ol>
+<li><strong>Create an account</strong> at <a href="https://openrouter.ai">openrouter.ai</a> (<strong>Sign in</strong> → Google, GitHub or e-mail).</li>
+<li><strong>Add credit</strong> at <a href="https://openrouter.ai/settings/credits">openrouter.ai/settings/credits</a>. ALITA uses a paid model,
+   so the key needs credit; a few euros last for many questions.</li>
+<li><strong>Create a key</strong> at <a href="https://openrouter.ai/settings/keys">openrouter.ai/settings/keys</a> → <strong>Create Key</strong>, name it
+   e.g. <code>ALITA</code>; a spending limit is a good idea. <strong>Copy the key right away</strong> – it starts with <code>sk-or-</code> and is shown only once.</li>
+</ol>
+<p>Fees, payment methods and limits: <a href="https://github.com/ProDigi-Repo/ALITA/blob/main/docs/user/ALITA-User-Manual.md#get-an-openrouter-api-key">User Manual → Get an OpenRouter API key</a>.</p>
+<h2>3. Enter the key in ALITA</h2>
+<ol>
+<li>Paste the key into the field <strong>OpenRouter API-Key</strong> at the top and click <strong>Save</strong>.</li>
+<li>The status next to it changes from <strong>no key</strong> to <strong>Key …</strong> with the last four characters.</li>
+<li>The key stays <strong>only in the memory of this page</strong>. It is not stored on the server and is gone after a reload –
+   paste it again then. Treat it like a password; if it leaks, delete it on OpenRouter and create a new one.</li>
+</ol>
+<h2>4. Take the guided tour</h2>
+<p>Click <strong>▶ Guided tour</strong> in the header, next to the version number. The tour takes about ten minutes and walks through
+ALITA along the propositions of our research submission <em>"Explore or Exploit? An AI Research Memory Map that Makes
+Scholars' Epistemic Trajectories Observable and Contestable"</em>:</p>
+<blockquote>
+<p>Research is usually judged by its final version; the trajectory behind it – ideas proposed, tested, dropped and
+recombined across drafts – stays scattered and fades. ALITA makes this trajectory visible and contestable through
+three mechanisms: it <strong>refreshes memory</strong> (within a project and across projects), it <strong>makes the argument
+traceable</strong>, and it <strong>supports updating one's schemes</strong> – so that the choice between <strong>exploring</strong> a new path and
+<strong>exploiting</strong> the current one is made with the trajectory in view.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>What you see</th>
+<th>Proposition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Welcome</td>
+<td>the trajectory problem; the three mechanisms</td>
+</tr>
+<tr>
+<td>2</td>
+<td>The databases</td>
+<td>what the collection contains (public: EU AI Act, Wachter)</td>
+</tr>
+<tr>
+<td>3</td>
+<td>The knowledge map</td>
+<td>refresh memory: "where have we been?"</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>Compare</strong> EU AI Act ↔ Wachter</td>
+<td>horizontal sense-making – beyond one's own research bubble</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Ask about what the map shows</td>
+<td>the map's links, followed through the ontology to the text</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Version history of a law</td>
+<td>vertical sense-making – a trajectory over versions</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Papers → articles they discuss</td>
+<td>traceability – explicit relations, not only similarity</td>
+</tr>
+<tr>
+<td>8</td>
+<td>The law's document details</td>
+<td>the same relation, seen from the law</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Let ALITA argue back</td>
+<td>updating schemes – challenge a position, check the sources</td>
+</tr>
+<tr>
+<td>10</td>
+<td>Your own projects (with the password)</td>
+<td>explored or exploited? knowledge stages of a project</td>
+</tr>
+<tr>
+<td>11</td>
+<td>Closing</td>
+<td>explore or exploit; limits and what is planned</td>
+</tr>
+</tbody>
+</table>
+<p><strong>How to use it:</strong> <strong>Next</strong> / <strong>Back</strong> (or → / ←), <strong>Esc</strong> or ✕ to close. Steps with an example question offer
+<strong>Put into Graph Chat</strong> (inserts it; you press <strong>Send</strong>) and <strong>Ask now</strong> (sends it – needs your key). The tour switches
+pages and highlights the part of the screen it explains; you can click around in between. A link ending in <code>?tour=1</code>
+starts the tour on opening.</p>
+<h2>5. Everyday use in five points</h2>
+<ol>
+<li><strong>Pick the scope.</strong> The database bar on top selects databases; a click on a cluster or project in the knowledge map
+   narrows both chats to it. <strong>Clear selection</strong> widens the scope again.</li>
+<li><strong>Choose the chat.</strong> <strong>B – Graph Chat</strong> (B page) follows the connections: clusters, projects, people, methods,
+   citations, laws. <strong>A – Document Chat</strong> (tab A/B) searches the text and is best for content and details.</li>
+<li><strong>Ask in your own words</strong>, in English or German. Name clusters ("C8 and C9"), articles ("Art. 31 AI Act") or a project.</li>
+<li><strong>Check the sources.</strong> Every statement cites numbered sources [n]; click a number to read the passage. The graph path
+   under the answer shows how ALITA got there. ALITA's answers come from a language model and <strong>can be wrong</strong>.</li>
+<li><strong>Open documents</strong> in the tab <strong>Documents</strong> or by clicking them in the map: summary, methods, versions, citations,
+   and for papers and laws the articles discussed.</li>
+</ol>
+<p>Other databases (research projects) appear after entering the password next to the key field. Conversations stay only
+in this page; export them via <strong>History</strong> → ⤓ .txt before closing.</p>
+</body></html>
