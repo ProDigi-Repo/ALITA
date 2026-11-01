@@ -11,8 +11,10 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from app import access, main
+from app import access, config, main, rag, store
 from app.config import Settings
+from app.routes import route_table
+from app.routes.ingest import checked_zip_members
 
 ISSUER = "https://alita-test.cloudflareaccess.com"
 ORIGIN = "https://alita.example.org"
@@ -28,7 +30,7 @@ def client(monkeypatch, private_key):
     settings = Settings(_env_file=None, access_enabled=True, access_team_domain="alita-test.cloudflareaccess.com",
                         access_audience="alita-audience", public_origin=ORIGIN, admin_emails="Admin@example.org")
     monkeypatch.setattr(access, "get_settings", lambda: settings)
-    monkeypatch.setattr(main, "get_settings", lambda: settings)
+    monkeypatch.setattr(config, "get_settings", lambda: settings)
     jwk = jwt.algorithms.RSAAlgorithm.to_jwk(private_key.public_key(), as_dict=True) | {"kid": "test-key"}
     monkeypatch.setattr(jwt.PyJWKClient, "fetch_data", lambda self: {"keys": [jwk]})
     access.jwks_client.cache_clear()
@@ -90,10 +92,11 @@ def test_identity_comes_from_signed_claims(client, private_key):
 
 
 def test_readers_cannot_call_any_mutating_route(client, private_key):
-    for route in main.app.routes:
-        for method in getattr(route, "methods", set()) - {"GET", "HEAD", "OPTIONS"}:
-            if (method, route.path) not in access.CHAT_ROUTES:
-                assert client.request(method, route.path, headers=headers(private_key)).status_code == 403, route.path
+    mutating = [(m, path) for m, path in route_table() if m not in {"GET", "HEAD", "OPTIONS"}]
+    assert ("POST", "/api/ingest") in mutating and len(mutating) >= 12   # the table really lists the routers' routes
+    for method, path in mutating:
+        if (method, path) not in access.CHAT_ROUTES:
+            assert client.request(method, path, headers=headers(private_key)).status_code == 403, path
     assert client.post("/api/future-admin-action", headers=headers(private_key)).status_code == 403
 
 
@@ -129,7 +132,7 @@ def test_streaming_remains_available(client, private_key, monkeypatch):
     async def answer(*args):
         yield "delta", {"text": "hello"}
         yield "done", {}
-    monkeypatch.setattr(main.rag, "answer_stream", answer)
+    monkeypatch.setattr(rag, "answer_stream", answer)
     h = headers(private_key) | {"X-OpenRouter-Key": "test-user-key"}
     response = client.post("/api/chat/stream", json={"message": "hello"}, headers=h)
     assert response.status_code == 200
@@ -155,7 +158,7 @@ def test_enabled_access_requires_complete_configuration():
 def test_original_downloads_do_not_execute_active_content(client, private_key, monkeypatch, tmp_path, suffix, mime, disposition):
     path = tmp_path / f"document{suffix}"
     path.write_text("test")
-    monkeypatch.setattr(main.store, "get_document", lambda _: {"source_path": str(path), "filename": path.name, "mime": mime})
+    monkeypatch.setattr(store, "get_document", lambda _: {"source_path": str(path), "filename": path.name, "mime": mime})
     response = client.get("/files/doc", headers=headers(private_key))
     assert response.status_code == 200
     assert response.headers["content-disposition"].startswith(disposition)
@@ -168,26 +171,32 @@ def test_unsafe_zip_names_are_rejected(name):
     with zipfile.ZipFile(archive, "w") as z:
         z.writestr(name, "test")
     with zipfile.ZipFile(archive) as z, pytest.raises(HTTPException) as error:
-        main.checked_zip_members(z)
+        checked_zip_members(z)
     assert error.value.status_code == 400
 
 
 def test_zip_limits_and_symlinks():
     normal = zipfile.ZipInfo("project/paper.txt")
-    assert main.checked_zip_members(SimpleNamespace(infolist=lambda: [normal])) == [normal.filename]
+    assert checked_zip_members(SimpleNamespace(infolist=lambda: [normal])) == [normal.filename]
     for entries in ([normal] * 1001, [SimpleNamespace(file_size=251 * 1024 * 1024)]):
         with pytest.raises(HTTPException) as error:
-            main.checked_zip_members(SimpleNamespace(infolist=lambda entries=entries: entries))
+            checked_zip_members(SimpleNamespace(infolist=lambda entries=entries: entries))
         assert error.value.status_code == 413
     normal.external_attr = (stat.S_IFLNK | 0o777) << 16
     with pytest.raises(HTTPException) as error:
-        main.checked_zip_members(SimpleNamespace(infolist=lambda: [normal]))
+        checked_zip_members(SimpleNamespace(infolist=lambda: [normal]))
     assert error.value.status_code == 400
 
 
 def test_invalid_zip_is_a_client_error(client, private_key, tmp_path, monkeypatch):
-    settings = main.get_settings().model_copy(update={"data_dir": tmp_path})
-    monkeypatch.setattr(main, "get_settings", lambda: settings)
+    settings = config.get_settings().model_copy(update={"data_dir": tmp_path})
+    monkeypatch.setattr(config, "get_settings", lambda: settings)
     response = client.post("/api/ingest", headers=headers(private_key, email="admin@example.org"),
                            data={"doc_type": "research_project"}, files={"files": ("broken.zip", b"not a zip")})
     assert response.status_code == 400
+
+
+def test_route_table_matches_the_served_api():
+    """Every API route of the app is in the table the access tests walk (and nothing else)."""
+    served = {(m.upper(), path) for path, ops in main.app.openapi()["paths"].items() for m in ops}
+    assert served == {(m, p) for m, p in route_table() if m != "HEAD"}

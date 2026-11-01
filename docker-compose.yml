@@ -110,14 +110,14 @@ services:
   seed:
     <<: *backend
     restart: "no"
-    entrypoint: ["python", "-m", "app.ingest"]
+    entrypoint: ["python", "-m", "app.ingestion"]
     command: ["all", "/research", "-v"]
 
   # Einmal-Job: docker compose run --rm ingest <project|paper|notes> <pfad> [--no-llm] [-v]
   ingest:
     <<: *backend
     profiles: ["ingest"]
-    entrypoint: ["python", "-m", "app.ingest"]
+    entrypoint: ["python", "-m", "app.ingestion"]
     command: ["--help"]
 
   # Umzug auf einen Server: docker compose run --rm migrate export | import   (Ordner ./migrate)

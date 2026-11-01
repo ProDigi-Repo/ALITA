@@ -323,16 +323,17 @@ def test_legal_project_is_one_clustering_unit():
 def test_auto_recluster_only_touches_ingested_databases(monkeypatch):
     import asyncio
 
-    from app import clustering, ingest
+    from app import clustering
+    from app.ingestion import IngestOptions, followups
     calls = []
 
     async def fake(k=None, api_key=None, databases=None, project_files=False):
         calls.append((databases, project_files))
         return {"k": 1, "documents": 1, "units": 1}
     monkeypatch.setattr(clustering, "recompute", fake)
-    monkeypatch.setattr(ingest, "_uses_project_files", lambda db: db == "ML")
-    opts = ingest.IngestOptions(use_llm=False, embed=True)
-    res = asyncio.run(ingest.maybe_recluster(opts, ["EUAIA", "ML"]))
+    monkeypatch.setattr(followups, "uses_project_files", lambda db: db == "ML")
+    opts = IngestOptions(use_llm=False, embed=True)
+    res = asyncio.run(followups.maybe_recluster(opts, ["EUAIA", "ML"]))
     assert calls == [(["EUAIA"], False), (["ML"], True)] and res["k"] == 2
 
 

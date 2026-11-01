@@ -10,6 +10,8 @@ from urllib.parse import urlsplit
 from pydantic import AwareDatetime, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from . import registry
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -79,16 +81,14 @@ class Settings(BaseSettings):
     frontend_dir: Path = ROOT / "frontend"
 
     # --- Datenbanken ------------------------------------------------------
-    # Feste Liste der Datenbanken, denen Dateien zugeordnet werden (Metadatum "databases").
-    # In der .env: DATABASES=AL,CNN_DM,DL,JSW,LDK,ML,UM,EUAIA,WACHTER,OTH  (EUAIA = „EU AI Act“, Kornblume, seit 3.0.0; WACHTER = „Wachter“, Paper zu vertrauenswürdiger KI und AI Act, seit 3.6.0; OTH = „Others“ für alles, was nirgends sonst hingehört)
-    databases: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["AL", "CNN_DM", "DL", "JSW", "LDK", "ML", "UM", "EUAIA", "WACHTER", "OTH"])
-    # Anzeigenamen (Blumen) der Datenbanken. Die Kürzel oben bleiben die internen Schlüssel
-    # (Ordner research/<ID>/, Qdrant-Payload "databases", API-Filter); Namen erscheinen in Oberfläche,
-    # Cluster-Labels und LLM-Kontext, und Fragen dürfen beide Schreibweisen nutzen.
-    # In der .env als JSON: DATABASE_NAMES={"LDK":"Peony",...}
-    database_names: dict[str, str] = Field(default_factory=lambda: {
-        "AL": "Aster", "CNN_DM": "Camellia", "DL": "Dahlia", "JSW": "Jasmine",
-        "LDK": "Peony", "ML": "Magnolia", "UM": "Orchid", "EUAIA": "EU AI Act", "WACHTER": "Wachter", "OTH": "Others"})
+    # Ids, names, colours and public flags come from the registry (app/registry.py). The .env can still choose and
+    # order the databases (DATABASES=AL,CNN_DM,…), rename them (DATABASE_NAMES as JSON: {"LDK":"Peony",…}) and set
+    # which are visible without the password (PUBLIC_DATABASES=EUAIA,WACHTER). Ids stay the internal keys
+    # (folders research/<ID>/, Qdrant payload "databases", API filters); names appear in the interface, cluster labels
+    # and LLM context, and questions may use either.
+    databases: Annotated[list[str], NoDecode] = Field(default_factory=lambda: list(registry.DEFAULT_IDS))
+    database_names: dict[str, str] = Field(default_factory=lambda: dict(registry.DEFAULT_NAMES))
+    public_databases: Annotated[list[str], NoDecode] = Field(default_factory=lambda: list(registry.DEFAULT_PUBLIC))
 
     # --- Clustering -------------------------------------------------------
     memory_max_turns: int = 20      # Gesprächsgedächtnis: so viele frühere Wechsel gehen mit jeder Frage mit
@@ -127,7 +127,7 @@ class Settings(BaseSettings):
             return [p.strip() for p in v.split(";") if p.strip()]
         return v
 
-    @field_validator("databases", mode="before")
+    @field_validator("databases", "public_databases", mode="before")
     @classmethod
     def _split_db(cls, v):
         if isinstance(v, str):
@@ -135,11 +135,13 @@ class Settings(BaseSettings):
         return v
 
     def normalize_databases(self, values: list[str] | str | None) -> list[str]:
-        """Groß-/Kleinschreibung egal, unbekannte Namen -> ValueError."""
+        """Groß-/Kleinschreibung egal, unbekannte Namen -> ValueError.
+        Accepts "EUAIA,WACHTER", ["EUAIA", "WACHTER"] and ["EUAIA,WACHTER"] (repeated or comma-separated query values)."""
         if not values:
             return []
         if isinstance(values, str):
-            values = values.split(",")
+            values = [values]
+        values = [part for v in values for part in str(v).split(",")]
         known = {d.lower(): d for d in self.databases}
         known.update({n.lower(): d for d, n in self.database_names.items() if d in self.databases})  # Blumennamen
         out = []
@@ -152,6 +154,10 @@ class Settings(BaseSettings):
             if known[v.lower()] not in out:
                 out.append(known[v.lower()])
         return out
+
+    def registry(self) -> list[registry.Database]:
+        """The configured databases with name, colours and public flag (see app/registry.py)."""
+        return registry.build(self.databases, self.database_names, self.public_databases)
 
     @property
     def col_documents(self) -> str:
