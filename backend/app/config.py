@@ -56,6 +56,23 @@ class Settings(BaseSettings):
                 raise ValueError("Reviewer access requires a separate HTTPS origin, a strong session secret and hashed invitations")
         return self
 
+    # --- Konten je Datenbank (REQ-77) -------------------------------------
+    # JSON file with user name, database and scrypt hash per account (python -m app.accounts …); never in the
+    # repository. Default <DATA_DIR>/accounts.json. Without the file there are no accounts (behaviour as before 3.13.0).
+    accounts_file: Path | None = None
+    account_session_secret: SecretStr = SecretStr("")   # empty = generated once into <DATA_DIR>/.account_session_secret
+    account_session_hours: int = 12
+
+    @model_validator(mode="after")
+    def _account_databases(self):
+        """Every account's database exists, even if DATABASES in the .env does not list it."""
+        from .accounts import account_databases
+        for db, name in account_databases(self).items():
+            if db not in self.databases:
+                self.databases.append(db)
+            self.database_names.setdefault(db, name)
+        return self
+
     # --- OpenRouter -------------------------------------------------------
     openrouter_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
@@ -158,6 +175,10 @@ class Settings(BaseSettings):
     def registry(self) -> list[registry.Database]:
         """The configured databases with name, colours and public flag (see app/registry.py)."""
         return registry.build(self.databases, self.database_names, self.public_databases)
+
+    @property
+    def accounts_path(self) -> Path:
+        return self.accounts_file or self.data_dir / "accounts.json"
 
     @property
     def col_documents(self) -> str:

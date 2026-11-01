@@ -32,16 +32,38 @@ async function detectBackend(){
         if(problem.login_url==='/review-login.html'){location.replace(problem.login_url);return false}
       }
       if(!r.ok)throw new Error('Login required');
-      const user=await r.json();IS_ADMIN=user.is_admin===true;AUTH_MODE=user.auth_mode||'local';
-      const logout=$('#logout');logout.hidden=!user.access_enabled;
-      logout.title=user.email||(AUTH_MODE==='reviewer'?'Anonymous reviewer':'');
-    }catch(e){IS_ADMIN=false}
-    ['#dbAdd','#openUpload'].forEach(s=>{const el=$(s);if(el)el.hidden=!IS_ADMIN});   // #dbAdd removed in 3.5.1
+      applyMe(await r.json());
+      if(ACCOUNTS_ON)await loadAccounts();
+    }catch(e){IS_ADMIN=false;applyUploadRights()}
   }
   const m=$('#mode');
   m.textContent=LIVE?'Live':'Demo';
   if(LIVE&&BACKEND_VERSION)$('#appVersion').title=(DB_UNLOCKED?'Release notes · ':'')+'Frontend v'+APP_VERSION+' · Backend v'+BACKEND_VERSION;m.classList.toggle('live',LIVE);
   m.title=LIVE?'Connected to the backend':'No backend reachable: the document list shows real metadata from the sample project (without LLM enrichment); chat answers are examples.';
+}
+/* /api/me: identity, admin rights and – with accounts (REQ-77) – the login and its databases */
+function applyMe(user){
+  IS_ADMIN=user.is_admin===true;AUTH_MODE=user.auth_mode||'local';
+  const logout=$('#logout');logout.hidden=!user.access_enabled;
+  logout.title=user.email||(AUTH_MODE==='reviewer'?'Anonymous reviewer':'');
+  if(user.accounts){
+    ACCOUNTS_ON=true;ACCOUNT=user.account||null;ACCOUNT_DBS=user.databases===undefined?null:user.databases;
+    DB_UNLOCKED=!!(ACCOUNT&&ACCOUNT.all);DATABASES=[...DB_ALL];applyDbGate();
+  }
+  applyUploadRights();
+  if(typeof renderDbLock==='function')renderDbLock();
+}
+/* uploads: admins, and users into their own database */
+function applyUploadRights(){['#dbAdd','#openUpload'].forEach(s=>{const el=$(s);if(el)el.hidden=!(IS_ADMIN||(ACCOUNT&&!ACCOUNT.all))})}
+async function refreshMe(){try{const r=await fetch('api/me');if(r.ok)applyMe(await r.json())}catch(e){}}
+/* user names for the dropdown before the password field */
+async function loadAccounts(){
+  try{
+    const a=await (await fetch('api/accounts')).json(),sel=$('#dbUser');if(!sel||!a.enabled)return;
+    sel.innerHTML=a.users.map(u=>`<option value="${esc(u.user)}">${esc(u.all?u.label||'All databases':u.user)}</option>`).join('');
+    sel.hidden=false;if(ACCOUNT)sel.value=ACCOUNT.user;
+    $('#dbPass').title='Choose your user name and enter its password: each user sees only their own database ("'+esc((a.users.find(u=>u.all)||{}).label||'All databases')+'" shows everything)';
+  }catch(e){}
 }
 $('#logout').addEventListener('click',async()=>{
   if(AUTH_MODE==='reviewer'){

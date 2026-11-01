@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from fastapi.testclient import TestClient
 
-from app import access, config, main, reviewers, store
+from app import access, accounts, config, main, reviewers, store
 from app.config import Settings
 from app.routes import route_table
 
@@ -68,7 +68,8 @@ def test_reviewer_cannot_write_or_claim_an_admin_email(setup):
     assert login(client).status_code == 200
     spoof = {"Origin": ORIGIN, "Cf-Access-Authenticated-User-Email": "admin@example.org"}
     for method, path in route_table():
-        if method in {"GET", "HEAD", "OPTIONS"} or (method, path) in access.CHAT_ROUTES or path in reviewers.SESSION_PATHS:
+        if (method in {"GET", "HEAD", "OPTIONS"} or (method, path) in access.CHAT_ROUTES or path in reviewers.SESSION_PATHS
+                or path in accounts.SESSION_PATHS):
             continue
         assert client.request(method, path, headers=spoof).status_code == 403, path
     assert client.get("/api/projects/test/progress?recompute=true").status_code == 403

@@ -12,7 +12,8 @@ def test_registry_defaults_and_env_overrides():
     s = Settings(_env_file=None, databases="WACHTER,NEW", database_names={"NEW": "Tulip"}, public_databases="NEW")
     wachter, new = s.registry()
     assert (wachter.name, wachter.public, wachter.color) == ("Wachter", False, "#5a3fb8")
-    assert (new.name, new.public, new.color) == ("Tulip", True, registry.FALLBACK_COLORS[0])
+    assert (new.name, new.public, new.color) == ("Tulip", True, registry.generated_colors("NEW")[0])
+    assert new.color.startswith("#") and len(new.color) == 7 and new.color != registry.generated_colors("OTHER")[0]
 
 
 def test_database_parameters_accept_ids_names_and_commas():

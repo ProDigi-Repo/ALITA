@@ -33,11 +33,17 @@ def require_key(x_key: str | None) -> None:
 
 
 def databases_param(values: list[str] | str | None) -> list[str]:
-    """Database ids from a query/form value (ids or display names, comma-separated or repeated); 400 when unknown."""
+    """Database ids from a query/form value (ids or display names, comma-separated or repeated); 400 when unknown.
+    REQ-77: with a restricted login, nothing given = the allowed databases; a database outside them = 403."""
+    from .. import visibility
     try:
-        return settings().normalize_databases(values)
+        dbs = settings().normalize_databases(values)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
+    try:
+        return visibility.check_databases(dbs)
+    except PermissionError as e:
+        raise HTTPException(403, str(e)) from e
 
 
 def sse(stream: AsyncIterator[tuple[str, dict]], label: str) -> StreamingResponse:

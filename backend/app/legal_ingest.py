@@ -359,11 +359,14 @@ def save_model(model: dict) -> None:
 
 
 def load_model(norm_id: str) -> dict | None:
+    from . import visibility
     f = _model_file(norm_id)
-    return json.loads(f.read_text(encoding="utf-8")) if f.is_file() else None
+    m = json.loads(f.read_text(encoding="utf-8")) if f.is_file() else None
+    return m if m is None or visibility.allowed() is None or visibility.visible(m) else None   # REQ-77
 
 
 def list_models(databases: list[str] | None = None) -> list[dict]:
+    from . import visibility
     d = get_settings().data_dir / "legal"
     out = []
     for f in sorted(d.glob("*.json")) if d.is_dir() else []:
@@ -372,6 +375,8 @@ def list_models(databases: list[str] | None = None) -> list[dict]:
         except Exception:
             continue
         if databases and not set(databases) & set(m.get("databases") or []):
+            continue
+        if not visibility.visible(m) and visibility.allowed() is not None:   # REQ-77: only allowed databases
             continue
         out.append(m)
     return out

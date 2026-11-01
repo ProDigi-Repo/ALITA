@@ -27,7 +27,17 @@ const DB_PASSWORD='password';
 let DB_UNLOCKED=false;
 try{DB_UNLOCKED=localStorage.getItem('db_unlocked')==='1'}catch(e){}
 let DB_ALL=[...DATABASES];   // full list (from /api/health), kept for unlocking without a reload
+/* REQ-77: accounts per database. With accounts the server decides (GET /api/me): ACCOUNT = the logged-in user
+   (null = nobody), ACCOUNT_DBS = the databases this login may see (null = all). DB_UNLOCKED = an account with all
+   databases. Without accounts the shared password below works as before. */
+let ACCOUNTS_ON=false,ACCOUNT=null,ACCOUNT_DBS=null;
 function applyDbGate(){
+  if(ACCOUNTS_ON){
+    DATABASES=ACCOUNT_DBS===null?[...DB_ALL]:DB_ALL.filter(n=>ACCOUNT_DBS.includes(n));
+    if(ACCOUNT_DBS&&!DATABASES.length)DATABASES=[...ACCOUNT_DBS];
+    SEL_DB=SEL_DB.filter(n=>DATABASES.includes(n));
+    return;
+  }
   if(DATABASES.some(n=>!PUBLIC_DBS.includes(n)))DB_ALL=[...DATABASES];   // a full list (default or /api/health), not the filtered one
   if(DB_UNLOCKED)return;
   DATABASES=DATABASES.filter(n=>PUBLIC_DBS.includes(n));if(!DATABASES.length)DATABASES=[...PUBLIC_DBS];
@@ -47,8 +57,10 @@ function applyDbRegistry(list){
    3.6.3 (REQ-58): "Release Notes" too – the version number in the header then is plain text, not a link;
    3.13.0 (REQ-76): "A/B Interaction Interface" too – without the password only B and Documents are shown */
 const LOCKED_PAGES=['chat','release','compliance','tech'];
+/* a user account opens the A/B page too, the documentation tabs stay with the account for all databases */
+function pageOpen(p){return DB_UNLOCKED||(p==='chat'&&!!ACCOUNT)}
 function applyPageGate(){
-  LOCKED_PAGES.forEach(p=>{const b=document.getElementById('tab-'+p);if(b)b.hidden=!DB_UNLOCKED});
+  LOCKED_PAGES.forEach(p=>{const b=document.getElementById('tab-'+p);if(b)b.hidden=!pageOpen(p)});
   const v=document.getElementById('appVersion');
   if(v){v.disabled=!DB_UNLOCKED;v.classList.toggle('locked',!DB_UNLOCKED);v.title=(DB_UNLOCKED?'Release notes · ':'')+'Frontend v'+APP_VERSION+(typeof BACKEND_VERSION!=='undefined'&&BACKEND_VERSION?' · Backend v'+BACKEND_VERSION:'')}
 }

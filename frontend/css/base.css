@@ -60,6 +60,10 @@ button,input,select,textarea{font:inherit;color:inherit}
 .field{display:flex;align-items:center;border:1px solid var(--line);border-radius:7px;background:var(--sunk);overflow:hidden}
 .field input{border:0;background:transparent;padding:7px 10px;width:220px;max-width:52vw;font-family:var(--f-mono);font-size:13px}
 .field input:focus{outline:none}
+/* REQ-77: user name before the password (only with accounts) */
+.field .db-user{border:0;border-right:1px solid var(--line);background:transparent;color:inherit;padding:7px 8px;font-family:var(--f-mono);font-size:13px;max-width:150px}
+.field .db-user:focus{outline:none}
+.field .db-user option{color:#18222a}
 .field:focus-within{border-color:var(--rag)}
 .icon-btn{border:0;background:transparent;padding:6px 9px;cursor:pointer;color:var(--muted)}
 .icon-btn:hover{color:var(--fg)}

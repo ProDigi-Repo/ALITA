@@ -29,10 +29,12 @@ x-backend: &backend
     NEO4J_URL: bolt://neo4j:7687
     NEO4J_PASSWORD: ${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}
     DATA_DIR: /data
+    ACCOUNTS_FILE: /run/alita-accounts/accounts.json   # REQ-77: accounts per database (hashes; see app/accounts.py)
     GLOSSARY_PATH: /app/glossary/methods.yaml
     FRONTEND_DIR: /app/frontend
   volumes:
     - app_data:/data                                  # Uploads (ZIP-Projekte, Paper, Notes)
+    - ${ACCOUNTS_DIR:-./.secrets/accounts}:/run/alita-accounts   # REQ-77: accounts.json (not in git); no file = no accounts
     - ./glossary:/app/glossary:ro                     # Methoden-Glossar, ohne Rebuild austauschbar
     - ./frontend:/app/frontend:ro                     # Backend liefert das Frontend auch selbst aus (Port 8000)
     - ./CHANGELOG.md:/app/CHANGELOG.md:ro             # Release notes für /api/release-notes

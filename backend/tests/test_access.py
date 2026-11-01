@@ -11,7 +11,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from app import access, config, main, rag, store
+from app import access, accounts, config, main, rag, store
 from app.config import Settings
 from app.routes import route_table
 from app.routes.ingest import checked_zip_members
@@ -95,7 +95,7 @@ def test_readers_cannot_call_any_mutating_route(client, private_key):
     mutating = [(m, path) for m, path in route_table() if m not in {"GET", "HEAD", "OPTIONS"}]
     assert ("POST", "/api/ingest") in mutating and len(mutating) >= 12   # the table really lists the routers' routes
     for method, path in mutating:
-        if (method, path) not in access.CHAT_ROUTES:
+        if (method, path) not in access.CHAT_ROUTES and path not in accounts.SESSION_PATHS:
             assert client.request(method, path, headers=headers(private_key)).status_code == 403, path
     assert client.post("/api/future-admin-action", headers=headers(private_key)).status_code == 403
 

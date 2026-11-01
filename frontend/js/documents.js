@@ -9,9 +9,28 @@ function renderKey(){
   else{s.className='pill';s.innerHTML='<span class="dot"></span>no key'}
 }
 function renderDbLock(){
-  const p=$('#dbPass'),l=$('#dbLock');if(!p)return;
-  p.placeholder=DB_UNLOCKED?'all databases unlocked':'show all databases';p.disabled=DB_UNLOCKED;l.hidden=!DB_UNLOCKED;
+  const p=$('#dbPass'),l=$('#dbLock'),u=$('#dbUser');if(!p)return;
+  if(ACCOUNTS_ON){
+    p.placeholder=ACCOUNT?(ACCOUNT.all?'all databases unlocked':'logged in · '+dbName(ACCOUNT.database)):'password of this user';
+    p.disabled=!!ACCOUNT;l.hidden=!ACCOUNT;if(u){u.disabled=!!ACCOUNT;if(ACCOUNT)u.value=ACCOUNT.user}
+    l.textContent=ACCOUNT?'Log out':'Lock';l.title=ACCOUNT?'Log out '+ACCOUNT.user+' – only the public databases stay visible':'';
+  }else{p.placeholder=DB_UNLOCKED?'all databases unlocked':'show all databases';p.disabled=DB_UNLOCKED;l.hidden=!DB_UNLOCKED}
   applyPageGate();
+}
+/* REQ-77: after login or logout the server's view of this browser decides databases, pages and upload rights */
+async function accountChanged(msg){
+  await refreshMe();
+  Store.emit('gate',DB_UNLOCKED);
+  if(LOCKED_PAGES.some(x=>!$('#page-'+x).hidden&&!pageOpen(x)))showPage('graph');
+  if(msg)toast(msg);
+}
+async function accountLogin(user,password){
+  try{
+    const r=await fetch('api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user,password})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok){toast(r.status===401?'Wrong user name or password':(j.detail||'Login failed'));return}
+    await accountChanged(j.account.all?'Logged in · all databases are shown':'Logged in as '+j.account.user+' · only the database '+dbName(j.account.database)+' is shown');
+  }catch(e){toast('Login failed: '+e.message)}
 }
 /* lock/unlock without a page reload: the OpenRouter key lives in page memory only and would be lost */
 function setDbUnlocked(on){
@@ -21,14 +40,17 @@ function setDbUnlocked(on){
 }
 Store.on('gate',()=>renderDbLock(),10);
 Store.on('gate',()=>loadDocs(),20);
-$('#dbLock').addEventListener('click',()=>{setDbUnlocked(false);toast('Locked · only the public databases are shown')});
+$('#dbLock').addEventListener('click',async()=>{
+  if(ACCOUNTS_ON){try{await fetch('api/logout',{method:'POST'})}catch(e){}await accountChanged('Logged out · only the public databases are shown');return}
+  setDbUnlocked(false);toast('Locked · only the public databases are shown')});
 renderDbLock();
 $('#keyForm').addEventListener('submit',e=>{
   e.preventDefault();
   const pw=$('#dbPass').value;
   if(pw){
     $('#dbPass').value='';
-    if(pw===DB_PASSWORD){setDbUnlocked(true);toast('Password correct · all databases are shown')}
+    if(ACCOUNTS_ON)accountLogin($('#dbUser').value,pw);
+    else if(pw===DB_PASSWORD){setDbUnlocked(true);toast('Password correct · all databases are shown')}
     else toast('Wrong password');
     if(!$('#apiKey').value.trim()||$('#apiKey').value.trim()===apiKey)return;
   }

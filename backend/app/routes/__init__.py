@@ -6,9 +6,9 @@ everything else that writes is admin-only, including routes added later).
 from fastapi import APIRouter
 
 from .. import reviewers
-from . import chat, clusters, documents, graph, ingest, legal, projects, system
+from . import accounts, chat, clusters, documents, graph, ingest, legal, projects, system
 
-ROUTERS: list[APIRouter] = [reviewers.router, system.router, chat.router, documents.router, clusters.router, projects.router,
+ROUTERS: list[APIRouter] = [reviewers.router, accounts.router, system.router, chat.router, documents.router, clusters.router, projects.router,
                             legal.router, graph.router, ingest.router]
 
 

@@ -135,6 +135,11 @@ async def answer_stream(req: GraphRequest, api_key: str | None = None):
             from . import graph
             found = graph.find(plan, limit=12)
             graph_docs, neighbours, graph_ok = found["documents"], found["neighbours"], True
+            from . import visibility
+            if visibility.allowed() is not None:      # REQ-77: Neo4j knows every database – keep only visible documents
+                seen = {d["doc_id"] for d in all_docs}
+                graph_docs = [d for d in graph_docs if d.get("doc_id") in seen]
+                neighbours = [n for n in neighbours if n.get("doc_id") in seen]
         except Exception as e:
             log.warning("Graph-Abfrage fehlgeschlagen, nur Vektorsuche: %s", e)
     doc_ids = [d["doc_id"] for d in graph_docs] + [n["doc_id"] for n in neighbours]

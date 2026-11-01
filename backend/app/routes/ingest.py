@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
 
 from .. import usage
 from ..schemas import DocType
@@ -84,6 +84,7 @@ def _queue(background: BackgroundTasks, kind: str, name: str, coro) -> str:
 @router.post("/ingest")
 async def ingest(
     background: BackgroundTasks,
+    request: Request,
     doc_type: Annotated[DocType, Form()],
     files: Annotated[list[UploadFile], File(description="Projekt: ZIP des Projektordners; Paper/Notes: Einzeldateien")],
     project_name: Annotated[str | None, Form()] = None,
@@ -101,7 +102,9 @@ async def ingest(
             when = datetime.fromisoformat(date[:10]).replace(tzinfo=timezone.utc)
         except ValueError as e:
             raise HTTPException(400, "date must be YYYY-MM-DD") from e
-    opts = IngestOptions(use_llm=use_llm, api_key=x_key, databases=databases_param(databases), date=when)
+    acc = getattr(request.state, "account", None)
+    target_dbs = [acc.database] if acc is not None and not acc.all_databases else databases_param(databases)   # REQ-77: own database only
+    opts = IngestOptions(use_llm=use_llm, api_key=x_key, databases=target_dbs, date=when)
     data_dir = settings().data_dir
     job_ids = []
     if doc_type in PROJECT_TYPES:

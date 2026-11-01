@@ -20,8 +20,15 @@ def health() -> dict:
 
 @router.get("/me")
 def current_user(request: Request) -> dict:
-    return {"email": request.state.email, "is_admin": request.state.is_admin,
-            "access_enabled": request.state.access_enabled, "auth_mode": request.state.auth_mode}
+    me = {"email": request.state.email, "is_admin": request.state.is_admin,
+          "access_enabled": request.state.access_enabled, "auth_mode": request.state.auth_mode}
+    if getattr(request.state, "accounts_enabled", False):   # REQ-77: which account, which databases (None = all)
+        from .. import visibility
+        from .accounts import account_view
+        allowed = visibility.allowed()
+        me |= {"accounts": True, "account": account_view(request.state.account),
+               "databases": None if allowed is None else sorted(allowed)}
+    return me
 
 
 @router.get("/glossary")

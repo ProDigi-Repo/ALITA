@@ -80,6 +80,7 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 | REQ-74 | A big, clean refactoring so new features can follow | ✅ done – no visible change | 3.13.0 | REQ-61 stages 1–5. Checked against `main`: same routes, same GET responses on the same data (plus registry fields), same UI state after the same clicks (password gate, databases, clusters, Compare, map window, guided tour); access tests walk every route again (`route_table`). |
 | REQ-75 | Remove the row "Window to the outside" and the B explainer | ✅ done | 3.13.0 | Row, pop-up window, `outside.js`, `outside.css`, `desert.css` removed; the database bar spans the full width. REQ-20 stays planned. |
 | REQ-76 | A/B Interaction Interface only with the password | ✅ done | 3.13.0 | `LOCKED_PAGES` gets `chat`; locked: only B and Documents; `#chat` opens B. |
+| REQ-77 | A login per database: user dropdown + password, each user sees and uses only their own database; 23 accounts and databases | ✅ done – server-side | 3.13.0 | `accounts.py` (scrypt, signed cookie, CLI), `visibility.py` (filter where data is read: Qdrant, legal models, Neo4j results), login/logout/accounts routes; front end: `#dbUser`. Accounts file outside git (`.secrets/accounts/accounts.json`). Tests: `test_accounts.py`. |
 
 ## Open points for the requirement owners
 - REQ-10, REQ-15 – REQ-18: main document chain per project, inferred links between versions and analyses, threshold for "substantive", AI stage texts automatic or on demand, versions without full text.

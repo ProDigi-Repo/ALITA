@@ -45,6 +45,7 @@
       </div>
       <label for="dbPass">Password</label>
       <div class="field">
+        <select id="dbUser" class="db-user" aria-label="User name" title="User name – each user sees only their own database" hidden></select>
         <input id="dbPass" type="password" placeholder="show all databases" spellcheck="false" autocomplete="off" title="Without the password only the databases EU AI Act and Wachter are shown (and not the release notes, compliance and technical documentation)">
       </div>
       <button type="button" class="btn" id="dbLock" hidden title="Hide the other databases again (only EU AI Act and Wachter stay visible)">Lock</button>

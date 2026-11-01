@@ -19,6 +19,9 @@ def graph_status():
         return {"enabled": False}
     if not graph.available():
         return {"enabled": True, "available": False}
+    from .. import visibility
+    if visibility.allowed() is not None:     # REQ-77: counts span every database
+        return {"enabled": True, "available": True}
     return {"enabled": True, "available": True, **graph.stats()}
 
 
