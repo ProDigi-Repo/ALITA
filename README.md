@@ -1,6 +1,6 @@
 # ALITA Prototype – backend for the document chat
 
-Version: see `VERSION` (currently **3.12.0**; backend: `app.__version__`, `GET /api/health` → `version`; front end: header)
+Version: see `VERSION` (currently **3.13.0**; backend: `app.__version__`, `GET /api/health` → `version`; front end: header)
 
 Backend for tile 1 of the ALITA Prototype: FastAPI + Pydantic AI + pydantic-settings, Qdrant as vector database, OpenRouter for the LLM and the embeddings.
 The RAG service (`app/rag.py`) does not depend on FastAPI and can be reused by the Graph Chat (tile 2).
@@ -58,16 +58,22 @@ research-rag/
 │  ├─ chunking.py      Chunks with location (page, slide, sheet)
 │  ├─ store.py         Qdrant: documents, chunks, projects
 │  ├─ filters.py       UI and prompt filters (@typ:paper …) -> Qdrant filters
-│  ├─ rag.py           Retrieval + answer with sources
-│  ├─ ingest.py        Pipeline + CLI
-│  └─ main.py          FastAPI endpoints, also serves the front end
+│  ├─ registry.py      Databases: id, name, colours, public flag – the one place to add a database
+│  ├─ retrieval.py     Retrieval scope shared by both chats (split by database / cluster when needed)
+│  ├─ rag.py           Document Chat (A): prompt, memory, answer with sources
+│  ├─ graphrag.py      Graph Chat (B): plan, graph path, clusters, provisions, answer
+│  ├─ ingestion/       Pipeline: scan (files -> records), summaries, index, followups, pipeline, cli
+│  ├─ legal_ingest.py  Legal texts: versions, structure-aware segments (reuses ingestion/)
+│  ├─ routes/          FastAPI routers per domain: system, chat, documents, clusters, projects, legal, graph, ingest
+│  └─ main.py          Builds the app: access middleware, routers, static front end
 ├─ glossary/methods.yaml   preliminary methods glossary (to be replaced)
 ├─ frontend/               ALITA Prototype, served without a build step
 │  ├─ index.html           Markup, includes css/ and js/
 │  ├─ css/                 base, tiles, clusters, cluster-profile, space3d, pages, …
-│  └─ js/                  data (generated), core, databases, release-compliance, clusters, cluster-profile,
+│  └─ js/                  data (generated), core, state (change events), databases, release-compliance,
+│                          cluster-core, cluster-3d, cluster-map2d, cluster-page, database-info, cluster-profile,
 │                          chat-tools, docs-nav, documents, chat, space3d, …, start – order as in index.html
-├─ tools/build_frontend.py regenerate js/data.js; build the single-file page for publishing
+├─ tools/build_frontend.py regenerate js/data.js and css/databases.css; build the single-file page for publishing
 ├─ docker/                 backend.Dockerfile, nginx.conf
 ├─ research/               default location for your own research folders (RESEARCH_DIR)
 └─ docker-compose.yml      Qdrant + backend + front end + ingest/test jobs
@@ -115,7 +121,7 @@ All Docker files are in `docker/` (`backend.Dockerfile`, `nginx.conf`). Without 
 docker compose up -d qdrant
 cd backend && python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
 uvicorn app.main:app --reload                       # http://localhost:8000
-python -m app.ingest project "/path/to/project" -v
+python -m app.ingestion project "/path/to/project" -v   # python -m app.ingest … works too
 ```
 
 ## Running on the internet (Hetzner + Cloudflare)
@@ -304,7 +310,8 @@ agreement with `VERSION`.
 
 | Version | Date | Content | earlier |
 |---|---|---|---|
-| **3.12.0** | 2026-10-31 | **Minor release – guided tour (REQ-70):** the button "▶ Guided tour" in the header walks through ALITA in eleven steps (knowledge map, Compare, version history, paper → article, questioning one's schemes; "explore or exploit?"), highlights the relevant part and puts example questions into the Graph Chat. | 3.11.0 |
+| **3.13.0** | 2026-11-01 | **Minor release – refactoring (REQ-74, REQ-61 stages 1–5):** API routers per domain, one retrieval scope for both chats (the Document Chat now also searches each selected database on its own), ingestion package, database registry (`backend/app/registry.py`), front-end change events (`state.js`); interface unchanged. Also MIT licence and copyright notes. | 3.12.0 |
+| 3.12.0 | 2026-10-31 | **Minor release – guided tour (REQ-70):** the button "▶ Guided tour" in the header walks through ALITA in eleven steps (knowledge map, Compare, version history, paper → article, questioning one's schemes; "explore or exploit?"), highlights the relevant part and puts example questions into the Graph Chat. | 3.11.0 |
 | 3.11.0 | 2026-10-31 | **Minor release – papers per article, seen from the law (REQ-69):** document details of a law version show "Discussed in papers" – for each article, annex and recital the papers that discuss it, in the numbering of that version (papers citing other versions are mapped over); a click opens the paper, "Ask" asks the Graph Chat. | 3.10.0 |
 | 3.10.0 | 2026-10-31 | **Minor release – papers linked to the articles they discuss (REQ-68):** references like "Art. 33(4) AI Act" become edges document –discusses→ article; ALITA determines the cited version (e.g. the 2021 proposal) and today's number (Art. 33 → Art. 31); the Graph Chat uses the edges (questions about articles and clusters), document details show "Discusses". | 3.9.0 |
 | 3.9.0 | 2026-10-31 | **Minor release – questions about what the knowledge map shows (REQ-67):** clusters named in the question ("C8", "C9") become the search space, also across databases and even with a project selected; searched cluster by cluster; bridging passages (most similar passages across the cluster boundary) as evidence; graph path through the ontology (cluster → document → section ↔ section → document → cluster). | 3.7.3 |
@@ -397,7 +404,7 @@ Every file carries the metadata field `databases` (one or more). The list is con
 
 Assignment (priority from top to bottom):
 
-1. explicit: `python -m app.ingest project <folder> --db ML` or `--db AL,JSW`, in the upload dialog or via the API
+1. explicit: `python -m app.ingestion project <folder> --db ML` or `--db AL,JSW`, in the upload dialog or via the API
 2. folder structure: `research/<DB>/<project>`, e.g. `research/ML/11-MentalModelProcesses`; `ingest all` detects this automatically
    - papers and notes: `research/<DB>/papers/*.pdf` and `research/<DB>/notes/*` are ingested as research paper and research notes (e.g. `research/LDK/papers/`)
 3. when ingesting again, an existing assignment is kept

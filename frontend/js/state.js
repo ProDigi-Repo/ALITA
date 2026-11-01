@@ -1,4 +1,4 @@
-/* ---------- Shared state: change events (4.0.0, REQ-61 stage 5) ----------
+/* ---------- Shared state: change events (3.13.0, REQ-61 stage 5) ----------
    Views subscribe to a topic instead of calling each other's render functions (or wrapping them), so a new view is
    wired in one place – next to its own code – and the load order of the scripts no longer matters for updates.
 

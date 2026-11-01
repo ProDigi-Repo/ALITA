@@ -1,5 +1,5 @@
 /* Clusters – shared state and helpers: selected clusters (CV), clustering units from DOCS, selection, shapes.
-   Split from clusters.js in 4.0.0 (REQ-61); load order: cluster-core, cluster-3d, cluster-map2d, cluster-page, database-info. */
+   Split from clusters.js in 3.13.0 (REQ-61); load order: cluster-core, cluster-3d, cluster-map2d, cluster-page, database-info. */
 /* ---------- Cluster analysis band ---------- */
 const CV={sels:new Set()};   // selected clusters = search space of both chats (one or more)
 const cvHas=id=>CV.sels.has(+id), cvOff=id=>CV.sels.size>0&&!CV.sels.has(+id);
