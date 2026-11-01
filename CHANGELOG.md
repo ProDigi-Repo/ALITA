@@ -14,6 +14,7 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ### Requirements
 - **REQ-77 A login per database** – ✅ done: next to the password field a dropdown with the user names; each user's password opens only their own database – documents, clusters, both chats, files and uploads, enforced by the server (not only hidden in the page). "All databases" with the former shared password shows everything. Without a login only EU AI Act and Wachter are shown, now also on the server. 23 accounts and their databases created (`.secrets/accounts/accounts.json` on the local instance, scrypt hashes only, not in the repository).
+- **REQ-78 Admin account gengar** – ✅ done: the account `gengar` sees all databases (database `*`); it replaces the account `admin`.
 - **REQ-75 Remove the row "Window to the outside" + B explainer** – ✅ done: the row below the database bar on the B page is gone (button, pop-up window, `outside.js`, `outside.css`, `desert.css`); the database bar spans the full width.
 - **REQ-76 A/B Interaction Interface only with the password** – ✅ done: without the password only the tabs **B Interaction Interface** and **Documents** are shown; `#chat` then opens the B page, locking while on A/B returns to B.
 - **REQ-74 A big, clean refactoring so new features can follow** – ✅ done (REQ-61 stages 1–5, see `docs/technical/architecture/01-refactoring-plan.md`, section "How to add things now").
