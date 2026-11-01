@@ -11,6 +11,9 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 ### Added
 - User guide `docs/user/ALITA-Getting-Started.pdf` (two pages, A4; HTML source next to it; marked as AI-generated on top and in the footer of every page): what needs an OpenRouter key, how to get and enter one, the guided tour and the propositions of the research submission it follows, everyday use in five points; linked from the README (section "Getting started as a user") and the user manual. The first step of the guided tour mentions the key.
 - MIT licence (`LICENSE`): applies to the code and documentation of this repository; documents loaded into ALITA keep their own licences.
+
+### Documentation
+- Copyright status of the database "EU AI Act": legal texts are not protected by copyright (official works, e.g. § 5(1) UrhG; EUR-Lex reuse under Decision 2011/833/EU), the Commission documents may be reused with the source acknowledged (CC BY 4.0), NIST SP 800-18r2 is a US government work (17 U.S.C. § 105). In `docs/compliance/05-data-governance-and-oversight.md`, the README and `research/EUAIA/README.md`.
 - Read-only GitHub Actions CI for PRs and main: secret scanning, Python/auth/deployment tests, Ruff, shell/JavaScript/nginx checks and generated frontend data validation. No production credentials or automatic deployment.
 - Reusable manual Hetzner code-deployment script with candidate import/health checks, rollback, private configuration backups and data-count checks; optional 4-GB pilot limits and an operations runbook. No automatic GitHub deployment or production configuration change.
 - Optional anonymous reviewer host with expiring invitation codes, read-only sessions, document downloads and each reviewer's own OpenRouter key. Includes an issue/revoke CLI; private Cloudflare Access remains unchanged.
