@@ -201,9 +201,10 @@ function syncHairFlowers(){
   });
 }
 function saveDbSel(){try{localStorage.setItem('sel_db',JSON.stringify(SEL_DB))}catch(e){}
-  // every view on its own, so one failing view cannot stop the others (parameter lines first)
-  [()=>{if(typeof cvPruneSel==='function')cvPruneSel()},()=>{syncParams('rag');syncParams('graph')},renderDbBar,()=>{D.shown=100;renderDocs()},renderClusterViz,renderClusterPage,()=>{if(typeof loadPeople==='function')loadPeople()}].forEach(fn=>{try{fn()}catch(e){console.error('database selection:',e)}});
+  Store.emit('databases');   // each view updates itself (state.js); parameter lines first
 }
+Store.on('databases',()=>renderDbBar(),30);
+Store.on('documents',()=>renderDbBar(),20);
 $('#dbClear').addEventListener('click',()=>typeof clearAllSel==='function'?clearAllSel():setDbSel([]));
 function dbPickerButtons(sel){return DATABASES.map(n=>`<button type="button" data-db="${esc(n)}" aria-pressed="${(sel||[]).includes(n)}" style="--c:${dbColor(n)}">${esc(dbName(n))}</button>`).join('')}
 function wirePick(sel){$$(sel+' button[data-db]').forEach(b=>b.addEventListener('click',()=>b.setAttribute('aria-pressed',b.getAttribute('aria-pressed')!=='true')))}

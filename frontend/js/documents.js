@@ -16,9 +16,11 @@ function renderDbLock(){
 /* lock/unlock without a page reload: the OpenRouter key lives in page memory only and would be lost */
 function setDbUnlocked(on){
   DB_UNLOCKED=on;try{on?localStorage.setItem('db_unlocked','1'):localStorage.removeItem('db_unlocked')}catch(e){}
-  DATABASES=[...DB_ALL];applyDbGate();renderDbLock();if(typeof loadDocs==='function')loadDocs();
+  DATABASES=[...DB_ALL];applyDbGate();Store.emit('gate',on);
   if(!on&&LOCKED_PAGES.some(x=>!$('#page-'+x).hidden))showPage('graph');   // locked while on a hidden tab
 }
+Store.on('gate',()=>renderDbLock(),10);
+Store.on('gate',()=>loadDocs(),20);
 $('#dbLock').addEventListener('click',()=>{setDbUnlocked(false);toast('Locked · only the public databases are shown')});
 renderDbLock();
 $('#keyForm').addEventListener('submit',e=>{
@@ -65,8 +67,11 @@ async function loadDocs(){
   DOCS=dbGateFilter(DOCS);PROJECTS=dbGateFilter(PROJECTS);
   [...DOCS,...PROJECTS].forEach(x=>{x.cl=dbRelabel(x.cl);if(x.ct)x.ct=dbRelabel(x.ct);if(x.cd)x.cd=dbRelabel(x.cd)});
   if(!LIVE&&DEMO&&DEMO.clusters&&DEMO.clusters.desc&&!DEMO.clusters._relabeled){Object.values(DEMO.clusters.desc).forEach(v=>{v.title=dbRelabel(v.title);v.description=dbRelabel(v.description)});DEMO.clusters._relabeled=true}
-  fillFacetSelects();renderDbBar();renderDocs();renderClusterViz();renderClusterPage();loadClusterProfiles();
+  Store.emit('documents');   // facets, database bar, table, cluster views and profiles update themselves (state.js)
 }
+Store.on('documents',()=>fillFacetSelects(),10);
+Store.on('documents',()=>renderDocs(),30);
+Store.on('databases',()=>{D.shown=100;renderDocs()},40);
 
 function opt(v,l){return `<option value="${esc(v)}">${esc(l)}</option>`}
 function fillFacetSelects(){
