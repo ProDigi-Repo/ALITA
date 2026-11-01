@@ -22,7 +22,7 @@ async function detectBackend(){
     const ctl=new AbortController();setTimeout(()=>ctl.abort(),2500);
     const r=await fetch('api/health',{signal:ctl.signal});
     if(!r.ok&&r.status>=500)setTimeout(()=>toast(`Backend not reachable (HTTP ${r.status}) – showing the demo. Restart the frontend container: docker compose restart frontend`),800);
-    if(r.ok && (r.headers.get('content-type')||'').includes('json')){LIVE=true;const h=await r.json();BACKEND_VERSION=h.version||'';if(Array.isArray(h.databases)&&h.databases.length)DATABASES=h.databases;if(typeof applyDbGate==='function')applyDbGate();if(h.database_names&&typeof h.database_names==='object')Object.assign(DB_NAME,h.database_names)}
+    if(r.ok && (r.headers.get('content-type')||'').includes('json')){LIVE=true;const h=await r.json();BACKEND_VERSION=h.version||'';if(Array.isArray(h.registry)&&h.registry.length&&typeof applyDbRegistry==='function')applyDbRegistry(h.registry);else{if(Array.isArray(h.databases)&&h.databases.length)DATABASES=h.databases;if(typeof applyDbGate==='function')applyDbGate();if(h.database_names&&typeof h.database_names==='object')Object.assign(DB_NAME,h.database_names)}}
   }catch(e){}
   if(LIVE){
     try{

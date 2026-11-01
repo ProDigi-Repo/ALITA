@@ -100,7 +100,7 @@ def databases():
     out = []
     for db in settings().registry():
         mine = [r for r in rows if db.id in (r.get("databases") or [])]
-        out.append({"name": db.id, **db.public_dict(), "documents": len(mine),
+        out.append({**db.public_dict(), "name": db.id, "display_name": db.name, "documents": len(mine),
                     "projects": len({r.get("project_name") for r in mine if r.get("project_name")})})
     return {"databases": out, "unassigned": sum(1 for r in rows if not r.get("databases"))}
 
