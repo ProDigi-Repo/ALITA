@@ -64,7 +64,9 @@ button,input,select,textarea{font:inherit;color:inherit}
 /* REQ-77: user name before the password (only with accounts) */
 .field .db-user{border:0;border-right:1px solid var(--line);background:transparent;color:inherit;padding:7px 8px;font-family:var(--f-mono);font-size:calc(13px * var(--fs-scale,1));max-width:150px}
 .field .db-user:focus{outline:none}
-.field .db-user option{color:#18222a}
+/* the opened list: white with blue text (the header itself is dark) */
+.field .db-user option{background:#fff;color:#1f5f8b}
+.field .db-user option:checked{background:#e3eef6;color:#1f5f8b;font-weight:600}
 .field:focus-within{border-color:var(--rag)}
 .icon-btn{border:0;background:transparent;padding:6px 9px;cursor:pointer;color:var(--muted)}
 .icon-btn:hover{color:var(--fg)}

@@ -46,6 +46,7 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 - Hetzner Compose profile and mailcode setup guide for a shared workspace behind Cloudflare Access/Tunnel; no published host ports.
 
 ### Fixed
+- The opened user list (REQ-80) was dark text on a dark background; it is now white with blue text.
 - The parameter line of the Document Chat (A) follows a cluster chosen in its dropdown (it kept showing the previous clusters).
 - The parameter line of the Graph Chat (B) shows a clicked project at once (it showed the scope before the click).
 

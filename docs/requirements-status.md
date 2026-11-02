@@ -83,6 +83,7 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 | REQ-77 | A login per database: user dropdown + password, each user sees and uses only their own database; 23 accounts and databases | ✅ done – server-side | 3.13.0 | `accounts.py` (scrypt, signed cookie, CLI), `visibility.py` (filter where data is read: Qdrant, legal models, Neo4j results), login/logout/accounts routes; front end: `#dbUser`. Accounts file outside git (`.secrets/accounts/accounts.json`). Tests: `test_accounts.py`. |
 | REQ-78 | Admin account `gengar` that sees all databases | ✅ done | 3.13.0 | Account with database `*` in the accounts file; replaces the account `admin`. |
 | REQ-79 | Slightly larger font sizes | ✅ done | 3.13.0 | One factor `--fs-scale: 1.1` in `base.css` for every CSS font size (body 14 → 15.4 px); map/graph labels unchanged. |
+| REQ-80 | User dropdown readable: white list, blue text | ✅ done | 3.13.0 | `.field .db-user option` in `base.css`. |
 
 ## Open points for the requirement owners
 - REQ-10, REQ-15 – REQ-18: main document chain per project, inferred links between versions and analyses, threshold for "substantive", AI stage texts automatic or on demand, versions without full text.
