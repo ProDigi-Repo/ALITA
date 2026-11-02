@@ -1,6 +1,6 @@
 FROM python:3.12-slim
 
-# LibreOffice nur für alte .doc/.ppt/.xls; mit WITH_LIBREOFFICE=false bauen spart ~500 MB
+# LibreOffice only for old .doc/.ppt/.xls; building with WITH_LIBREOFFICE=false saves ~500 MB
 ARG WITH_LIBREOFFICE=true
 RUN if [ "$WITH_LIBREOFFICE" = "true" ]; then \
       apt-get update && apt-get install -y --no-install-recommends libreoffice-writer-nogui libreoffice-impress-nogui libreoffice-calc-nogui \

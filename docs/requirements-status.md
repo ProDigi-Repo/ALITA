@@ -85,6 +85,7 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 | REQ-79 | Slightly larger font sizes | ✅ done | 3.13.0 | One factor `--fs-scale: 1.1` in `base.css` for every CSS font size (body 14 → 15.4 px); map/graph labels unchanged. |
 | REQ-80 | User dropdown readable: white list, blue text | ✅ done | 3.13.0 | `.field .db-user option` in `base.css`. |
 | REQ-81 | Refactoring, round 2 (chats, legal module, front-end header) | ✅ done – no visible change | 3.13.0 | `chat_common.py`, Graph Chat as `GraphTurn` steps; `legal/` package, `ingest_legal` as `LegalRun` steps; `js/header-access.js`; comparison scripts `tools/golden/`. Byte-identical to the previous state in chats, legal ingestion, UI states and API. |
+| REQ-82 | Code documentation in English | ✅ done – no change in behaviour | 3.13.0 | German comments, docstrings, log/CLI messages, API descriptions and deployment guides translated; docstrings for all modules and public functions/classes; code guide `docs/technical/architecture/02-code-guide.md`. German matching patterns and LLM prompts/output schemas deliberately unchanged. Verified by syntax-tree comparison, unchanged LLM schemas, byte-identical golden runs and 213 passing tests. |
 
 ## Open points for the requirement owners
 - REQ-10, REQ-15 – REQ-18: main document chain per project, inferred links between versions and analyses, threshold for "substantive", AI stage texts automatic or on demand, versions without full text.

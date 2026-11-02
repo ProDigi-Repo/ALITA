@@ -42,6 +42,7 @@ _N, _R, _P = 2 ** 14, 8, 1           # scrypt cost (≈ 16 MiB, a few ms)
 
 @dataclass(frozen=True)
 class Account:
+    """One login account: user name, the database it may see (or "*" for all) and its scrypt password hash."""
     user: str
     database: str          # database id or "*"
     label: str
@@ -49,6 +50,7 @@ class Account:
 
     @property
     def all_databases(self) -> bool:
+        """True for admin accounts that see every database."""
         return self.database == ALL
 
     @property
@@ -59,12 +61,14 @@ class Account:
 
 # ------------------------------------------------------------------ passwords
 def hash_password(password: str) -> str:
+    """scrypt hash with a random salt, stored as "scrypt$n$r$p$salt$hash"."""
     salt = secrets.token_bytes(16)
     dk = hashlib.scrypt(password.encode(), salt=salt, n=_N, r=_R, p=_P, dklen=32)
     return f"scrypt${_N}${_R}${_P}${salt.hex()}${dk.hex()}"
 
 
 def check_password(password: str, stored: str) -> bool:
+    """Check a password against a stored scrypt hash in constant time; malformed hashes never match."""
     try:
         kind, n, r, p, salt, dk = stored.split("$")
         if kind != "scrypt":
@@ -103,6 +107,7 @@ def load(settings=None) -> dict[str, Account]:
 
 
 def save(accounts: dict[str, Account], settings=None) -> Path:
+    """Write the accounts atomically (hashes only, file mode 0600) and return the file path."""
     f = _path(settings)
     f.parent.mkdir(parents=True, exist_ok=True)
     data = {"version": 1, "note": "ALITA accounts (REQ-77) – scrypt hashes only; keep this file out of the repository",
@@ -119,6 +124,7 @@ def save(accounts: dict[str, Account], settings=None) -> Path:
 
 
 def enabled(settings=None) -> bool:
+    """True when an accounts file with at least one account exists, i.e. the login is switched on."""
     return bool(load(settings))
 
 
@@ -131,6 +137,7 @@ def account_databases(settings) -> dict[str, str]:
 
 
 def database_id(user: str) -> str:
+    """Database id for a user name: upper case, every other character than A-Z, 0-9 and _ becomes _."""
     return re.sub(r"[^A-Z0-9_]", "_", user.upper())
 
 
@@ -150,6 +157,7 @@ def _secret(settings) -> bytes:
 
 
 def session_token(account: Account, settings) -> str:
+    """Signed session cookie value (HS256 JWT) for an account; it ends with the password fingerprint or after account_session_hours."""
     import jwt
     now = datetime.now(timezone.utc)
     return jwt.encode({"sub": account.user, "fp": account.fingerprint, "iat": now,
@@ -177,12 +185,14 @@ _LOCK = threading.Lock()
 
 
 def login_wait(user: str) -> float:
+    """Seconds a user still has to wait before the next login attempt (0 when none)."""
     with _LOCK:
         n, until = _FAILS.get(user, (0, 0.0))
     return max(0.0, until - time.time())
 
 
 def record_login(user: str, ok: bool) -> None:
+    """Record a login attempt: success clears the counter, from the fifth failure on the wait doubles up to 5 minutes."""
     with _LOCK:
         if ok:
             _FAILS.pop(user, None)

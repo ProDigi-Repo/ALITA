@@ -168,7 +168,7 @@ function recordTurn(tile,turn){
   if(!sess.title&&turn.role==='user')sess.title=turn.text.slice(0,120);
   sess.turns.push(turn);sess.updated=Date.now();saveHist();syncMem(tile);
 }
-function historyFor(tile){ // Gedächtnis: der ganze bisherige Verlauf der aktuellen Unterhaltung (neueste 40 Wechsel)
+function historyFor(tile){ // memory: the whole conversation so far of the current chat (newest 40 turns)
   if(!memOn(tile))return[];
   const sess=HIST[tile].find(x=>x.id===CUR[tile]);if(!sess)return[];
   return sess.turns.filter(t=>!t.err).slice(-40).map(t=>{

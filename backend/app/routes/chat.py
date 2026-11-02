@@ -14,6 +14,7 @@ router = APIRouter(prefix="/api", tags=["chat"])
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest, x_key: KeyHeader = None) -> ChatResponse:
+    """RAG chat answer in one piece (the front end uses the streaming variant)."""
     try:
         return await rag.answer(req, x_key)
     except MissingApiKey as e:
@@ -22,13 +23,13 @@ async def chat(req: ChatRequest, x_key: KeyHeader = None) -> ChatResponse:
 
 @router.post("/chat/stream")
 async def chat_stream(req: ChatRequest, x_key: KeyHeader = None):
-    """Antwort als Server-Sent Events: event meta | delta | done | error, data = JSON."""
+    """Answer as Server-Sent Events: event meta | delta | done | error, data = JSON."""
     require_key(x_key)
     return sse(rag.answer_stream(req, x_key), "chat")
 
 
 @router.post("/graph/stream")
 async def graph_stream(req: GraphRequest, x_key: KeyHeader = None):
-    """Graph RAG als Server-Sent Events: meta (Plan, Graphpfad, Quellen) | delta | done | error."""
+    """Graph RAG as Server-Sent Events: meta (plan, graph path, sources) | delta | done | error."""
     require_key(x_key)
     return sse(graphrag.answer_stream(req, x_key), "graph")

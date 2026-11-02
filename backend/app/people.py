@@ -1,13 +1,13 @@
-"""REQ-19: wer gehört zu welchem Projekt – und wessen Daten darf eine Frage durchsuchen?
+"""REQ-19: who belongs to which project – and whose data may a question search?
 
-Datei-Metadaten (PDF /Author, Office "Erstellt von") nennen die Person, die eine Datei zuletzt
-gespeichert hat, nicht die Autor:innen. Für research projects zählen deshalb:
+File metadata (PDF /Author, Office "Created by") names the person who last saved a file,
+not the authors. For research projects therefore count:
 
-1. das kuratierte Projektteam (UI "Team" in der Projektkarte → <DATA_DIR>/project_teams.yaml,
-   oder <projektordner>/_project.yaml mit `team:`),
-2. die Metadaten-Namen nur noch als *Bearbeiter:innen* (editors), bereinigt um Software und Kürzel.
+1. the curated project team (UI "Team" in the project card → <DATA_DIR>/project_teams.yaml,
+   or <project folder>/_project.yaml with `team:`),
+2. the metadata names only as *editors*, cleaned of software and abbreviations.
 
-Personen-Filter: Dokumente, deren Autor:innen passen, plus alle Dateien der Projekte, in deren Team die Person steht.
+Person filter: documents whose authors match, plus all files of the projects whose team the person is in.
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ import threading
 import unicodedata
 from pathlib import Path
 
-# Namen aus Datei-Metadaten, die keine Personen sind (Software, Konten, Platzhalter)
+# names from file metadata that are not people (software, accounts, placeholders)
 JUNK_NAMES = {
     "author", "user", "admin", "administrator", "unknown", "owner", "me", "ich", "standard", "default", "nutzer", "benutzer",
     "microsoft office user", "microsoft office-benutzer", "office user", "windows user", "windows-benutzer", "apache poi",
@@ -33,7 +33,7 @@ def clean_person(raw: str | None) -> str | None:
     """'Heike (PTKA)' -> 'Heike', 'leyer' -> 'Leyer', 'M' / 'Microsoft Office User' / 'r06' -> None."""
     if not raw:
         return None
-    n = re.sub(r"\s*[\(\[].*?[\)\]]", "", str(raw))             # Zusätze in Klammern
+    n = re.sub(r"\s*[\(\[].*?[\)\]]", "", str(raw))             # additions in brackets
     n = re.sub(r"\s+", " ", n).strip(" .,;:-_\t\"'")
     if not n or "@" in n or "/" in n or "\\" in n:
         return None
@@ -48,6 +48,7 @@ def clean_person(raw: str | None) -> str | None:
 
 
 def clean_people(names: list[str] | None) -> list[str]:
+    """Cleaned person names without duplicates (case-insensitive)."""
     out: list[str] = []
     for a in names or []:
         c = clean_person(a)
@@ -61,7 +62,7 @@ def _fold(s: str) -> str:
 
 
 def person_matches(query: str, name: str) -> bool:
-    """'Strohecker' passt auf 'Jürgen Strohecker', 'Juergen Strohecker' und 'J. Strohecker'; 'Sabrina' auf 'Sabrina'."""
+    """'Strohecker' matches 'Jürgen Strohecker', 'Juergen Strohecker' and 'J. Strohecker'; 'Sabrina' matches 'Sabrina'."""
     q, n = _fold(query).replace("ue", "u").replace("oe", "o").replace("ae", "a"), _fold(name).replace("ue", "u").replace("oe", "o").replace("ae", "a")
     if not q or not n:
         return False
@@ -70,11 +71,11 @@ def person_matches(query: str, name: str) -> bool:
     qt, nt = q.replace(".", " ").split(), n.replace(".", " ").split()
     if len(qt) == 1:
         return qt[0] in nt
-    # Vor- und Nachname: Nachname gleich, Vorname gleich oder Initiale
+    # first and last name: same last name, same first name or initial
     return qt[-1] == nt[-1] and (qt[0] == nt[0] or qt[0][0] == nt[0][0] and (len(qt[0]) == 1 or len(nt[0]) == 1))
 
 
-# -------------------------------------------------------------- Projektteams
+# -------------------------------------------------------------- project teams
 _LOCK = threading.Lock()
 
 
@@ -85,6 +86,7 @@ def _teams_file() -> Path:
 
 
 def load_teams() -> dict[str, list[str]]:
+    """Project teams from the teams YAML file: project name -> member names."""
     import yaml
 
     f = _teams_file()
@@ -96,6 +98,7 @@ def load_teams() -> dict[str, list[str]]:
 
 
 def save_team(project: str, team: list[str]) -> list[str]:
+    """Save the team of one project (trimmed, without duplicates) and return it."""
     import yaml
 
     team = [re.sub(r"\s+", " ", t).strip() for t in team if t and t.strip()]
@@ -105,13 +108,13 @@ def save_team(project: str, team: list[str]) -> list[str]:
         teams[project] = team
         f = _teams_file()
         f.parent.mkdir(parents=True, exist_ok=True)
-        f.write_text("# REQ-19: Projektteams (in der App unter Projekt → Team bearbeitbar)\n"
+        f.write_text("# REQ-19: project teams (editable in the app under Project → Team)\n"
                      + yaml.safe_dump(teams, allow_unicode=True, sort_keys=True), encoding="utf-8")
     return team
 
 
 def folder_team(folder: Path | None) -> list[str]:
-    """Optional: <projektordner>/_project.yaml mit `team: [..]`."""
+    """Optional: <project folder>/_project.yaml with `team: [..]`."""
     import yaml
 
     f = folder / "_project.yaml" if folder else None
@@ -125,14 +128,14 @@ def folder_team(folder: Path | None) -> list[str]:
 
 
 def team_for(project: str, folder: Path | None = None) -> list[str]:
-    """Kuratiertes Team: UI-Eintrag schlägt _project.yaml im Ordner."""
+    """Curated team: the UI entry beats _project.yaml in the folder."""
     t = load_teams()
     return t[project] if project in t else folder_team(folder)
 
 
-# ------------------------------------------------------------ Personen-Filter
+# ------------------------------------------------------------ person filter
 def doc_ids_for_persons(persons: list[str], docs: list[dict], projects: list[dict]) -> list[str]:
-    """Dokumente einer Person: eigene Autorschaft (Paper, Notizen) oder Mitglied im Team des Projekts."""
+    """Documents of a person: own authorship (papers, notes) or member of the project's team."""
     persons = [p for p in persons if p and p.strip()]
     if not persons:
         return []
@@ -144,7 +147,7 @@ def doc_ids_for_persons(persons: list[str], docs: list[dict], projects: list[dic
 
 
 def people_index(docs: list[dict], projects: list[dict], databases: list[str] | None = None) -> list[dict]:
-    """Alle Personen mit Anzahl Dokumente und Projekten (für die Personen-Auswahl im Chat)."""
+    """All people with their number of documents and projects (for the person selection in the chat)."""
     dbs = set(databases or [])
     def in_db(x):
         return not dbs or bool(dbs & set(x.get("databases") or []))

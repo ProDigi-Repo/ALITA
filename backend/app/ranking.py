@@ -1,17 +1,17 @@
-"""Auswahl der Quellen aus den Vektortreffern (ohne schwere Abhängigkeiten, damit testbar)."""
+"""Choice of sources from the vector hits (no heavy dependencies, so it can be tested)."""
 from __future__ import annotations
 
 
 def diversify(payloads: list[dict], top_k: int, project_filtered: bool) -> list[int]:
-    """Indizes der Treffer, die in die Antwort gehen: höchstens 2 Chunks pro Dokument und – ohne Projektfilter –
-    höchstens die Hälfte der Quellen aus einem einzelnen Projekt. Sonst verdrängt ein großes Projekt mit hunderten
-    Dateien Paper und Notes aus allen Datenbanken."""
+    """Indexes of the hits that go into the answer: at most 2 chunks per document and – without a project filter –
+    at most half of the sources from a single project. Otherwise a large project with hundreds of
+    files crowds out papers and notes from all databases."""
     per_doc: dict[str, int] = {}
     per_proj: dict[str, int] = {}
     cap = max(2, (top_k + 1) // 2)
     out = []
     for i, p in enumerate(payloads):
-        d = p.get("div_key") or p["doc_id"]      # REQ-38: Rechtstexte je Artikel/Clause statt je Datei begrenzen
+        d = p.get("div_key") or p["doc_id"]      # REQ-38: limit legal texts per article/clause instead of per file
         proj = p.get("project_name") if p.get("doc_type") == "research_project" else None
         if per_doc.get(d, 0) >= 2 or (proj and not project_filtered and per_proj.get(proj, 0) >= cap):
             continue
@@ -25,7 +25,7 @@ def diversify(payloads: list[dict], top_k: int, project_filtered: bool) -> list[
 
 
 def cited_numbers(text: str, n_sources: int) -> list[int]:
-    """Quellen, die eine (gestreamte) Antwort tatsächlich zitiert: [1], [2][3], [1, 4], [2–3]."""
+    """Sources an (streamed) answer actually cites: [1], [2][3], [1, 4], [2–3]."""
     import re
 
     used: set[int] = set()

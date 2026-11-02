@@ -1,15 +1,15 @@
-"""Discourse Elements Ontology (DEO) und Document Components Ontology (DoCO) – SPAR-Ontologien.
+"""Discourse Elements Ontology (DEO) and Document Components Ontology (DoCO) – SPAR ontologies.
 
-DEO beschreibt die *rhetorische* Rolle eines Textteils (Methods, Results, …), DoCO die *Struktur*
-(Section, Paragraph, …). Quelle: Constantin et al., The Document Components Ontology (DoCO),
-Semantic Web 7 (2016) 167–181; Ontologien unter http://purl.org/spar/deo und http://purl.org/spar/doco.
+DEO describes the *rhetorical* role of a part of a text (Methods, Results, …), DoCO the *structure*
+(Section, Paragraph, …). Source: Constantin et al., The Document Components Ontology (DoCO),
+Semantic Web 7 (2016) 167–181; ontologies at http://purl.org/spar/deo and http://purl.org/spar/doco.
 
-Dieses Modul ist ohne Abhängigkeiten nutzbar (Ingestion, Qdrant-Filter, Neo4j-Graph, Tests):
-- DEO_CLASSES: die 31 Klassen mit kurzer Definition
-- deo_for_heading(): Überschrift (EN/DE) -> DEO-Klassen
-- detect_heading(): erkennt Abschnittsüberschriften in Fließtext (PDF-Zeilen)
-- SUMMARY_DEO: Felder der Structured Summary -> DEO-Klassen
-- deo_for_question(): welche DEO-Klassen eine Frage anspricht (Graph RAG)
+This module has no dependencies (ingestion, Qdrant filters, Neo4j graph, tests):
+- DEO_CLASSES: the 31 classes with a short definition
+- deo_for_heading(): heading (EN/DE) -> DEO classes
+- detect_heading(): recognises section headings in running text (PDF lines)
+- SUMMARY_DEO: fields of the Structured Summary -> DEO classes
+- deo_for_question(): which DEO classes a question addresses (Graph RAG)
 """
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ import re
 DEO_NS = "http://purl.org/spar/deo/"
 DOCO_NS = "http://purl.org/spar/doco/"
 
-# Die 31 Klassen der DEO (Wurzel deo:DiscourseElement); Definitionen gekürzt.
+# the 31 classes of DEO (root deo:DiscourseElement); definitions shortened.
 DEO_CLASSES: dict[str, str] = {
     "DiscourseElement": "An element of a document that carries out a rhetorical function.",
     "Acknowledgements": "Thanks to people and organizations that helped with the work.",
@@ -53,7 +53,7 @@ DEO_CLASSES: dict[str, str] = {
     "SupplementaryInformationDescription": "A description of supplementary information, e.g. an appendix.",
 }
 
-# Überschrift -> DEO (Reihenfolge: spezifisch vor allgemein). Englisch und Deutsch.
+# heading -> DEO (order: specific before general). English and German.
 _HEADING_RULES: list[tuple[str, list[str]]] = [
     (r"materials? (and|&|und) methods?|material (und|&) methode", ["Materials", "Methods"]),
     (r"data (and|&) methods?|daten (und|&) method", ["Data", "Methods"]),
@@ -86,11 +86,12 @@ _NUMBERING = re.compile(r"^\s*(?:[IVX]+\.|\d+(?:\.\d+)*\.?|[A-Z]\.)\s+")
 
 
 def clean_heading(text: str) -> str:
+    """Heading text without its numbering ("2.1 Methods" -> "Methods")."""
     return _NUMBERING.sub("", (text or "").strip()).strip(" .:-–\t")
 
 
 def deo_for_heading(heading: str | None) -> list[str]:
-    """DEO-Klassen für eine Abschnittsüberschrift ([] = unbekannt). 'Abstract' ist SALT (sro:Abstract), kein DEO."""
+    """DEO classes for a section heading ([] = unknown). 'Abstract' is SALT (sro:Abstract), not DEO."""
     h = clean_heading(heading or "").lower()
     if not h or ABSTRACT_RX.match(h):
         return []
@@ -101,8 +102,8 @@ def deo_for_heading(heading: str | None) -> list[str]:
 
 
 def detect_heading(line: str) -> str | None:
-    """Ist eine Textzeile (z. B. aus einem PDF) eine Abschnittsüberschrift? Liefert die bereinigte Überschrift.
-    Kurz, ohne Satzende, entweder nummeriert oder ein bekannter Abschnittsname (auch in GROSSBUCHSTABEN)."""
+    """Is a line of text (e.g. from a PDF) a section heading? Returns the cleaned heading.
+    Short, without a sentence end, either numbered or a known section name (also in CAPITALS)."""
     raw = (line or "").strip()
     if not raw or len(raw) > 80 or raw.endswith((".", ",", ";")) and not _NUMBERING.match(raw):
         return None
@@ -128,7 +129,7 @@ SUMMARY_DEO: dict[str, list[str]] = {
     "practical_implications": ["Discussion"],
 }
 
-# Frage -> DEO (Graph RAG): welche Art von Textteil beantwortet sie am ehesten?
+# question -> DEO (Graph RAG): which kind of text part most likely answers it?
 _QUESTION_RULES: list[tuple[str, list[str]]] = [
     (r"\bmethod|methodolog|design|approach|how (was|were|did).*(measur|stud|analy|collect)|sample|participants|survey|experiment|interview|regression|methode|vorgehen|stichprobe", ["Methods", "Materials"]),
     (r"\bdata\b|dataset|daten", ["Data", "DatasetDescription"]),
@@ -147,6 +148,7 @@ _QUESTION_RX = [(re.compile(rx, re.I), cls) for rx, cls in _QUESTION_RULES]
 
 
 def deo_for_question(question: str, limit: int = 4) -> list[str]:
+    """DEO classes (e.g. Results, Methods) that a question asks about, at most `limit`."""
     out: list[str] = []
     for rx, classes in _QUESTION_RX:
         if rx.search(question or ""):
@@ -155,7 +157,7 @@ def deo_for_question(question: str, limit: int = 4) -> list[str]:
 
 
 def valid(classes: list[str] | None) -> list[str]:
-    """Nur bekannte DEO-Klassen, Schreibweise normalisiert (case-insensitiv)."""
+    """Only known DEO classes, spelling normalised (case-insensitive)."""
     by_lower = {k.lower(): k for k in DEO_CLASSES}
     out = []
     for c in classes or []:

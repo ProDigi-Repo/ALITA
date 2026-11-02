@@ -1,8 +1,8 @@
-"""Token-Zähler für Hintergrund-Jobs (Hochladen/Einlesen): wie viele Tokens hat ein Job verbraucht und was kostet das?
+"""Token counter for background jobs (upload/ingestion): how many tokens did a job use and what does that cost?
 
-Jeder Job bekommt einen eigenen Zähler (ContextVar); LLM-Aufrufe (Zusammenfassung, Methoden, DEO, Cluster-Namen)
-und Embeddings melden ihren Verbrauch hierher. Preise kommen von OpenRouter (/models, je Token in USD, 24 h gecacht);
-ohne Verbindung gelten die Preise aus den Einstellungen. Euro = USD × usd_to_eur (Einstellung, ungefähr).
+Each job gets its own counter (ContextVar); LLM calls (summary, methods, DEO, cluster names)
+and embeddings report their use here. Prices come from OpenRouter (/models, per token in USD, cached 24 h);
+without a connection the prices from the settings apply. Euro = USD × usd_to_eur (setting, approximate).
 """
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ log = logging.getLogger("usage")
 
 @dataclass
 class Meter:
+    """Token counter for one question or job (chat and embedding tokens per model)."""
     chat_in: int = 0
     chat_out: int = 0
     chat_requests: int = 0
@@ -26,6 +27,7 @@ class Meter:
 
     @property
     def total(self) -> int:
+        """All tokens counted."""
         return self.chat_in + self.chat_out + self.embed_tokens
 
 
@@ -33,12 +35,14 @@ _METER: ContextVar[Meter | None] = ContextVar("usage_meter", default=None)
 
 
 def start() -> Meter:
+    """Start a new meter for the current context."""
     m = Meter()
     _METER.set(m)
     return m
 
 
 def current() -> Meter | None:
+    """Meter of the current context, if any."""
     return _METER.get()
 
 
@@ -51,7 +55,7 @@ def _num(u, *names) -> int:
 
 
 def add_run(res, model: str | None = None) -> None:
-    """Ergebnis eines pydantic-ai Agent.run() verbuchen."""
+    """Book the result of a pydantic-ai Agent.run()."""
     m = _METER.get()
     if m is None or res is None:
         return
@@ -72,7 +76,7 @@ def add_run(res, model: str | None = None) -> None:
 
 
 def add_embed(res, texts: list[str]) -> None:
-    """Embedding-Ergebnis verbuchen; ohne Angabe vom Anbieter geschätzt (≈ 4 Zeichen pro Token)."""
+    """Book an embedding result; without figures from the provider estimated (≈ 4 characters per token)."""
     m = _METER.get()
     if m is None:
         return
@@ -85,13 +89,13 @@ def add_embed(res, texts: list[str]) -> None:
     m.embed_requests += 1
 
 
-# ------------------------------------------------------------------ Preise
+# ------------------------------------------------------------------ prices
 _PRICES: dict = {"at": 0.0, "data": {}}
 
 
 def _openrouter_prices() -> dict[str, tuple[float, float]]:
-    """model id -> (USD je Input-Token, USD je Output-Token); 24 h gecacht."""
-    if time.time() - _PRICES["at"] < (86400 if _PRICES["data"] else 600):   # Fehlschlag: in 10 min erneut versuchen
+    """model id -> (USD per input token, USD per output token); cached 24 h."""
+    if time.time() - _PRICES["at"] < (86400 if _PRICES["data"] else 600):   # failure: try again in 10 min
         return _PRICES["data"]
     import httpx
 
@@ -116,7 +120,7 @@ def _openrouter_prices() -> dict[str, tuple[float, float]]:
 
 
 def summary(m: Meter | None) -> dict:
-    """Tokens und Kosten (USD, EUR) eines Jobs."""
+    """Tokens and cost (USD, EUR) of a job."""
     from .config import get_settings
     s = get_settings()
     if m is None:
@@ -135,16 +139,17 @@ def summary(m: Meter | None) -> dict:
             "chat_model": s.chat_model, "embedding_model": s.embedding_model,
             "usd": round(usd, 6), "eur": round(usd * s.usd_to_eur, 6), "chat_eur": round(chat_usd * s.usd_to_eur, 6),
             "embedding_eur": round(emb_usd * s.usd_to_eur, 6), "usd_to_eur": s.usd_to_eur,
-            # Chat: was die Frage kostet (Eingabe inkl. Kontext/Quellen, Umschreiben, Embedding) und was die Antwort (Ausgabe)
+            # chat: what the question costs (input incl. context/sources, rewriting, embedding) and what the answer costs (output)
             "question_tokens": m.chat_in + m.embed_tokens, "answer_tokens": m.chat_out,
             "question_eur": round((m.chat_in * p_in + emb_usd) * s.usd_to_eur, 6), "answer_eur": round(m.chat_out * p_out * s.usd_to_eur, 6),
             "price_source": "openrouter" if chat else "settings (estimate)"}
 
 
 async def summary_async(m: Meter | None) -> dict:
+    """summary() in a worker thread; never raises."""
     import asyncio
     try:
         return await asyncio.to_thread(summary, m)
-    except Exception as e:  # Kostenanzeige ist nur Information
+    except Exception as e:  # the cost display is information only
         log.warning("usage summary failed: %s", e)
         return {"tokens": m.total if m else 0}

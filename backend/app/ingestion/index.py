@@ -14,6 +14,7 @@ log = logging.getLogger("ingest")
 
 
 async def index_items(items: list[Item], opts: IngestOptions) -> int:
+    """Chunk, embed and store the items in Qdrant and the graph; duplicates keep their metadata but no chunks. Returns the number of items indexed."""
     from .. import store
     from ..clustering import UNIT_TYPES, summary_key, summary_text
     from ..llm import embed_documents, resolve_key
@@ -36,7 +37,7 @@ async def index_items(items: list[Item], opts: IngestOptions) -> int:
             store.replace_chunks(r, chunks, vectors)
             r.indexed = True
             n_indexed += 1
-            if r.doc_type.value in UNIT_TYPES:   # nur Clustering-Einheiten brauchen einen Summary-Vektor
+            if r.doc_type.value in UNIT_TYPES:   # only clustering units need a summary vector
                 summ = summary_text(r.title, r.summary.model_dump())
                 if summ:
                     summary_vec = (await embed_documents([summ], key))[0]
@@ -51,7 +52,7 @@ async def index_items(items: list[Item], opts: IngestOptions) -> int:
 
 
 async def label_chunks(chunks, key: str, s) -> None:
-    """Chunks ohne DEO-Klasse aus der Überschrift per LLM klassifizieren (höchstens deo_classify_max_chunks)."""
+    """Classify chunks without a DEO class from their heading via LLM (at most deo_classify_max_chunks)."""
     from ..deo_classify import classify
 
     todo = [c for c in chunks if not c.deo][: s.deo_classify_max_chunks]
@@ -64,7 +65,7 @@ async def label_chunks(chunks, key: str, s) -> None:
 
 
 def sync_graph(r, chunks) -> None:
-    """Dokument, Abschnitte, Chunks und Metadaten in den Neo4j-Graphen schreiben (Fehler brechen die Ingestion nicht ab)."""
+    """Write document, sections, chunks and metadata into the Neo4j graph (errors do not stop the ingestion)."""
     s = get_settings()
     if not s.graph_enabled:
         return
@@ -72,18 +73,18 @@ def sync_graph(r, chunks) -> None:
         from .. import graph
         graph.sync_document(r.payload(), [c.model_dump() for c in chunks])
     except Exception as e:
-        log.warning("Graph-Sync für %s fehlgeschlagen: %s", r.filename, e)
+        log.warning("Graph sync for %s failed: %s", r.filename, e)
 
 
 def mark_content_duplicate(rec: DocumentRecord) -> None:
-    """Paper/Notes: gleicher Text unter anderem Dateinamen -> nur einmal einbetten."""
+    """Papers/notes: the same text under another file name -> embed it only once."""
     if not rec.content_hash:
         return
     from .. import store
 
     try:
         others = [d for d in store.find_by_content(rec.content_hash) if d.get("doc_id") != rec.doc_id]
-    except Exception:  # Collection fehlt noch o. Ä.
+    except Exception:  # collection does not exist yet or similar
         return
     if others:
         rec.duplicate_of = others[0]["doc_id"]

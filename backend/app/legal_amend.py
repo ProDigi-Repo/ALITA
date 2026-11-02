@@ -1,19 +1,19 @@
-"""REQ-45: Änderungsbefehle einer Änderungsverordnung auf eine Norm anwenden (SAT-Graph RAG: Actions, die von der
-ändernden Norm ausgehen – „commanded by“).
+"""REQ-45: apply the amending instructions of an amending regulation to a norm (SAT-Graph RAG: actions that originate
+from the amending norm – "commanded by").
 
-Eine Änderungsverordnung (z. B. Digital Omnibus on AI, Verordnung (EU) 2026/1744) enthält keinen konsolidierten Text,
-sondern Befehle wie
+An amending regulation (e.g. Digital Omnibus on AI, Regulation (EU) 2026/1744) contains no consolidated text,
+but instructions such as
 
   (7) Article 5 is amended as follows:
   (a) in paragraph 1, the first subparagraph, the following points are inserted:
   ‘(ba) …’;
   (b) paragraph 5 is deleted;
 
-`apply_amendments` liest den Abschnitt, der die Norm ändert („Regulation (EU) 2024/1689 is amended as follows:“ bis
-zum nächsten Artikel der Änderungsverordnung), zerlegt ihn in Befehle (Ziel, Operation, neuer Text) und wendet sie auf
-die Bestandteile der Vorfassung an. Ergebnis: die Bestandteile der neuen (konsolidierten) Fassung und ein Bericht je
-Befehl – angewendet, angenähert (Unterabsätze: das Modell kennt Absätze, Punkte, Unterpunkte, aber keine Unterabsätze)
-oder nicht angewendet (z. B. Punkte innerhalb von Anhängen, deren Text ALITA nicht weiter gliedert).
+`apply_amendments` reads the section that amends the norm ("Regulation (EU) 2024/1689 is amended as follows:" up to
+the next article of the amending regulation), splits it into instructions (target, operation, new text) and applies them
+to the components of the previous version. Result: the components of the new (consolidated) version and a report per
+instruction – applied, approximated (subparagraphs: the model knows paragraphs, points and sub-points, but no subparagraphs)
+or not applied (e.g. points inside annexes whose text ALITA does not structure further).
 """
 from __future__ import annotations
 
@@ -30,20 +30,20 @@ _SCAFFOLD = "HAVE ADOPTED THIS REGULATION:\n"
 
 
 def _amending_block(lines: list[str], act: str) -> list[str]:
-    """Zeilen des Artikels der Änderungsverordnung, der `act` ändert („Regulation (EU) 2024/1689 is amended as follows:“)."""
+    """Lines of the article of the amending regulation that amends `act` ("Regulation (EU) 2024/1689 is amended as follows:")."""
     start = next((i for i, ln in enumerate(lines) if act.lower() in ln.lower() and "amended as follows" in ln.lower()), None)
     if start is None:
         return []
     out = []
     for ln in lines[start + 1:]:
         if re.match(r"^Article\s+\d+[a-z]?$", ln) and _closed(out):
-            break                                 # nächster Artikel der Änderungsverordnung (außerhalb eines Zitats)
+            break                                 # next article of the amending regulation (outside a quotation)
         out.append(ln)
     return out
 
 
 def _closed(lines: list[str]) -> bool:
-    """Steht man außerhalb eines zitierten Textes? (‘ öffnet am Zeilenanfang, ’ + Satzzeichen am Zeilenende schließt)."""
+    """Are we outside a quoted text? (‘ opens at the start of a line, ’ + punctuation at the end of a line closes)."""
     open_ = False
     for ln in lines:
         if not open_ and ln.startswith("‘"):
@@ -54,13 +54,13 @@ def _closed(lines: list[str]) -> bool:
 
 
 def split_instructions(block: list[str]) -> list[dict]:
-    """Befehle mit Kontext: [{no, sub, header, content}] – header ohne Zitat, content = zitierter neuer Text (ohne ‘ ’)."""
+    """Instructions with context: [{no, sub, header, content}] – header without the quotation, content = quoted new text (without ‘ ’)."""
     out: list[dict] = []
     cur: dict | None = None
     top_no, top_header = None, ""
     quote: list[str] | None = None
     for ln in block:
-        if quote is not None:                     # im Zitat: bis ’ am Zeilenende
+        if quote is not None:                     # inside the quotation: until ’ at the end of a line
             end = re.search(r"’\s*[;.,:]?\s*$", ln)
             quote.append(re.sub(r"’\s*[;.,:]?\s*$", "", ln) if end else ln)
             if end:
@@ -94,13 +94,13 @@ def split_instructions(block: list[str]) -> list[dict]:
                 top_header = cur["header"]
     for ins in out:
         ins["header"] = re.sub(r"\s+", " ", ins["header"]).strip()
-    # Befehle, die nur Unterbefehle einleiten („Article 5 is amended as follows:“ ohne Zitat), entfallen
+    # instructions that only introduce sub-instructions ("Article 5 is amended as follows:" without a quotation) are dropped
     return [i for i in out if i["content"] or re.search(r"\b(deleted)\b", i["header"])
             or not any(j["no"] == i["no"] and j["sub"] for j in out) and "amended as follows" not in i["header"]]
 
 
 def _target(header: str, context: str) -> dict:
-    """Ziel eines Befehls: Artikel, Absatz/Absätze, Punkt(e), Unterabsatz, Überschrift, Anhang."""
+    """Target of an instruction: article, paragraph(s), point(s), subparagraph, heading, annex."""
     h, c = header.lower(), context.lower()
     t: dict = {"art": None, "paras": [], "points": [], "subpar": None, "heading": "heading is replaced" in h,
                "intro": "introductory part" in h, "annex": None}
@@ -113,7 +113,7 @@ def _target(header: str, context: str) -> dict:
         t["art"] = m.group(1)
         if m.group(2):
             t["paras"] = [m.group(2)]
-    for src in (c, h):                            # Kontext zuerst, der Befehl verfeinert
+    for src in (c, h):                            # context first, the instruction refines it
         m = re.search(r"\bparagraphs?\s+(\d+[a-z]?)(?:\s*(?:,|and|to)\s*(\d+[a-z]?))*", src)
         if m:
             t["paras"] = re.findall(r"\d+[a-z]?", m.group(0))
@@ -140,7 +140,7 @@ def _op(header: str, content: list[str]) -> str:
 
 
 def _fragment(content: str, art: str | None, para: str | None) -> list[Component]:
-    """Zitierten neuen Text in Bestandteile zerlegen – mit Gerüst („Article 5“, „1.“), das danach wieder entfällt."""
+    """Split the quoted new text into components – with a scaffold ("Article 5", "1.") that is removed afterwards."""
     first = content.lstrip()
     if re.match(r"^(Article\s+\d+[a-z]*|ANNEX\s|Annex\s)", first):
         text = _SCAFFOLD + ("Article 999\nScaffold\n" if first.lower().startswith("annex") else "") + content
@@ -151,7 +151,7 @@ def _fragment(content: str, art: str | None, para: str | None) -> list[Component
         lead = f"Article {art}\nScaffold\n"
         drop = {"pre", f"art_{art}"}
         if para and re.match(r"^\(\w{1,4}\)", first) and not re.match(r"^\(\d+[a-z]?\)", first):
-            lead += f"{para}.\n"                  # Punkte (a), (ba) in Absatz `para`
+            lead += f"{para}.\n"                  # points (a), (ba) in paragraph `para`
             drop.add(f"art_{art}/abs_{para}")
         text = _SCAFFOLD + lead + content
     comps = parse_components(text, "law")
@@ -163,8 +163,8 @@ def _subtree(W: dict[str, Component], cid: str) -> list[str]:
 
 
 def _resolve(W: dict[str, Component], t: dict) -> list[str]:
-    """IDs der Zielbestandteile (mehrere bei „paragraphs 2 and 3“); fehlende Absatzebene wird übersprungen
-    („in Article 113, the third paragraph … point (a)“ -> art_113/pt_a)."""
+    """Ids of the target components (several for "paragraphs 2 and 3"); a missing paragraph level is skipped
+    ("in Article 113, the third paragraph … point (a)" -> art_113/pt_a)."""
     if not t["art"]:
         return []
     base = f"art_{t['art']}"
@@ -183,8 +183,8 @@ def _resolve(W: dict[str, Component], t: dict) -> list[str]:
 
 
 def apply_amendments(prev: list[Component], text: str, act: str, source: str = "") -> tuple[list[Component], list[dict]]:
-    """Änderungsbefehle aus `text` (Änderungsverordnung) auf `prev` (Bestandteile der Vorfassung) anwenden.
-    act: Bezeichnung der geänderten Norm im Text („Regulation (EU) 2024/1689“). -> (Bestandteile, Bericht)."""
+    """Apply the amending instructions from `text` (amending regulation) to `prev` (components of the previous version).
+    act: name of the amended norm in the text ("Regulation (EU) 2024/1689"). -> (components, report)."""
     lines = clean_lines(text)
     block = _amending_block(lines, act)
     W = {c.cid: replace(c) for c in prev}
@@ -217,18 +217,18 @@ def apply_amendments(prev: list[Component], text: str, act: str, source: str = "
                 if cid in W and content:
                     W[cid] = replace(W[cid], title=content.strip())
                     rec.update(status="applied", components=[cid])
-            elif (t["subpar"] and not t["points"]) or t["intro"] or op == "append_text":   # „in the first subparagraph, point (a)“: Ziel ist der Punkt
+            elif (t["subpar"] and not t["points"]) or t["intro"] or op == "append_text":   # "in the first subparagraph, point (a)": the target is the point
                 ids = _resolve(W, {**t, "points": t["points"] if not t["subpar"] else []}) or _resolve(W, {**t, "points": []})
                 cid = ids[0] if ids else None
                 if cid and op == "append_text":
                     W[cid] = replace(W[cid], text=(W[cid].text + "\n" + content).strip())
                     rec.update(status="applied", components=[cid])
-                elif cid and op == "insert" and content:          # „in paragraph 1, the first subparagraph, the following points …“
+                elif cid and op == "insert" and content:          # "in paragraph 1, the first subparagraph, the following points …"
                     frag = _fragment(content, t["art"], t["paras"][0] if t["paras"] else None)
                     W = {c.cid: c for c in merge_partial(list(W.values()), frag)}
                     rec.update(status="applied", components=[c.cid for c in frag])
                 elif cid and op == "replace" and (t["intro"] or t["subpar"] == 1):
-                    W[cid] = replace(W[cid], text=re.sub(r"^\d+[a-z]?\.\s+", "", content.strip()))   # ohne „1.“
+                    W[cid] = replace(W[cid], text=re.sub(r"^\d+[a-z]?\.\s+", "", content.strip()))   # without "1."
                     rec.update(status="approximate", components=[cid],
                                note="first subparagraph / introductory part: replaces the own text of the part")
                 else:
@@ -254,7 +254,7 @@ def apply_amendments(prev: list[Component], text: str, act: str, source: str = "
                     rec.update(status="applied" if rec.get("note") is None else "approximate",
                                components=[c.cid for c in frag if "/" not in c.cid.replace(f"art_{t['art']}/", "", 1)
                                            or c.type in ("paragraph", "point", "article")][:12])
-        except Exception as e:  # ein Befehl darf die Fassung nicht verhindern
+        except Exception as e:  # one instruction must not prevent the version
             rec.update(status="not_applied", note=f"error: {e}")
         if rec["status"] in ("applied", "approximate") and not rec["components"] and op != "delete":
             rec.update(status="not_applied", note=rec.get("note") or "nothing could be read from the new text")

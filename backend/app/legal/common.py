@@ -7,7 +7,7 @@ from datetime import date, datetime, timezone
 
 LEGAL_TYPES = ("legal_project", "legal_guideline", "standard", "guidance")
 KIND_OF_TYPE = {"legal_project": "law", "legal_guideline": "guideline", "standard": "standard", "guidance": "faq"}
-# Stufen ohne Geltung (Entstehungsgeschichte) – alles andere mit in_force-Datum gilt
+# stages without validity (legislative history) – everything else with an in_force date is in force
 DRAFT_STAGES = {"proposal", "draft", "committee", "position_parliament", "position_council", "general_approach", "trilogue_agreement",
                 "committee_report", "consultation", "public_consultation", "nwip", "wd", "cd", "dis", "fdis", "prf"}
 STAGE_LABEL = {
@@ -16,7 +16,7 @@ STAGE_LABEL = {
     "adopted": "Adopted text", "published": "Published", "consolidated": "Consolidated version", "corrigendum": "Corrigendum",
     "repealed": "Repealed", "draft": "Draft", "consultation": "Draft for consultation", "public_consultation": "Draft for consultation",
     "final": "Final version", "revised": "Revised version", "withdrawn": "Withdrawn",
-    # ISO-Stufen (International harmonized stage codes)
+    # ISO stages (International harmonized stage codes)
     "nwip": "New work item (10)", "wd": "Working draft (20)", "cd": "Committee draft (30)", "dis": "Enquiry / DIS (40)",
     "fdis": "Approval / FDIS (50)", "prf": "Proof (50.20)", "is": "International Standard published (60.60)",
     "confirmed": "Confirmed (90.93)", "amendment": "Amendment", "edition": "Edition", "version": "Version",
@@ -24,12 +24,12 @@ STAGE_LABEL = {
 TYPE_LABEL = {"preamble": "Preamble", "recital": "Recital", "title": "Title", "chapter": "Chapter", "section": "Section", "article": "Article",
               "paragraph": "Paragraph", "point": "Point", "subpoint": "Point", "annex": "Annex", "supplement": "Supplement", "clause": "Clause", "topic": "Topic", "question": "Question", "term": "Term",
               "margin": "Para."}
-FAR_FUTURE = 32503680000            # 3000-01-01 als Zeitstempel: „gilt noch“ (valid_to offen)
+FAR_FUTURE = 32503680000            # 3000-01-01 as a timestamp: "still in force" (valid_to open)
 
 
-# ----------------------------------------------------------------- Hilfen
+# ----------------------------------------------------------------- helpers
 def ts(d: date | datetime | str | None) -> int | None:
-    """Datum -> Unix-Zeitstempel (UTC, Tagesbeginn)."""
+    """Date -> Unix timestamp (UTC, start of day)."""
     if d is None or d == "":
         return None
     if isinstance(d, str):
@@ -40,6 +40,7 @@ def ts(d: date | datetime | str | None) -> int | None:
 
 
 def iso(d) -> str | None:
+    """ISO date string (YYYY-MM-DD) from a date, datetime or string; None when empty."""
     if d is None or d == "":
         return None
     if isinstance(d, str):
@@ -54,19 +55,20 @@ def _h(*parts: str) -> str:
 
 
 def norm_text(t: str) -> str:
-    """Für den Vergleich zweier Fassungen: Silbentrennung, Leerraum und typografische Zeichen egal."""
+    """For comparing two versions: hyphenation, whitespace and typographic characters do not matter."""
     t = re.sub(r"(\w)-\s*\n\s*(\w)", r"\1\2", t or "")
     t = t.replace(" ", " ").replace("’", "'").replace("‘", "'").replace("“", '"').replace("”", '"').replace("–", "-")
     return re.sub(r"\s+", " ", t).strip().lower()
 
 
 def cmp_key(t: str) -> str:
-    """Identität eines Textes über Fassungen hinweg: PDF-Extraktion setzt Leerzeichen und Bindestriche uneinheitlich
-    („c onformity“, „high -risk“, geschützte Bindestriche aus Word) – das darf nicht als Änderung zählen."""
-    return re.sub(r"[\W_]+", "", norm_text(t))     # nur Buchstaben und Ziffern: Leerraum, Bindestriche (auch geschützte), Satzzeichen egal
+    """Identity of a text across versions: PDF extraction sets spaces and hyphens inconsistently
+    ("c onformity", "high -risk", non-breaking hyphens from Word) – that must not count as a change."""
+    return re.sub(r"[\W_]+", "", norm_text(t))     # only letters and digits: whitespace, hyphens (also non-breaking) and punctuation do not matter
 
 
 def slug(s: str) -> str:
+    """Lower-case slug of a text for ids (at most 60 characters, "norm" when empty)."""
     return re.sub(r"[^a-z0-9]+", "-", (s or "").lower()).strip("-")[:60] or "norm"
 
 

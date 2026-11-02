@@ -1,8 +1,8 @@
 """Command line: ``python -m app.ingestion <kind> [path] [options]`` (``python -m app.ingest`` still works).
 
-  python -m app.ingestion project  /pfad/zu/11-MentalModelProcesses [--no-llm] [--dry-run out.json]
-  python -m app.ingestion paper    /pfad/zu/paper.pdf  [--project NAME]
-  python -m app.ingestion notes    /pfad/zu/notizen.docx
+  python -m app.ingestion project  /path/to/11-MentalModelProcesses [--no-llm] [--dry-run out.json]
+  python -m app.ingestion paper    /path/to/paper.pdf  [--project NAME]
+  python -m app.ingestion notes    /path/to/notes.docx
   python -m app.ingestion all      /research [--force]
   python -m app.ingestion cluster | graph | citations | provisions | delete --db X | delete --norm ID"""
 from __future__ import annotations
@@ -35,6 +35,7 @@ def _dump(project: ProjectRecord | None, items: list[Item], out: Path) -> None:
 
 
 def main() -> None:
+    """Command line entry point: `python -m app.ingestion <kind> [path] [options]` (see --help)."""
     ap = argparse.ArgumentParser(description="Load documents into the RAG index")
     ap.add_argument("kind", choices=["project", "paper", "notes", "all", "cluster", "graph", "citations", "provisions", "delete",
                                      "legal", "guideline", "standard", "guidance"],
@@ -90,11 +91,11 @@ def main() -> None:
         print(json.dumps(res, ensure_ascii=False, indent=1, default=str))
         if not a.dry_run:
             if not opts.api_key:
-                print("Hinweis: ohne API-Key werden die Cluster neu berechnet, aber ohne neue Beschreibungen. "
-                      "Mit Key: -e OPENROUTER_API_KEY=sk-or-v1-...")
+                print("Note: without an API key the clusters are recomputed, but without new descriptions. "
+                      "With a key: -e OPENROUTER_API_KEY=sk-or-v1-...")
             print(json.dumps({"clusters": asyncio.run(recompute(a.k or get_settings().cluster_k or None, opts.api_key))},
                              ensure_ascii=False, indent=1, default=str))
-            print(f"Fertig. Den Ordner research/{name} selbst löschen, sonst liest 'seed' ihn beim nächsten Start wieder ein.")
+            print(f"Done. Delete the folder research/{name} yourself, otherwise 'seed' ingests it again on the next start.")
         return
     if a.kind == "cluster":
         from ..clustering import recompute

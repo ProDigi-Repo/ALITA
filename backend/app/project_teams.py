@@ -28,12 +28,12 @@ def apply_team(name: str, team: list[str]) -> tuple[dict, bool]:
         graph_team(name, team, editors)
         return editors, True
     except Exception as e:
-        log.warning("Team im Graphen nicht gesetzt: %s", e)
+        log.warning("Team not set in the graph: %s", e)
         return editors, False
 
 
 def migrate_people_once() -> None:
-    """REQ-19 (einmalig): Metadaten-Namen von Projektdateien -> editors, Autor:innen = Projektteam; Müll-Namen entfernen."""
+    """REQ-19 (once): metadata names of project files -> editors, authors = project team; remove junk names."""
     flag = get_settings().data_dir / MIGRATION_FLAG
     if flag.exists():
         return
@@ -44,8 +44,8 @@ def migrate_people_once() -> None:
         n = store.clean_document_authors()
         if get_settings().graph_enabled:
             from . import graph
-            log.info("REQ-19 Personen im Graphen: %s", graph.clean_persons())
+            log.info("REQ-19 people in the graph: %s", graph.clean_persons())
         flag.write_text("done", encoding="utf-8")
-        log.info("REQ-19: Projektteams übernommen, %d Paper/Notizen bereinigt", n)
+        log.info("REQ-19: project teams applied, %d papers/notes cleaned", n)
     except Exception as e:  # Qdrant/Neo4j not ready yet: try again at the next start
-        log.warning("REQ-19 Migration übersprungen: %s", e)
+        log.warning("REQ-19 migration skipped: %s", e)

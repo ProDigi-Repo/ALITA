@@ -4,7 +4,7 @@
 let DOCS=[], PROJECTS=[];
 const D={t:'',sort:'d',dir:-1,shown:100,sel:null};
 
-function normLive(r){ // API-Zeile -> internes Kurzformat
+function normLive(r){ // API row -> internal short format
   return {leg:r.legal||null,id:r.doc_id,t:r.doc_type,ti:r.title,fn:r.filename,ft:r.filetype,d:(r.date||'').slice(0,10),ds:r.date_source,y:r.year,sz:r.size_bytes,
     pn:r.project_name,rp:r.rel_path,ro:r.role,ve:r.venue,st:r.stage,v:r.version,la:r.is_latest,ar:r.archived,ix:r.indexed,no:r.index_note,me:r.method_ids||[],lg:r.language,pg:r.pages,db:r.databases||[],doi:r.doi,au:r.authors||[],ed:r.editors||[],ci:r.cluster_id,cl:r.cluster_label,cs:r.cluster_score,cb:r.cluster_basis,cx:r.cluster_x,cy:r.cluster_y,ca:r.cluster_alt_id,cas:r.cluster_alt_score,ct:r.cluster_title,cd:r.cluster_description,cc:r.cluster_contribution,can:r.cluster_anchor};
 }

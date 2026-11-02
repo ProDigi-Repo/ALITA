@@ -21,7 +21,7 @@ def _snippet(text: str, n: int = 320) -> str:
 
 
 def legal_ref(p: dict) -> dict | None:
-    """REQ-38: Bestandteil, Fassung und Geltung einer Rechtstext-Stelle (für Quelle, Kontext und Oberfläche)."""
+    """REQ-38: component, version and validity of a passage of a legal text (for source, context and interface)."""
     if not (p.get("ctv_id") or p.get("action_id")):
         return None
     return {k: v for k, v in {"norm": p.get("norm_title"), "norm_id": p.get("norm_id"), "component": p.get("component_label"),
@@ -31,6 +31,7 @@ def legal_ref(p: dict) -> dict | None:
 
 
 def legal_note(p: dict) -> str:
+    """Short legal context for a source line: norm, component and validity period, or the change it belongs to."""
     lr = legal_ref(p)
     if not lr:
         return ""
@@ -42,7 +43,7 @@ def legal_note(p: dict) -> str:
 
 
 def legal_scope(query: str, filters, all_docs: list[dict]):
-    """REQ-37: Gibt es Rechtstexte im Umfang? Dann Zeitplan der Frage anwenden -> (filters, temporal, prompt-kopf, tabelle)."""
+    """REQ-37: are legal texts in scope? Then apply the temporal plan of the question -> (filters, temporal, prompt head, table)."""
     from .legal import LEGAL_TYPES
     from .legal_chat import context
     from .legal_ingest import list_models
@@ -63,7 +64,7 @@ def legal_scope(query: str, filters, all_docs: list[dict]):
         from .legal_time import describe, draft_fallback
         as_of = filters.as_of or lp.get("as_of")
         stage = draft_fallback(models, as_of) if as_of else None
-        if stage:                                 # nur Entwürfe vorhanden: jüngste Entwurfsstufe statt leerer Antwort
+        if stage:                                 # only drafts exist: the latest draft stage instead of an empty answer
             filters = filters.model_copy(update={"as_of": None, "legal_stage": stage})
             lp = {**lp, "policy": "stage", "stage": stage, "source": "fallback"}
             lp["label"] = describe(lp) + f" – no version in force on {as_of}, showing the latest draft"
@@ -74,6 +75,7 @@ def legal_scope(query: str, filters, all_docs: list[dict]):
 
 
 def to_sources(hits) -> list[SourceRef]:
+    """Turn search hits into numbered SourceRef objects for the chat answer (link, locator, snippet, metadata)."""
     refs = []
     for i, h in enumerate(hits, start=1):
         p = h.payload
@@ -91,7 +93,7 @@ def to_sources(hits) -> list[SourceRef]:
 
 
 async def standalone_query(query: str, memory: list, model_name: str, key: str, use_llm: bool) -> str:
-    """Suchanfrage für die Vektorsuche: Anschlussfragen bekommen den Gesprächskontext."""
+    """Search query for the vector search: follow-up questions get the context of the conversation."""
     if not memory or not is_follow_up(query):
         return query
     if use_llm:
@@ -106,7 +108,7 @@ async def standalone_query(query: str, memory: list, model_name: str, key: str, 
             q = (r.output or "").strip().strip('"')
             if q:
                 return q[:500]
-        except Exception:  # Umschreiben ist optional
+        except Exception:  # rewriting is optional
             pass
     return heuristic_query(query, memory)
 
@@ -155,6 +157,7 @@ class StreamedAnswer:
     text: str = ""
 
     async def events(self, prompt: str, history: list, model_name: str, key: str, instructions: str):
+        """Stream the model answer for a prompt: yields ("delta", {"t": text}) events, keeps the full text in self.text and records token usage."""
         from pydantic_ai import Agent
         agent = Agent(chat_model(model_name, key), output_type=str, instructions=instructions)
         async with agent.run_stream(prompt, message_history=history or None) as result:

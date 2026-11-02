@@ -88,6 +88,7 @@ class Scope:
 
     @classmethod
     def build(cls, filters: SearchFilters, docs: list[dict], named: list[int] | None = None) -> Scope:
+        """Scope for the filters: groups per database when clusters of several databases or several databases are selected."""
         from .cluster_relations import group_by_database
         groups = group_by_database(filters.cluster, docs) if filters.cluster else {}
         if not groups and len(filters.database) > 1:     # several databases, no cluster: each database on its own
@@ -96,6 +97,7 @@ class Scope:
 
     @property
     def per_cluster(self) -> bool:
+        """True when several named clusters are searched one by one."""
         return bool(self.named) and len(self.filters.cluster) > 1
 
     @property
@@ -105,6 +107,7 @@ class Scope:
 
     @property
     def databases(self) -> list[str]:
+        """Databases that are searched separately."""
         return list(self.groups)
 
     async def retrieve(self, query: str, req: ChatRequest, key: str, docs: list[dict],

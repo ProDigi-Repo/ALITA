@@ -26,12 +26,13 @@ log = logging.getLogger("ingest")
 
 
 async def ingest_project(folder: Path, opts: IngestOptions) -> ProjectRecord:
+    """Ingest one project folder: scan, assign databases, enrich with the LLM, index and store the project record."""
     from .. import store
 
     project, items = scan_project(folder)
     if opts.date:
         apply_overall_date(project, items, opts.date)
-    # Priorität: explizit angegeben > Ordnerstruktur > bisherige Zuordnung (bleibt bei Neu-Einlesen erhalten)
+    # priority: given explicitly > folder structure > previous assignment (kept when ingesting again)
     dbs = get_settings().normalize_databases(opts.databases) or detect_databases(folder)
     if not dbs:
         old = store.get_project(project.name)
@@ -48,13 +49,13 @@ async def ingest_project(folder: Path, opts: IngestOptions) -> ProjectRecord:
 
 
 async def ingest_file(path: Path, doc_type: DocType, opts: IngestOptions, project_name: str | None = None) -> DocumentRecord:
-    """research paper / research notes. Optional einem Projekt zuordnen."""
+    """research paper / research notes, optionally linked to a project."""
     ctx = None
     if project_name:
         ctx = ProjectContext(project_id=make_project_id(project_name), project_name=project_name,
                              rel_path=path.name, folder="", role=ProjectRole.reference if doc_type == DocType.research_paper else ProjectRole.notes)
     it = build_record(path, doc_type, scope=doc_type.value, rel_path=f"{path.parent.name}/{path.name}", project=ctx)
-    if opts.date:                                   # vom Nutzer beim Hochladen festgelegt
+    if opts.date:                                   # set by the user at upload
         it.record.date, it.record.date_source, it.record.year = opts.date, "user", opts.date.year
     apply_databases(None, [it], get_settings().normalize_databases(opts.databases) or detect_databases(path))
     apply_curated_summary(it.record, path)
@@ -75,8 +76,8 @@ FILE_FOLDERS = {
 
 
 async def ingest_all(root: Path, opts: IngestOptions, force: bool = False) -> None:
-    """Jeden Unterordner von root als research project einlesen (z. B. /research beim Compose-Start).
-    Ohne API-Key werden nur Metadaten eingelesen, damit die Dokumentenliste trotzdem gefüllt ist."""
+    """Ingest every subfolder of root as a research project (e.g. /research at compose start-up).
+    Without an API key only metadata is ingested, so that the document list is filled anyway."""
     from .. import store
 
     store.ensure_collections()
@@ -102,14 +103,14 @@ async def ingest_all(root: Path, opts: IngestOptions, force: bool = False) -> No
             if not q.is_dir() or q.name.startswith("."):
                 continue
             lk = LEGAL_FOLDERS.get(q.name.lower())
-            if lk == DocType.legal_project:       # research/<DB>/legal/<Projekt>/ (REQ-38)
+            if lk == DocType.legal_project:       # research/<DB>/legal/<project>/ (REQ-38)
                 legal.extend((sub, lk) for sub in sorted(q.iterdir()) if sub.is_dir() and not sub.name.startswith("."))
                 continue
             if lk:                                # research/<DB>/guidelines/, research/<DB>/standards/
                 legal.append((q, lk))
                 continue
             kind = FILE_FOLDERS.get(q.name.lower())
-            if kind:   # research/<DB>/papers/*.pdf bzw. research/<DB>/notes/*
+            if kind:   # research/<DB>/papers/*.pdf or research/<DB>/notes/*
                 singles.extend((f, kind) for f in sorted(q.rglob("*")) if f.is_file() and not f.name.startswith((".", "~$", "_")))
             else:
                 folders.append(q)
@@ -117,9 +118,9 @@ async def ingest_all(root: Path, opts: IngestOptions, force: bool = False) -> No
     for p in sorted(root.iterdir()):
         if not p.is_dir() or p.name.startswith("."):
             continue
-        if p.name.lower() in known:   # research/<DB>/<Projekt>
+        if p.name.lower() in known:   # research/<DB>/<project>
             collect(p)
-        elif p.name.lower() in LEGAL_FOLDERS:   # research/legal/…, research/guidelines/, research/standards/ (ohne Datenbank)
+        elif p.name.lower() in LEGAL_FOLDERS:   # research/legal/…, research/guidelines/, research/standards/ (without a database)
             lk = LEGAL_FOLDERS[p.name.lower()]
             legal.extend([(sub, lk) for sub in sorted(p.iterdir()) if sub.is_dir() and not sub.name.startswith(".")]
                          if lk == DocType.legal_project else [(p, lk)])
@@ -131,7 +132,7 @@ async def ingest_all(root: Path, opts: IngestOptions, force: bool = False) -> No
     single = replace(opts, recluster=False)
     if not folders and not singles and not legal:
         print(f"No project folders or papers/notes in {root}")
-    touched: set[str] = set()                     # nur diese Datenbanken am Ende neu clustern
+    touched: set[str] = set()                     # re-cluster only these databases at the end
     for path, kind in singles:
         doc_id = make_doc_id(kind.value, kind.value, f"{path.parent.name}/{path.name}")
         if not force and store.get_document(doc_id):
@@ -162,7 +163,7 @@ async def ingest_all(root: Path, opts: IngestOptions, force: bool = False) -> No
         r = await ingest_legal(folder, kind, single)
         touched.update(getattr(r, "databases", None) or [])
         print(f"{kind.value}: {getattr(r, 'name', None) or getattr(r, 'filename', '')} ingested")
-    res = await maybe_recluster(opts, sorted(touched)) if touched else None   # einmal am Ende, nur betroffene DBs
+    res = await maybe_recluster(opts, sorted(touched)) if touched else None   # once at the end, only the databases concerned
     if res:
         print(f"Clustering: {res['documents']} documents in {res['k']} clusters")
     cit = maybe_citations(opts)

@@ -1,12 +1,12 @@
-"""Neo4j-Wissensgraph nach DoCO/DEO (Design-Entscheidung ADR-001: Neo4j + neosemantics).
+"""Neo4j knowledge graph after DoCO/DEO (design decision ADR-001: Neo4j + neosemantics).
 
-Graphmodell (Property Graph; Klassen der SPAR-Ontologien als Knoten :DEOClass mit URI):
+Graph model (property graph; classes of the SPAR ontologies as nodes :DEOClass with URI):
 
   (:Document {doc_id, title, doc_type, fabio_type, year, doi, ...})
       -[:CONTAINS {order}]->(:Section {id, heading, doco:"Section"})-[:CONTAINS {order}]->(:Chunk {chunk_id, ...})
       -[:HAS_SUMMARY]->(:SummaryElement {id, field, text})
   (:Section|:Chunk|:SummaryElement)-[:HAS_ROLE]->(:DEOClass {name, uri, definition})
-  (:Person {name})-[:AUTHORED {position}]->(:Document)          (position = Platz in bibo:authorList, ab 1)
+  (:Person {name})-[:AUTHORED {position}]->(:Document)          (position = place in bibo:authorList, from 1)
   (:Document)-[:IN_DATABASE]->(:Database {name})
   (:Document)-[:PART_OF]->(:Project {name})
   (:Document)-[:USES_METHOD]->(:Method {id, label})
@@ -14,13 +14,13 @@ Graphmodell (Property Graph; Klassen der SPAR-Ontologien als Knoten :DEOClass mi
   (:Document)-[:REPRESENTS]->(:Work {doi})<-[:CITES]-(:Document)
   (:Document)-[:CITES {via, confidence, bibo:'bibo:cites', cito:'cito:cites'}]->(:Document)   (REQ-35, citations.py)
 
-BIBO (Bibliographic Ontology, REQ-35): jedes Dokument trägt bibo_type (bibo:AcademicArticle | bibo:Note |
-bibo:Manuscript) und author_list (bibo:authorList, geordnet); die Ontologie selbst lädt n10s wie die SPAR-Ontologien.
+BIBO (Bibliographic Ontology, REQ-35): every document carries bibo_type (bibo:AcademicArticle | bibo:Note |
+bibo:Manuscript) and author_list (bibo:authorList, ordered); n10s loads the ontology itself like the SPAR ontologies.
 
-Die vollständigen Ontologien (DoCO, DEO, FaBiO, CiTO, Pattern Ontology, BIBO) lädt optional neosemantics (n10s) als
-(:Class)-Hierarchie; :DEOClass-Knoten werden per (:DEOClass)-[:SAME_AS]->(:Class) damit verbunden.
+The full ontologies (DoCO, DEO, FaBiO, CiTO, Pattern Ontology, BIBO) are optionally loaded by neosemantics (n10s) as a
+(:Class) hierarchy; :DEOClass nodes are linked to them via (:DEOClass)-[:SAME_AS]->(:Class).
 
-Die Funktionen build_* erzeugen nur Cypher + Parameter (testbar ohne Datenbank); run()/sync_* führen sie aus.
+The build_* functions only produce Cypher + parameters (testable without a database); run()/sync_* execute them.
 """
 from __future__ import annotations
 
@@ -39,12 +39,12 @@ ONTOLOGIES = {
     "fabio": "http://purl.org/spar/fabio",
     "cito": "http://purl.org/spar/cito",
     "po": "http://www.essepuntato.it/2008/12/pattern",
-    # BIBO: purl.org per Content Negotiation, sonst die von der DCMI gepflegte RDF/XML-Datei
+    # BIBO: purl.org via content negotiation, otherwise the RDF/XML file maintained by DCMI
     "bibo": ["http://purl.org/ontology/bibo/", "https://www.dublincore.org/specifications/bibo/bibo/bibo.rdf.xml"],
-    # ELI (European Legislation Identifier) – Legal-Ontologie (REQ-38)
+    # ELI (European Legislation Identifier) – legal ontology (REQ-38)
     "eli": ["http://data.europa.eu/eli/ontology"],
 }
-# FaBiO kennt keine Klasse „Note“ (bis 2.2.0 fälschlich fabio:Note) – Notes und Rechtstexte: allgemeines fabio:Expression
+# FaBiO has no class "Note" (until 2.2.0 wrongly fabio:Note) – notes and legal texts: the general fabio:Expression
 FABIO_TYPE = {"research_paper": "fabio:JournalArticle", "research_notes": "fabio:Expression",
               "research_project": "fabio:WorkPackage", "legal_project": "fabio:Expression",
               "legal_guideline": "fabio:Expression", "standard": "fabio:Expression", "guidance": "fabio:WebPage"}
@@ -54,9 +54,10 @@ BIBO_TYPE = {"research_paper": "bibo:AcademicArticle", "research_notes": "bibo:N
 DOI_RX = re.compile(r"\b10\.\d{4,9}/[^\s\"<>,;]+", re.I)
 
 
-# ----------------------------------------------------------------- Verbindung
+# ----------------------------------------------------------------- connection
 @lru_cache(maxsize=1)
 def driver():
+    """New Neo4j driver for the configured database."""
     from neo4j import GraphDatabase
 
     from .config import get_settings
@@ -66,6 +67,7 @@ def driver():
 
 
 def run(cypher: str, **params) -> list[dict]:
+    """Run one Cypher query and return its rows as dicts."""
     from .config import get_settings
 
     with driver().session(database=get_settings().neo4j_database) as session:
@@ -73,6 +75,7 @@ def run(cypher: str, **params) -> list[dict]:
 
 
 def run_all(statements: list[tuple[str, dict]]) -> None:
+    """Run several Cypher statements in one write transaction."""
     from .config import get_settings
 
     with driver().session(database=get_settings().neo4j_database) as session:
@@ -83,11 +86,12 @@ def run_all(statements: list[tuple[str, dict]]) -> None:
 
 
 def available() -> bool:
+    """True when Neo4j answers."""
     try:
         run("RETURN 1 AS ok")
         return True
     except Exception as e:
-        log.info("Neo4j nicht erreichbar: %s", e)
+        log.info("Neo4j not reachable: %s", e)
         return False
 
 
@@ -113,13 +117,14 @@ SCHEMA = [
 
 
 def build_deo_classes() -> tuple[str, dict]:
+    """Statement that creates the DEO classes with their URIs and definitions."""
     rows = [{"name": n, "uri": DEO_NS + n, "definition": d} for n, d in DEO_CLASSES.items()]
     return ("UNWIND $rows AS r MERGE (c:DEOClass {name: r.name}) SET c.uri = r.uri, c.definition = r.definition, "
             "c.ontology = 'DEO'", {"rows": rows})
 
 
 def setup(import_ontologies: bool | None = None) -> dict:
-    """Constraints, DEO-Klassen und (optional) die SPAR-Ontologien per n10s. Idempotent."""
+    """Constraints, DEO classes and (optionally) the SPAR ontologies via n10s. Idempotent."""
     from .config import get_settings
 
     for c in SCHEMA:
@@ -133,7 +138,7 @@ def setup(import_ontologies: bool | None = None) -> dict:
 
 
 def import_spar_ontologies() -> dict:
-    """DoCO, DEO, FaBiO, CiTO, Pattern Ontology mit neosemantics (n10s) laden; braucht Netz und das n10s-Plugin."""
+    """Load DoCO, DEO, FaBiO, CiTO, Pattern Ontology with neosemantics (n10s); needs the network and the n10s plugin."""
     out = {}
     try:
         run("CREATE CONSTRAINT n10s_unique_uri IF NOT EXISTS FOR (r:Resource) REQUIRE r.uri IS UNIQUE")
@@ -161,9 +166,9 @@ def import_spar_ontologies() -> dict:
     return out
 
 
-# ----------------------------------------------------------------- Dokumente schreiben
+# ----------------------------------------------------------------- writing documents
 def sections_of(chunks: list[dict]) -> list[dict]:
-    """Aufeinanderfolgende Chunks mit gleicher Überschrift bilden einen Abschnitt (DoCO: Section)."""
+    """Consecutive chunks with the same heading form a section (DoCO: Section)."""
     out: list[dict] = []
     for c in sorted(chunks, key=lambda c: c.get("ordinal", 0)):
         head = c.get("section") or None
@@ -177,7 +182,7 @@ def sections_of(chunks: list[dict]) -> list[dict]:
 
 
 def dois_in(chunks: list[dict], own: str | None) -> list[str]:
-    """DOIs aus Literaturverzeichnissen (Chunks mit deo:BibliographicReference)."""
+    """DOIs from reference lists (chunks with deo:BibliographicReference)."""
     found: list[str] = []
     for c in chunks:
         if "BibliographicReference" in (c.get("deo") or []):
@@ -189,7 +194,7 @@ def dois_in(chunks: list[dict], own: str | None) -> list[str]:
 
 
 def build_document_statements(p: dict, chunks: list[dict]) -> list[tuple[str, dict]]:
-    """Cypher, das ein Dokument mit allen Beziehungen (neu) schreibt."""
+    """Cypher that (re)writes a document with all its relations."""
     doc_id = p["doc_id"]
     st: list[tuple[str, dict]] = []
     st.append(("MATCH (d:Document {doc_id: $id}) OPTIONAL MATCH (d)-[:CONTAINS|HAS_SUMMARY*1..2]->(x) DETACH DELETE x",
@@ -203,12 +208,12 @@ def build_document_statements(p: dict, chunks: list[dict]) -> list[tuple[str, di
     authors = [a for a in (p.get("authors") or []) if a and a.strip()]
     props["bibo_type"] = BIBO_TYPE.get(p.get("doc_type"), "bibo:Document")
     lg = p.get("legal") or {}
-    if lg:                                                          # REQ-38: Fassung einer Norm
+    if lg:                                                          # REQ-38: version of a norm
         if p.get("doc_type") == "legal_project" and lg.get("stage") in DRAFT_STAGES:
-            props["bibo_type"] = "bibo:Bill"                        # Entwurf (Gesetzgebungsverfahren)
+            props["bibo_type"] = "bibo:Bill"                        # draft (legislative procedure)
         props.update(norm_id=lg.get("norm_id"), legal_seq=lg.get("seq"), legal_stage=lg.get("stage"),
                      in_force=lg.get("in_force"), valid_to=lg.get("valid_to"), eli=lg.get("eli"))
-    props["author_list"] = authors                                  # bibo:authorList (Reihenfolge wie im Paper)
+    props["author_list"] = authors                                  # bibo:authorList (order as in the paper)
     props["cited_by_count"] = len(p.get("cited_by") or [])
     st.append(("MERGE (d:Document {doc_id: $id}) SET d += $props", {"id": doc_id, "props": props}))
     st.append(("MATCH (d:Document {doc_id: $id}) UNWIND $dbs AS n MERGE (b:Database {name: n}) MERGE (d)-[:IN_DATABASE]->(b)",
@@ -216,7 +221,7 @@ def build_document_statements(p: dict, chunks: list[dict]) -> list[tuple[str, di
     st.append(("MATCH (d:Document {doc_id: $id}) UNWIND range(0, size($people) - 1) AS i WITH d, i, $people[i] AS n "
                "MERGE (a:Person {name: n}) MERGE (a)-[r:AUTHORED]->(d) SET r.position = i + 1",
                {"id": doc_id, "people": authors}))
-    # REQ-19: Metadaten-Namen einer Projektdatei = wer sie gespeichert hat, nicht Autor:in
+    # REQ-19: metadata names of a project file = who saved it, not an author
     st.append(("MATCH (d:Document {doc_id: $id}) UNWIND $editors AS n MERGE (a:Person {name: n}) MERGE (a)-[:EDITED]->(d)",
                {"id": doc_id, "editors": [a for a in (p.get("editors") or []) if a and a.strip()]}))
     if p.get("doc_type") == "research_project" and p.get("project_name"):
@@ -275,7 +280,7 @@ _READY = False
 
 
 def ensure_setup() -> None:
-    """Schema und DEO-Klassen einmal pro Prozess anlegen (Ontologie-Import nur über setup())."""
+    """Create schema and DEO classes once per process (ontology import only via setup())."""
     global _READY
     if not _READY:
         setup(import_ontologies=False)
@@ -283,12 +288,13 @@ def ensure_setup() -> None:
 
 
 def sync_document(payload: dict, chunks: list[dict]) -> None:
+    """Write one document with its chunks and relations into the graph."""
     ensure_setup()
     run_all(build_document_statements(payload, chunks))
 
 
 def rebuild_from_store() -> dict:
-    """Graph komplett aus Qdrant neu aufbauen (Dokumente, Chunks mit DEO, Cluster)."""
+    """Rebuild the whole graph from Qdrant (documents, chunks with DEO, clusters)."""
     from . import store
 
     setup()
@@ -314,7 +320,7 @@ def rebuild_from_store() -> dict:
 
 
 def build_cites_statement(cites: dict[str, list[dict]]) -> tuple[str, dict]:
-    """(:Document)-[:CITES]->(:Document) aus citations.py – bibo:cites / cito:cites zwischen Dokumenten der Sammlung."""
+    """(:Document)-[:CITES]->(:Document) from citations.py – bibo:cites / cito:cites between documents of the collection."""
     rows = [{"src": s, "dst": c["doc_id"], "via": c.get("via"), "conf": c.get("confidence"), "ev": (c.get("evidence") or "")[:300]}
             for s, cs in cites.items() for c in cs if c.get("doc_id") and c["doc_id"] != s]
     return ("UNWIND $rows AS r MATCH (a:Document {doc_id: r.src}) MERGE (b:Document {doc_id: r.dst}) "
@@ -323,7 +329,7 @@ def build_cites_statement(cites: dict[str, list[dict]]) -> tuple[str, dict]:
 
 
 def sync_citations(cites: dict[str, list[dict]]) -> None:
-    """Alle Zitate zwischen Dokumenten ersetzen (nach citations.rebuild); Zitate auf DOIs (:Work) bleiben."""
+    """Replace all citations between documents (after citations.rebuild); citations of DOIs (:Work) stay."""
     counts: dict[str, int] = {}
     for cs in cites.values():
         for c in cs:
@@ -335,8 +341,8 @@ def sync_citations(cites: dict[str, list[dict]]) -> None:
 
 
 def build_provision_statements(edges: dict[str, list[dict]], chunk_edges: dict[str, list[str]]) -> list[tuple[str, dict]]:
-    """REQ-68: (:Document)-[:DISCUSSES {count, cited_as, stage, seq}]->(:Component) und (:Chunk)-[:REFERS_TO]->(:Component).
-    Ziel ist der Bestandteil der geltenden Fassung (Art. 33 des Vorschlags -> Art. 31); die zitierte Nummer steht an der Kante."""
+    """REQ-68: (:Document)-[:DISCUSSES {count, cited_as, stage, seq}]->(:Component) and (:Chunk)-[:REFERS_TO]->(:Component).
+    The target is the component of the version in force (Art. 33 of the proposal -> Art. 31); the cited number is on the edge."""
     rows = [{"doc": d, "comp": f"{a['norm_id']}#{a['current_article']}", "label": a["label"], "count": a["count"],
              "parts": a.get("parts") or [], "stage": a.get("stage"), "renumbered": bool(a.get("renumbered"))}
             for d, arts in edges.items() for a in arts if a.get("current_article")]
@@ -350,19 +356,20 @@ def build_provision_statements(edges: dict[str, list[dict]], chunk_edges: dict[s
 
 
 def sync_provisions(edges: dict[str, list[dict]], chunk_edges: dict[str, list[str]]) -> None:
+    """Write the edges from documents and chunks to the legal provisions they mention."""
     ensure_setup()
     run_all(build_provision_statements(edges, chunk_edges))
 
 
 def build_legal_statements(model: dict) -> list[tuple[str, dict]]:
-    """REQ-38: Legal-Ontologie nach de Martim (2025), an ELI ausgerichtet – Cypher zum (Neu-)Schreiben einer Norm:
+    """REQ-38: legal ontology after de Martim (2025), aligned with ELI – Cypher to (re)write a norm:
 
       (:Norm {eli: LegalResource})-[:HAS_PART]->(:Component {eli: LegalResourceSubdivision})-[:HAS_PART]->(:Component)
       (:Component)-[:HAS_VERSION]->(:TemporalVersion {valid_from, valid_to, applicable_from, stages})
-      (:TemporalVersion)-[:AGGREGATES]->(:TemporalVersion)          unveränderte Unterteile werden wiederverwendet
+      (:TemporalVersion)-[:AGGREGATES]->(:TemporalVersion)          unchanged sub-parts are reused
       (:TemporalVersion)-[:HAS_LANGUAGE]->(:LanguageVersion {eli: LegalExpression})<-[:REALIZES]-(:Chunk)  Text Units
       (:Action {kind, date})-[:TERMINATES]->(:TemporalVersion), -[:PRODUCES]->(:TemporalVersion), -[:COMMANDED_BY]->(:Norm)
-      (:Document)-[:IS_VERSION_OF {seq, stage}]->(:Norm)             die Datei einer Fassung (Manifestation)
+      (:Document)-[:IS_VERSION_OF {seq, stage}]->(:Norm)             the file of a version (manifestation)
     """
     from .legal import _uuid
 
@@ -430,12 +437,14 @@ def build_legal_statements(model: dict) -> list[tuple[str, dict]]:
 
 
 def sync_legal(model: dict) -> None:
+    """Write a legal model (norm, components, versions, actions) into the graph."""
     ensure_setup()
     run_all(build_legal_statements(model))
 
 
 def build_cluster_statements(doc_meta: dict[str, dict], proj_meta: dict[str, dict], info: dict[int, dict],
                              scope_docs: set[str] | None = None) -> list[tuple[str, dict]]:
+    """Statements that replace cluster nodes and IN_CLUSTER edges – for all documents or only `scope_docs`."""
     rows = [{"doc": d, "id": m["cluster_id"]} for d, m in doc_meta.items() if m.get("cluster_basis") == "summary"]
     rows += [{"project": n, "id": m["cluster_id"]} for n, m in proj_meta.items()]
     clusters = {}
@@ -445,7 +454,7 @@ def build_cluster_statements(doc_meta: dict[str, dict], proj_meta: dict[str, dic
     if scope_docs is None:
         reset = [("MATCH (:Document)-[r:IN_CLUSTER]->() DELETE r", {}),
                  ("MATCH (c:Cluster) DETACH DELETE c", {})]
-    else:   # nur die Zuordnungen der geclusterten Datenbank ersetzen, verwaiste Cluster entfernen
+    else:   # replace only the assignments of the clustered database, remove orphaned clusters
         reset = [("MATCH (d:Document)-[r:IN_CLUSTER]->() WHERE d.doc_id IN $docs DELETE r", {"docs": sorted(scope_docs)}),
                  ("MATCH (c:Cluster) WHERE NOT ()-[:IN_CLUSTER]->(c) DETACH DELETE c", {})]
     return [
@@ -459,12 +468,13 @@ def build_cluster_statements(doc_meta: dict[str, dict], proj_meta: dict[str, dic
 
 
 def sync_clusters(doc_meta: dict, proj_meta: dict, info: dict | None = None, scope_docs: set[str] | None = None) -> None:
+    """Write the cluster assignments of documents and projects into the graph."""
     run_all(build_cluster_statements(doc_meta, proj_meta, info or {}, scope_docs))
 
 
-# ----------------------------------------------------------------- Abfragen (Graph RAG)
+# ----------------------------------------------------------------- queries (Graph RAG)
 def build_path_query(plan: dict, limit: int = 12) -> tuple[str, dict]:
-    """Dokumente, die zu den Entitäten der Frage passen, mit ihren Abschnitten/Summary-Elementen der gesuchten DEO-Rolle.
+    """Documents that match the entities of the question, with their sections/summary elements of the DEO role asked for.
     plan: deo, persons, methods, projects, databases, clusters, doc_types, year_from, year_to, hops."""
     params = {
         "deo": plan.get("deo") or [], "persons": [p.lower() for p in plan.get("persons") or []],
@@ -499,10 +509,10 @@ LIMIT $limit"""
 
 
 def build_neighbour_query(doc_ids: list[str], hops: int, limit: int = 6, dbs: list[str] | None = None) -> tuple[str, dict] | None:
-    """Ab 2 Hops: Dokumente, die mit den Treffern über Zitate verbunden sind (direkt oder über eine DOI); ab 3 Hops auch über den Cluster."""
+    """From 2 hops: documents connected to the hits via citations (directly or via a DOI); from 3 hops also via the cluster."""
     if hops < 2 or not doc_ids:
         return None
-    # direkt zitiert/zitierend (REQ-35) oder über dieselbe DOI (:Work); ab 3 Hops auch über den Cluster
+    # cited/citing directly (REQ-35) or via the same DOI (:Work); from 3 hops also via the cluster
     rel = "[:CITES|REPRESENTS*1..2]" if hops == 2 else "[:CITES|REPRESENTS|IN_CLUSTER*1..2]"
     return (f"""MATCH (d:Document)-{rel}-(n:Document)
 WHERE d.doc_id IN $ids AND NOT n.doc_id IN $ids AND coalesce(n.is_latest, true)
@@ -511,7 +521,7 @@ RETURN DISTINCT n.doc_id AS doc_id, n.title AS title, d.title AS via LIMIT $limi
 
 
 def set_team(project: str, team: list[str], editors: dict[str, list[str]]) -> None:
-    """REQ-19: Projektteam neu setzen – MEMBER_OF zum Projekt, AUTHORED zu allen Projektdateien; Metadaten-Namen als EDITED."""
+    """REQ-19: set the project team again – MEMBER_OF to the project, AUTHORED to all project files; metadata names as EDITED."""
     st: list[tuple[str, dict]] = [
         ("MATCH (:Person)-[r:MEMBER_OF]->(:Project {name: $p}) DELETE r", {"p": project}),
         ("MATCH (:Person)-[r:AUTHORED|EDITED]->(d:Document {project_name: $p}) DELETE r", {"p": project}),
@@ -527,7 +537,7 @@ def set_team(project: str, team: list[str], editors: dict[str, list[str]]) -> No
 
 
 def clean_persons() -> dict:
-    """REQ-19: Personenknoten aus Datei-Metadaten bereinigen ('M', 'Microsoft Office User' weg, 'leyer' -> 'Leyer')."""
+    """REQ-19: clean person nodes from file metadata (drop 'M', 'Microsoft Office User'; 'leyer' -> 'Leyer')."""
     from .people import clean_person
 
     removed, merged = 0, 0
@@ -548,6 +558,7 @@ def clean_persons() -> dict:
 
 
 def find(plan: dict, limit: int = 12) -> dict:
+    """Run a graph query plan: matching documents plus their neighbours up to `hops` steps away."""
     cypher, params = build_path_query(plan, limit)
     rows = run(cypher, **params)
     q = build_neighbour_query([r["doc_id"] for r in rows], int(plan.get("hops") or 1), dbs=plan.get("databases") or [])
@@ -556,6 +567,7 @@ def find(plan: dict, limit: int = 12) -> dict:
 
 
 def stats() -> dict:
+    """Node counts, DEO role counts, citations and norms in the graph (for the status view)."""
     nodes = run("MATCH (n) UNWIND labels(n) AS l RETURN l AS label, count(*) AS n ORDER BY n DESC")
     roles = run("MATCH (x)-[:HAS_ROLE]->(c:DEOClass) RETURN c.name AS deo, labels(x)[0] AS kind, count(*) AS n ORDER BY n DESC")
     onto = run("MATCH (c:Class) RETURN count(c) AS n")[0]["n"] if nodes else 0

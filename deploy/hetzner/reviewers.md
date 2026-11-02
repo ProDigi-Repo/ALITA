@@ -1,37 +1,37 @@
-# Anonyme Reviewer mit Einladungscode
+# Anonymous reviewers with an invitation code
 
-Zusätzlicher, optionaler Zugang auf `https://review.prodigi-marburg.de`. Der bestehende
-Cloudflare-Mailcode-Zugang auf `alita.prodigi-marburg.de` bleibt unverändert.
-Kein Caddy, zusätzlicher Identity-Provider oder Benutzer-Datenbank erforderlich.
+Additional, optional access on `https://review.prodigi-marburg.de`. The existing
+Cloudflare mail-code access on `alita.prodigi-marburg.de` stays unchanged.
+No Caddy, additional identity provider or user database required.
 
-## Rechte und Grenzen
+## Permissions and limits
 
-- Keine E-Mail, kein Name: jeder Reviewer erhält einen zufälligen Einladungscode (192 Bit).
-- Alle Dokumente/Metadaten lesen und Originale herunterladen; beide Chats mit **eigenem OpenRouter-Key**.
-- Keine Uploads, Metadatenänderungen, Rebuilds oder Adminrechte – auch nicht mit gefälschten E-Mail-Headern.
-- Codes gelten standardmäßig 30 Tage; Sitzungen maximal acht Stunden und nie länger als der Code.
-- Serverseitig liegen nur Code-Hashes und Ablaufdaten; der Session-Cookie ist hostgebunden, Secure,
-  HttpOnly und SameSite=Strict. Schlüssel und Chats bleiben wie bisher nur im Seitenspeicher.
-- Jeder, der einen gültigen Code besitzt, kann ihn nutzen/weitergeben. Ein Code pro Reviewer erlaubt
-  getrenntes Widerrufen, beweist aber keine Identität. Codes nicht öffentlich oder in URL-Parametern teilen.
-- Cloudflare kann IP-Adressen und Verbindungsdaten verarbeiten. Das ist keine Garantie vollständiger
-  Netzwerkanonymität. Downloads lassen sich nachträglich nicht zurückholen.
+- No e-mail, no name: every reviewer receives a random invitation code (192 bits).
+- Read all documents/metadata and download originals; both chats with **their own OpenRouter key**.
+- No uploads, metadata changes, rebuilds or admin rights – not even with forged e-mail headers.
+- Codes are valid for 30 days by default; sessions for at most eight hours and never longer than the code.
+- The server stores only code hashes and expiry dates; the session cookie is host-bound, Secure,
+  HttpOnly and SameSite=Strict. Keys and chats stay, as before, only in the page storage.
+- Anyone who holds a valid code can use/pass it on. One code per reviewer allows
+  separate revocation but proves no identity. Do not share codes publicly or in URL parameters.
+- Cloudflare may process IP addresses and connection data. This is no guarantee of complete
+  network anonymity. Downloads cannot be recalled afterwards.
 
-## 1. Erst Code bereitstellen und Backend aktivieren
+## 1. Provide the code and enable the backend first
 
-Auf der VM im aktuellen Checkout `/opt/alita/app`, **bevor** die Reviewer-Route veröffentlicht wird:
+On the VM in the current checkout `/opt/alita/app`, **before** the reviewer route is published:
 
 ```bash
 umask 077
 python3 tools/reviewer_invites.py --origin https://review.prodigi-marburg.de --days 30
 ```
 
-Der Befehl ergänzt `.env` atomar, erzeugt bei Bedarf den Session-Schlüssel und zeigt den Einladungscode
-**einmalig** an. Die Ausgabe ist vertraulich; privat an die Redaktion weitergeben. Die ebenfalls angezeigte
-Invitation ID und das Ablaufdatum für späteren Widerruf notieren. Keine echten Codes/Secrets committen.
-Bei weiteren Aufrufen entsteht jeweils ein zusätzlicher Code; bestehende Codes bleiben erhalten.
+The command updates `.env` atomically, creates the session key if needed and shows the invitation code
+**once**. The output is confidential; pass it privately to the editorial office. Note the Invitation ID
+and expiry date that are also shown, for later revocation. Do not commit real codes/secrets.
+Every further call creates an additional code; existing codes are kept.
 
-Nach erstmaligem Deployment dieser Erweiterung:
+After the first deployment of this extension:
 
 ```bash
 docker compose up -d --build --wait backend frontend
@@ -39,56 +39,56 @@ docker compose exec -T frontend nginx -t
 docker compose exec -T frontend nginx -s reload
 ```
 
-Nach späterem Erzeugen/Widerrufen eines Codes reicht:
+After later creating/revoking a code, this is enough:
 
 ```bash
 docker compose up -d --no-deps --wait backend
 ```
 
-Das kurze Backend-Neustarten unterbricht aktive Anfragen: nicht während eines Uploads/Imports ausführen.
-`REVIEW_ORIGIN`, `REVIEW_SESSION_SECRET` und `REVIEW_INVITES` werden über `.env` geladen; ohne
-`REVIEW_ORIGIN` bleibt diese Funktion deaktiviert. Die Admin-Allowlist gilt niemals für Reviewer-Sitzungen.
+The short backend restart interrupts active requests: do not run it during an upload/import.
+`REVIEW_ORIGIN`, `REVIEW_SESSION_SECRET` and `REVIEW_INVITES` are loaded from `.env`; without
+`REVIEW_ORIGIN` this feature stays disabled. The admin allowlist never applies to reviewer sessions.
 
-## 2. Cloudflare: zweite Route, keine Änderung der privaten Access-Policy
+## 2. Cloudflare: second route, no change to the private Access policy
 
-Im **bestehenden Tunnel** eine weitere Published application route anlegen:
+In the **existing tunnel**, add another published application route:
 
-| Feld | Wert |
+| Field | Value |
 |---|---|
 | Subdomain | `review` |
 | Domain | `prodigi-marburg.de` |
-| Path | leer |
+| Path | empty |
 | Service URL | `http://frontend:80` |
-| Protect with Access | für **diese Reviewer-Route aus**; hier authentifiziert die App selbst |
+| Protect with Access | **off for this reviewer route**; here the app authenticates itself |
 
-Keine Access-Mailcode-Anwendung für diesen Reviewer-Host anlegen und **keine Bypass-/Everyone-Regel**
-für die private ALITA-Anwendung hinzufügen. Falls kontoweites „Require Access protection“ aktiv ist,
-muss dieser separate App-Login in der Cloudflare-Konfiguration ausdrücklich berücksichtigt werden;
-den Schutz der privaten Anwendung nicht global lockern.
+Do not create an Access mail-code application for this reviewer host and **do not add a Bypass/Everyone rule**
+to the private ALITA application. If account-wide "Require Access protection" is active,
+this separate app login must be explicitly accounted for in the Cloudflare configuration;
+do not loosen the protection of the private application globally.
 
-Always Use HTTPS und Cache Bypass für den Reviewer-Host aktivieren. nginx erzwingt zusätzlich HTTPS
-anhand des von Cloudflare gesetzten Visitor-Protokolls, begrenzt Login-Anfragen und akzeptiert dort
-höchstens 1 KiB Request-Body. Die API-/Download-Prüfung gilt unabhängig von sichtbaren UI-Buttons.
+Enable Always Use HTTPS and Cache Bypass for the reviewer host. nginx additionally enforces HTTPS
+based on the visitor protocol set by Cloudflare, rate-limits login requests and accepts at most
+1 KiB of request body there. The API/download check applies regardless of visible UI buttons.
 
-## 3. Test und Weitergabe
+## 3. Test and hand-over
 
-- Inkognito `https://review.prodigi-marburg.de` öffnen: Weiterleitung zur Code-Eingabe.
-- Falscher/abgelaufener Code: kein Zugriff; richtiger Code: App ohne Adminrechte.
-- Dokument herunterladen und mit eigenem Key chatten. Keine Veränderung/Uploads möglich.
-- Ausloggen: `/api/me` und Downloads ohne gültigen Cookie wieder gesperrt.
-- Private URL weiterhin ausschließlich mit Cloudflare-Mailcode erreichbar.
+- Open `https://review.prodigi-marburg.de` in a private window: redirect to the code entry.
+- Wrong/expired code: no access; correct code: app without admin rights.
+- Download a document and chat with your own key. No changes/uploads possible.
+- Log out: `/api/me` and downloads are blocked again without a valid cookie.
+- The private URL is still reachable only with the Cloudflare mail code.
 
-Danach URL und Code **getrennt von öffentlichen Materialien** über die Redaktion weitergeben.
-Für funktionierende Downloads müssen die Originaldateien ebenfalls auf dem Server liegen;
-ein Qdrant-Migrationsexport allein genügt nicht.
+Then pass the URL and the code to the editorial office **separately from public materials**.
+For downloads to work, the original files must also be on the server;
+a Qdrant migration export alone is not enough.
 
-## Widerrufen
+## Revoking
 
 ```bash
 python3 tools/reviewer_invites.py --revoke <Invitation-ID>
 docker compose up -d --no-deps --wait backend
 ```
 
-Nach dem Neustart sind auch vorhandene Sitzungen dieses Codes ungültig. Ein Wechsel des
-`REVIEW_SESSION_SECRET` invalidiert sämtliche Reviewer-Sitzungen. Zum Abschalten aller Reviewer
-`REVIEW_ORIGIN` leeren und Backend neu erstellen; die private Cloudflare-Anmeldung bleibt bestehen.
+After the restart, existing sessions of this code are invalid too. Changing
+`REVIEW_SESSION_SECRET` invalidates all reviewer sessions. To switch off all reviewers,
+empty `REVIEW_ORIGIN` and recreate the backend; the private Cloudflare login stays in place.

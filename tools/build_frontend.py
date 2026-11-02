@@ -1,11 +1,11 @@
 """Frontend build helper (no Node needed).
 
-    python tools/build_frontend.py data                      # js/data.js und css/databases.css neu erzeugen
-    python tools/build_frontend.py artifact DEMO.json OUT.html   # eine einzelne, eigenständige Seite bauen (CSS/JS inline, Demodaten)
+    python tools/build_frontend.py data                      # regenerate js/data.js and css/databases.css
+    python tools/build_frontend.py artifact DEMO.json OUT.html   # build one self-contained page (CSS/JS inline, demo data)
 
-Die App selbst braucht keinen Build: nginx bzw. das Backend liefern frontend/ direkt aus (index.html, css/, js/).
-`data` hält die Offline-Fallbacks (Release Notes, ISO/EU-AI-Act-Doku, Technical Documentation, Standard-System-Prompts,
-Datenbank-Registry) und die Datenbankfarben (css/databases.css, aus backend/app/registry.py) mit den Quellen synchron; `artifact` erzeugt die veröffentlichte Demo-Seite ohne Backend.
+The app itself needs no build: nginx or the backend serve frontend/ directly (index.html, css/, js/).
+`data` keeps the offline fallbacks (release notes, ISO/EU AI Act docs, technical documentation, default system prompts,
+database registry) and the database colours (css/databases.css, from backend/app/registry.py) in sync with their sources; `artifact` builds the published demo page without a backend.
 """
 from __future__ import annotations
 
@@ -48,6 +48,7 @@ def build_database_css(registry) -> Path:
 
 
 def build_data() -> Path:
+    """Write js/data.js (prompts, release notes, compliance and technical docs) and css/databases.css from the backend sources."""
     sys.path.insert(0, str(ROOT / "backend"))
     from app.prompts import DEFAULTS
     from app.registry import DEFAULTS as DATABASES
@@ -78,6 +79,7 @@ def build_data() -> Path:
 
 
 def build_artifact(demo_json: Path, out: Path) -> Path:
+    """Single-file HTML of the app with inlined CSS/JS and demo data."""
     s = (FRONT / "index.html").read_text(encoding="utf-8")
     body = s[s.index("<!--APP-START-->") + len("<!--APP-START-->"): s.index("<!--APP-END-->")]
     body = re.sub(r'<link rel="stylesheet" href="(css/[\w.-]+)">',

@@ -1,8 +1,8 @@
-"""Text- und Eigenschafts-Extraktion je Dateityp.
+"""Extraction of text and properties per file type.
 
-Jeder Extraktor liefert `Extracted`: Textsegmente mit Fundstelle (Seite, Folie, Blatt)
-plus Dokumenteigenschaften (Titel, Autor, Erstell-/Änderungsdatum).
-Binärformate ohne lesbaren Text werden nur mit Metadaten erfasst.
+Each extractor returns `Extracted`: text segments with their location (page, slide, sheet)
+plus document properties (title, author, creation/modification date).
+Binary formats without readable text are recorded with metadata only.
 """
 from __future__ import annotations
 
@@ -20,24 +20,27 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class Segment:
+    """A piece of extracted text with its position (locator such as "p. 4", page number, section heading)."""
     text: str
     locator: str | None = None
     page: int | None = None
-    heading: str | None = None   # Abschnitt, zu dem der Text gehört (für DoCO/DEO)
+    heading: str | None = None   # section the text belongs to (for DoCO/DEO)
 
 
 @dataclass
 class Extracted:
+    """Result of extracting one file: text segments plus the file's own metadata."""
     segments: list[Segment] = field(default_factory=list)
     title: str | None = None
     authors: list[str] = field(default_factory=list)
     created: datetime | None = None
     modified: datetime | None = None
     pages: int | None = None
-    note: str | None = None   # Hinweis, falls kein Text extrahiert wurde
+    note: str | None = None   # note if no text was extracted
 
     @property
     def text(self) -> str:
+        """All segment texts joined by blank lines."""
         return "\n\n".join(s.text for s in self.segments if s.text.strip())
 
 
@@ -91,8 +94,8 @@ def _split_authors(raw: str | None) -> list[str]:
 
 
 def split_by_headings(text: str, current: str | None) -> list[tuple[str | None, str]]:
-    """Teilt Seitentext an erkannten Abschnittsüberschriften; liefert (Überschrift, Text)-Paare.
-    Der Abschnitt der Vorseite läuft weiter, bis eine neue Überschrift kommt."""
+    """Splits page text at recognised section headings; returns (heading, text) pairs.
+    The section of the previous page continues until a new heading comes."""
     from .deo import detect_heading
 
     out: list[tuple[str | None, list[str]]] = [(current, [])]
@@ -106,17 +109,19 @@ def split_by_headings(text: str, current: str | None) -> list[tuple[str | None, 
 
 
 # ------------------------------------------------------------------ Extraktoren
-# REQ-49: personalisierte Lizenzstempel von Normen-Downloads (Name, Kundennummer, Download-ID, Zeitpunkt) gehören weder
-# in den Index noch in Prompts an das Sprachmodell – z. B. „Normen-Download-<Verlag>-<Name>-KdNr.<n>-ID.<id>-2026-10-29 23:53:33“.
+# REQ-49: personalised licence stamps of standards downloads (name, customer number, download id, time) belong neither
+# in the index nor in prompts to the language model – e.g. "Normen-Download-<publisher>-<name>-KdNr.<n>-ID.<id>-2026-10-29 23:53:33".
 _LICENCE_STAMP = re.compile(r"(?:Normen-Download|Norm-Download|Standards? download)-[^\n]{0,240}?(?:KdNr|Kd\.-?Nr|Customer No)\.?\s*\d+"
                             r"(?:-ID\.?\s*[\w]+)?(?:-\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2}(?::\d{2})?)?)?", re.I)
 
 
 def strip_licence_stamps(text: str) -> str:
+    """Remove licence/download stamps that publishers print on every page."""
     return _LICENCE_STAMP.sub("", text) if text else text
 
 
 def extract_pdf(path: Path) -> Extracted:
+    """Text per page and metadata of a PDF; headings found on the way are attached to the following segments."""
     from pypdf import PdfReader
 
     out = Extracted()
@@ -131,8 +136,8 @@ def extract_pdf(path: Path) -> Extracted:
     for i, page in enumerate(reader.pages, start=1):
         try:
             t = strip_licence_stamps(page.extract_text() or "")
-        except Exception as e:  # defekte Seiten überspringen
-            log.warning("PDF-Seite %s in %s: %s", i, path.name, e)
+        except Exception as e:  # skip broken pages
+            log.warning("PDF page %s in %s: %s", i, path.name, e)
             t = ""
         if t.strip():
             for h, part in split_by_headings(t, heading):
@@ -145,6 +150,7 @@ def extract_pdf(path: Path) -> Extracted:
 
 
 def extract_docx(path: Path) -> Extracted:
+    """Paragraphs of a Word document grouped by heading, plus core properties."""
     import docx
 
     out = Extracted()
@@ -186,6 +192,7 @@ def extract_docx(path: Path) -> Extracted:
 
 
 def extract_pptx(path: Path) -> Extracted:
+    """Text per slide of a PowerPoint file, plus core properties."""
     from pptx import Presentation
 
     out = Extracted()
@@ -208,6 +215,7 @@ def extract_pptx(path: Path) -> Extracted:
 
 
 def extract_xlsx(path: Path, max_rows: int = 200) -> Extracted:
+    """Rows of every worksheet (at most max_rows each) as text, plus workbook properties."""
     import openpyxl
 
     out = Extracted()
@@ -232,6 +240,7 @@ def extract_xlsx(path: Path, max_rows: int = 200) -> Extracted:
 
 
 def extract_csv(path: Path, max_rows: int = 200) -> Extracted:
+    """CSV file as text: column header, row count and up to max_rows rows (delimiter sniffed)."""
     raw = path.read_bytes()
     text = raw.decode("utf-8", errors="ignore") if raw[:3] == b"\xef\xbb\xbf" else raw.decode("cp1252", errors="ignore")
     try:
@@ -245,7 +254,7 @@ def extract_csv(path: Path, max_rows: int = 200) -> Extracted:
 
 
 def extract_sav(path: Path) -> Extracted:
-    """SPSS-Datensatz: Variablennamen + Labels sind für die Suche wertvoll, die Werte nicht."""
+    """SPSS data set: variable names + labels are valuable for search, the values are not."""
     try:
         import pyreadstat
     except ImportError:
@@ -262,7 +271,7 @@ def extract_sav(path: Path) -> Extracted:
 
 
 def extract_spv(path: Path) -> Extracted:
-    """SPSS-Ausgabe (.spv) ist ein ZIP mit XML – Überschriften und Tabellentexte herausziehen."""
+    """SPSS output (.spv) is a ZIP with XML – pull out headings and table texts."""
     import re
 
     try:
@@ -279,6 +288,7 @@ def extract_spv(path: Path) -> Extracted:
 
 
 def extract_text(path: Path) -> Extracted:
+    """Plain-text file in the first encoding that works; binary files give metadata only."""
     raw = path.read_bytes()
     if b"\x00" in raw[:2048]:
         return Extracted(note="Binary file – metadata only")
@@ -291,7 +301,7 @@ def extract_text(path: Path) -> Extracted:
 
 
 def extract_legacy_office(path: Path) -> Extracted:
-    """.doc/.ppt: mit LibreOffice nach docx/pptx konvertieren, falls installiert."""
+    """.doc/.ppt: convert to docx/pptx with LibreOffice, if installed."""
     import shutil
     import subprocess
     import tempfile
@@ -310,7 +320,7 @@ def extract_legacy_office(path: Path) -> Extracted:
         if not conv.exists():
             return Extracted(note="Conversion produced no output")
         res = EXTRACTORS[target](conv)
-        # Datumsangaben stammen sonst von der Konvertierung, nicht vom Original
+        # otherwise the dates come from the conversion, not from the original
         res.created = res.modified = None
         return res
 
@@ -331,11 +341,13 @@ EXTRACTORS = {
 
 
 def filetype_of(path: Path) -> str:
+    """File type from the extension, lower case ("unknown" when there is none)."""
     ext = path.suffix.lower().lstrip(".")
     return ext or "unknown"
 
 
 def extract(path: Path) -> Extracted:
+    """Extract text and metadata from any supported file; never raises, failures end up in `note`."""
     ft = filetype_of(path)
     fn = EXTRACTORS.get(ft) or (extract_text if ft in TEXT_EXT else None)
     if fn is None:
@@ -343,5 +355,5 @@ def extract(path: Path) -> Extracted:
     try:
         return fn(path)
     except Exception as e:
-        log.exception("Extraktion fehlgeschlagen: %s", path)
+        log.exception("Extraction failed: %s", path)
         return Extracted(note=f"Extraction failed: {type(e).__name__}: {e}")

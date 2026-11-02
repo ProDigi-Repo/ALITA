@@ -1,4 +1,4 @@
-"""REQ-37/REQ-38: Legal-Ontologie (Bestandteile, Fassungen mit Aggregation, Actions, Stichtag) – ohne Qdrant/Neo4j."""
+"""REQ-37/REQ-38: legal ontology (components, versions with aggregation, actions, reference date) – without Qdrant/Neo4j."""
 from app import legal as L
 
 EN_V1 = """REGULATION (EU) 2099/1 OF THE EUROPEAN PARLIAMENT AND OF THE COUNCIL
@@ -61,7 +61,7 @@ def test_parse_german_statute_and_standard_and_guideline():
     cs = {c.cid: c for c in L.parse_components(std, "standard")}
     assert {"cl_1", "cl_6", "cl_6.1", "cl_6.1.2", "anx_A"} <= set(cs)
     assert cs["cl_6.1.2"].parent == "cl_6.1" and "define a process" in cs["cl_6.1.2"].text
-    assert "management system" in cs["cl_1"].text            # Inhaltsverzeichnis-Eintrag durch den echten Text ersetzt
+    assert "management system" in cs["cl_1"].text            # table of contents entry replaced by the real text
     gl = "1 Introduction\n1. These guidelines explain the notion of an AI system.\n2. They are not binding.\n2 Elements\n3. Seven elements matter.\n"
     cs = {c.cid: c for c in L.parse_components(gl, "guideline")}
     assert cs["rn_2"].parent == "cl_1" and cs["rn_3"].parent == "cl_2"
@@ -73,17 +73,17 @@ def test_history_reuses_unchanged_versions_and_creates_actions():
             amended_by={"title": "Regulation (EU) 2100/9 (Omnibus)"})
     m = L.build_history({"norm_id": "ex", "short": "Example Act"}, [v1, v2])
     by = {(c["cid"], c["seq_from"]): c for c in m["ctvs"].values()}
-    # unverändert: dieselbe CTV gilt in beiden Fassungen weiter (Aggregation statt Kopie)
+    # unchanged: the same CTV stays valid in both versions (aggregation instead of a copy)
     keep = by[("art_6/abs_1", 1)]
     assert keep["seq_to"] == 2 and keep["valid_from"] == "2099-08-01" and keep["valid_to"] is None
-    # geändert: alte CTV endet am Inkrafttreten der neuen; neue CTV des Elternartikels aggregiert die alte CTV von Abs. 1
+    # changed: the old CTV ends when the new one enters into force; the new CTV of the parent article aggregates the old CTV of para. 1
     old, new = by[("art_1/abs_2", 1)], by[("art_1/abs_2", 2)]
     assert old["valid_to"] == "2100-07-27" and new["valid_from"] == "2100-07-27"
     art1_new = by[("art_1", 2)]
     assert by[("art_1/abs_1", 1)]["id"] in art1_new["aggregates"] and new["id"] in art1_new["aggregates"]
     kinds = {(a["kind"], a["component"]) for a in m["actions"] if a["seq"] == 2}
     assert ("modified", "art_1/abs_2") in kinds and ("added", "art_5") in kinds
-    assert not any(a["component"] == "art_1" for a in m["actions"] if a["seq"] == 2)   # nur propagiert: keine eigene Action
+    assert not any(a["component"] == "art_1" for a in m["actions"] if a["seq"] == 2)   # only propagated: no action of its own
     mod = next(a for a in m["actions"] if a["kind"] == "modified")
     assert "Omnibus" in mod["text"] and "national security" in mod["text"] and mod["date"] == "2100-07-27"
     assert m["versions"][1]["changed"] == 1 and m["versions"][1]["added"] >= 1
@@ -95,7 +95,7 @@ def test_point_in_time_and_full_text_reconstruction():
     m = L.build_history({"norm_id": "ex"}, [v1, v2])
     assert "military uses" in L.text_at(m, "art_1", t="2100-01-01")
     assert "national security" in L.text_at(m, "art_1", t="2100-08-01")
-    assert L.valid_at(m, t="2099-01-01") == {}                 # vor Inkrafttreten gilt nichts
+    assert L.valid_at(m, t="2099-01-01") == {}                 # nothing is in force before entry into force
     assert "art_5" not in L.valid_at(m, t="2100-01-01") and "art_5" in L.valid_at(m, t="2101-01-01")
 
 
@@ -170,10 +170,10 @@ def test_temporal_planner_policies():
     assert p["history"] and p["interval"] == ["2024-01-01", "2026-10-29"]
     p = plan("Seit wann steht der Begriff 'general-purpose AI model' in der Verordnung?", today)
     assert p["term"] == "general-purpose AI model" and p["history"]
-    assert plan("Regulation (EU) 2024/1689 obligations", today)["policy"] == "current"   # Aktenzeichen ist kein Jahr
+    assert plan("Regulation (EU) 2024/1689 obligations", today)["policy"] == "current"   # a file number is not a year
     f = apply(SearchFilters(), plan("in 2025", today))
     assert f.as_of == "2025-12-31" and not f.legal_stage
-    assert apply(SearchFilters(as_of="2024-01-01"), plan("in 2025", today)).as_of == "2024-01-01"   # Oberfläche hat Vorrang
+    assert apply(SearchFilters(as_of="2024-01-01"), plan("in 2025", today)).as_of == "2024-01-01"   # the interface takes precedence
     assert apply(SearchFilters(), plan("im Entwurf", today)).legal_stage == "proposal"
 
 
@@ -206,7 +206,7 @@ def test_graph_statements_for_a_norm():
         assert rel in cy, rel
     assert "eli:LegalResource" in cy and "eli:LegalExpression" in cy
     tops = next(p for c, p in st if c.startswith("UNWIND $rows AS r MATCH (n:Norm"))["rows"]
-    assert {"id": "ex#art_1", "order": next(p for c, p in st if "MERGE (x:Component" in c)["cs"][[x["cid"] for x in next(p for c, p in st if "MERGE (x:Component" in c)["cs"]].index("art_1")]["order"]} not in tops   # Artikel hängen am Kapitel
+    assert {"id": "ex#art_1", "order": next(p for c, p in st if "MERGE (x:Component" in c)["cs"][[x["cid"] for x in next(p for c, p in st if "MERGE (x:Component" in c)["cs"]].index("art_1")]["order"]} not in tops   # articles hang below the chapter
     assert any(r["id"] == "ex#chp_I" for r in tops)
 
 
@@ -270,20 +270,20 @@ HIGH-RISK AI SYSTEMS REFERRED TO IN ARTICLE 6(2)
 
 def test_commission_proposal_titles_annexes_and_supplement():
     cs = {c.cid: c for c in L.parse_components(COM_PROPOSAL, "law")}
-    # TITLE I–XII mit CHAPTER darunter; gleiche Kapitelnummern in verschiedenen Titeln kollidieren nicht
+    # TITLE I–XII with CHAPTER below; equal chapter numbers in different titles do not collide
     assert cs["tit_III/chp_1"].parent == "tit_III" and cs["tit_VI/chp_1"].parent == "tit_VI"
     assert cs["art_6"].parent == "tit_III/chp_1" and cs["art_1"].parent == "tit_I"
-    assert cs["tit_III/chp_3"].title.endswith("AND OTHER PARTIES")            # zweizeilige Überschrift
+    assert cs["tit_III/chp_3"].title.endswith("AND OTHER PARTIES")            # two-line heading
     assert L.component_label("tit_III/chp_1") == "Title III, Chapter 1"
-    # Begriffsbestimmungen als Punkte, Buchstaben darunter
+    # definitions as points, letters below
     assert "art_3/pt_1" in cs and cs["art_3/pt_14/pt_a"].parent == "art_3/pt_14"
     assert L.component_label("art_3/pt_14/pt_a") == "Art. 3(14)(a)"
-    # „Article 61.“ am Zeilenanfang ist ein umbrochener Verweis
+    # "Article 61." at the start of a line is a wrapped reference
     assert "art_61" not in cs and "Article 61." in cs["art_6/abs_2"].text
-    # Finanzbogen ist eine Anlage, nicht Teil von Art. 56; danach folgen alle Anhänge
+    # the financial statement is an annex, not part of Art. 56; all annexes follow after it
     assert "FRAMEWORK" not in cs["art_56/abs_1"].text and cs["lfs"].type == "supplement"
     assert {"anx_I", "anx_III"} <= set(cs) and "Biometric" in cs["anx_III"].text
-    # Seitenfüße „EN 2  EN“ verschwinden
+    # page footers "EN 2  EN" disappear
     assert not any("EN 2" in c.text for c in cs.values())
 
 
@@ -301,11 +301,11 @@ def test_draft_fallback_when_only_a_proposal_exists():
     from app.legal_time import draft_fallback
     only_draft = [{"versions": [{"stage": "proposal", "date": "2021-04-21", "in_force": None, "valid_to": None}]}]
     assert draft_fallback(only_draft, "2026-10-29") == "proposal"
-    assert draft_fallback(only_draft, "2020-01-01") is None                  # vor dem Vorschlag: nichts
+    assert draft_fallback(only_draft, "2020-01-01") is None                  # before the proposal: nothing
     with_law = [{"versions": only_draft[0]["versions"] + [{"stage": "adopted", "date": "2024-06-13", "in_force": "2024-08-01",
                                                             "valid_to": None}]}]
-    assert draft_fallback(with_law, "2026-10-29") is None                    # geltende Fassung vorhanden: kein Rückfall
-    assert draft_fallback(with_law, "2023-01-01") == "proposal"              # 2023 galt noch nichts: jüngster Entwurf
+    assert draft_fallback(with_law, "2026-10-29") is None                    # a version in force exists: no fallback
+    assert draft_fallback(with_law, "2023-01-01") == "proposal"              # nothing was in force in 2023: the latest draft
 
 
 def test_legal_project_is_one_clustering_unit():
@@ -317,7 +317,7 @@ def test_legal_project_is_one_clustering_unit():
     projects = [{"project_id": "x", "name": "EU-AI-Act", "title": "AI Act – Proposal", "summary": summ},
                 {"project_id": "y", "name": "Lean-Agile", "title": "Lean", "summary": summ}]
     ids = [u["id"] for u in select_units(docs, projects)]
-    assert ids == ["d1", "p1", "y"]                      # das Gesetz einmal, das Legal project nicht zusätzlich
+    assert ids == ["d1", "p1", "y"]                      # the law once, the legal project not in addition
 
 
 def test_auto_recluster_only_touches_ingested_databases(monkeypatch):
@@ -368,21 +368,21 @@ General principles
 def test_committee_compromise_amendments_as_partial_version():
     ep = {c.cid: c for c in L.parse_components(EP_CA, "law")}
     assert {"rec_65", "rec_65a", "rec_1", "chp_4", "art_30", "art_1", "art_4a", "tit_I"} <= set(ep)
-    assert "rec_65a~2" not in ep                                   # wortgleich in zwei Blöcken: einmal
-    assert not any("Articles 1 and 2" in c.text or "5a and 10-13" in c.text for c in ep.values())   # Blockkopf weg
-    assert "art_30/abs_1" in ep and ep["rec_1"].type == "recital"   # Block beginnt wieder mit Erwägungsgründen
+    assert "rec_65a~2" not in ep                                   # word for word in two blocks: once
+    assert not any("Articles 1 and 2" in c.text or "5a and 10-13" in c.text for c in ep.values())   # block header gone
+    assert "art_30/abs_1" in ep and ep["rec_1"].type == "recital"   # the block starts again with recitals
     prev = L.parse_components(COM_PROPOSAL.replace("CHAPTER 3", "CHAPTER 4").replace("Article 16", "Article 30"), "law")
     merged = {c.cid: c for c in L.merge_partial(prev, list(ep.values()))}
-    assert merged["tit_III/chp_4"].parent == "tit_III" and merged["art_30"].parent == "tit_III/chp_4"   # Kapitel ausgerichtet
-    assert "chp_4" not in merged and "art_56" in merged and "anx_III" in merged                         # Rest übernommen
-    assert merged["art_4a"].parent == "tit_I"                                                           # neuer Artikel
+    assert merged["tit_III/chp_4"].parent == "tit_III" and merged["art_30"].parent == "tit_III/chp_4"   # chapter aligned
+    assert "chp_4" not in merged and "art_56" in merged and "anx_III" in merged                         # the rest taken over
+    assert merged["art_4a"].parent == "tit_I"                                                           # new article
     order = [c.cid for c in sorted(merged.values(), key=lambda c: c.order) if c.type == "article"]
     assert order.index("art_3") < order.index("art_4a") < order.index("art_6") < order.index("art_30")
     vin = [L.VersionInput(seq=1, doc_id="p", stage="proposal", date="2021-04-21", components=prev),
            L.VersionInput(seq=2, doc_id="e", stage="committee", date="2023-05-09", components=list(merged.values()), partial=True)]
     m = L.build_history({"norm_id": "ai", "title": "AI Act"}, vin)
     v2 = m["versions"][1]
-    assert v2["removed"] == 0 and v2["partial"] and v2["added"] >= 3      # nichts gestrichen, nur ergänzt/geändert
+    assert v2["removed"] == 0 and v2["partial"] and v2["added"] >= 3      # nothing deleted, only added/changed
 
 
 def test_comparison_ignores_pdf_spacing_and_hyphens():
@@ -400,7 +400,7 @@ def test_applicability_exception_beats_its_chapter():
     v = L.VersionInput(seq=1, doc_id="x", stage="adopted", applicable="2026-08-02", applicability=[
         {"components": ["chp_XII", "chp_III/sec_4"], "from": "2025-08-02"}, {"components": ["art_101"], "from": "2026-08-02"},
         {"components": ["art_6/abs_1"], "from": "2027-08-02"}])
-    assert L.applicable_for("art_101", ["art_101", "chp_XII"], v) == "2026-08-02"          # Art. 113(b): „except Art. 101“
+    assert L.applicable_for("art_101", ["art_101", "chp_XII"], v) == "2026-08-02"          # Art. 113(b): "except Art. 101"
     assert L.applicable_for("art_99", ["art_99", "chp_XII"], v) == "2025-08-02"
     assert L.applicable_for("art_6/abs_1/pt_a", ["art_6/abs_1/pt_a", "art_6/abs_1", "art_6", "chp_III/sec_1", "chp_III"], v) == "2027-08-02"
     assert L.applicable_for("art_30", ["art_30", "chp_III/sec_4", "chp_III"], v) == "2025-08-02"
@@ -434,10 +434,10 @@ Article 17.
 
 def test_official_journal_footnotes_sections_and_annex_references():
     cs = {c.cid: c for c in L.parse_components(OJ_FOOTNOTES, "law")}
-    assert [c for c in cs if c.startswith("rec_")] == ["rec_1", "rec_2"]       # Fußnoten (1), (2) sind keine Erwägungsgründe
+    assert [c for c in cs if c.startswith("rec_")] == ["rec_1", "rec_2"]       # footnotes (1), (2) are not recitals
     assert not any("OJ C 517" in c.text or "13 March 2024" in c.text for c in cs.values())
     assert cs["art_6"].parent == "chp_III/sec_1"
-    assert "art_49" not in cs and "art_17" not in cs and "Article 49" in cs["anx_VIII"].text   # Verweise im Anhang
+    assert "art_49" not in cs and "art_17" not in cs and "Article 49" in cs["anx_VIII"].text   # references in the annex
 
 
 AMENDING_ACT = """REGULATION (EU) 2099/9 amending Regulation (EU) 2099/1
@@ -483,8 +483,8 @@ def test_apply_amendments_from_an_amending_act():
     assert "art_6/abs_2" not in cs and "reviewed by 2030" in cs["art_6/abs_1"].text
     st = {r["instruction"]: r["status"] for r in rep}
     assert st["(1)"] == st["(2)(a)"] == st["(2)(b)"] == st["(3)"] == st["(4)"] == st["(5)"] == "applied"
-    assert st["(6)(a)"] == "not_applied"                                    # Punkte in Anhängen: offen gemeldet
-    assert "Entry into force" not in " ".join(c.text for c in comps)        # Art. 2 des Änderungsakts gehört nicht dazu
+    assert st["(6)(a)"] == "not_applied"                                    # points in annexes: reported openly
+    assert "Entry into force" not in " ".join(c.text for c in comps)        # Art. 2 of the amending act does not belong to it
     v = [L.VersionInput(seq=1, doc_id="a", stage="adopted", date="2099-01-01", in_force="2099-02-01", components=prev),
          L.VersionInput(seq=2, doc_id="b", stage="consolidated", date="2099-07-27", in_force="2099-07-27", components=comps,
                         amendments=rep, amended_by={"title": "Regulation (EU) 2099/9"})]
@@ -527,7 +527,7 @@ def test_commission_guideline_margins_sections_and_footnotes():
     assert cs["rn_1"].parent == "sec_I" and cs["rn_4"].parent == "cl_1" and cs["rn_6"].parent == "sec_III"
     assert "quantum computing" in cs["rn_4"].text and not any("OECD" in c.text or "Regulation (EU) 2024/1689." in c.text
                                                               for c in cs.values())
-    assert "cl_4" not in cs and "cl_2" not in cs                          # Fußnoten „4 …“, „2 …“ sind keine Gliederung
+    assert "cl_4" not in cs and "cl_2" not in cs                          # footnotes "4 …", "2 …" are not an outline
     assert L.component_label("sec_II") == "Section II" and L.component_label("rn_4") == "Para. 4"
 
 
@@ -558,9 +558,9 @@ CONTENTS
 
 def test_guideline_toc_lists_and_outline_sequence():
     cs = {c.cid: c for c in L.parse_components(GUIDELINE_TOC, "guideline")}
-    assert [c for c in cs if c.startswith("cl_")] == ["cl_1", "cl_2", "cl_2.1", "cl_2.2", "cl_2.3"]   # kein Inhaltsverzeichnis,
-    assert not any("~" in c for c in cs)                                                           # keine Aufzählungen als Gliederung
-    assert [c for c in cs if c.startswith("rn_")] == [f"rn_{i}" for i in range(1, 7)]               # „(2022) doi:…“ keine Randnummer
+    assert [c for c in cs if c.startswith("cl_")] == ["cl_1", "cl_2", "cl_2.1", "cl_2.2", "cl_2.3"]   # no table of contents,
+    assert not any("~" in c for c in cs)                                                           # no enumerations as outline
+    assert [c for c in cs if c.startswith("rn_")] == [f"rn_{i}" for i in range(1, 7)]               # "(2022) doi:…" is not a margin number
     assert cs["rn_2"].parent == "cl_1" and "Transparency" in cs["rn_2"].text and cs["rn_6"].parent == "cl_2.3"
     assert "(2022) doi" in cs["rn_4"].text
 
@@ -591,9 +591,9 @@ def test_guidance_faq_topics_and_questions():
     cs = {c.cid: c for c in L.parse_components(FAQ_PAGE, "faq")}
     assert cs["tp_1"].title.startswith("Definitions") and cs["tp_2"].title == "Compliance with article 4"
     assert cs["q_1.1"].parent == "tp_1" and "Article 4(1)" in cs["q_1.1"].text
-    assert cs["q_1.2"].title.endswith("persons’?")                           # Frage über zwei Zeilen
-    assert "What is AI?" in cs["q_2.1"].text                                  # Aufzählung in der Antwort bleibt Antwort
-    assert cs["q_2.2"].title.endswith("rubric?") and "q_2.3" not in cs        # zwei Sätze, eine Frage
+    assert cs["q_1.2"].title.endswith("persons’?")                           # question over two lines
+    assert "What is AI?" in cs["q_2.1"].text                                  # an enumeration in the answer stays answer
+    assert cs["q_2.2"].title.endswith("rubric?") and "q_2.3" not in cs        # two sentences, one question
     assert not any("Source URL" in c.text or "©" in c.text for c in cs.values())
     assert L.component_label("q_2.1") == "Q 2.1" and L.KIND_OF_TYPE["guidance"] == "faq"
 
@@ -634,7 +634,7 @@ def test_standard_terms_annex_status_and_annex_clauses():
     assert cs["cl_4.1"].parent == "cl_4" and cs["cl_3.2"].parent == "cl_3"
     assert cs["anx_A"].title == "Overview of examples (informative)"
     assert cs["anx_C"].title == "Use cases (informative)" and cs["anx_C/cl_C.1.1"].parent == "anx_C/cl_C.1"
-    assert "cl_3~2" not in cs and "Signal loss" in cs["anx_C/cl_C.1.1"].text      # Tabellenzeilen im Anhang sind Text
+    assert "cl_3~2" not in cs and "Signal loss" in cs["anx_C/cl_C.1.1"].text      # table rows in the annex are text
 
 
 NIST_STYLE = """NIST SP 800-18r2
@@ -668,7 +668,7 @@ def test_accompanying_documents_from_legal_yaml(tmp_path):
     a, w = tmp_path / "proposal.pdf", tmp_path / "white-paper.pdf"
     meta = {"norms": [{"id": "ai-act", "versions": [{"file": a.name, "stage": "proposal", "date": "2021-04-21"}]}],
             "documents": [{"file": w.name, "role": "white_paper", "date": "2020-02-19"}]}
-    article_like = "Article 1\\nx\\nArticle 2\\ny\\nArticle 3\\nz"          # auch mit Artikel-Zeilen: bleibt Begleitdokument
+    article_like = "Article 1\\nx\\nArticle 2\\ny\\nArticle 3\\nz"          # also with article lines: stays an accompanying document
     norms, support = plan_norms(meta, [a, w], "law", "x", {str(w): article_like})
     assert [v["path"] for v in norms[0]["versions"]] == [a] and support == [w]
     from app.schemas import ProjectRole

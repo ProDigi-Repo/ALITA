@@ -1,20 +1,20 @@
-"""Zitationsnetz (REQ-35): welche Dokumente der Sammlung zitieren welche Research Papers der Sammlung?
+"""Citation network (REQ-35): which documents of the collection cite which research papers of the collection?
 
-Ohne externen Dienst und ohne neue Embeddings – nur aus dem, was schon im Index liegt:
+Without an external service and without new embeddings – only from what is already in the index:
 
-1. Literaturverzeichnis finden: Chunks mit deo:BibliographicReference. Seitenkopfzeilen („Management Learning“,
-   „L. T. DO KHAC ET AL.“) werden beim Extrahieren als neue Überschrift erkannt und unterbrechen den Abschnitt;
-   deshalb wird das Verzeichnis über Chunks hinweg weiterverfolgt, solange sie wie Literaturangaben aussehen
-   (viele Jahreszahlen). Solche Fortsetzungs-Chunks bekommen nachträglich deo:BibliographicReference
-   (deo_source = "bibliography") – nur Payload, die Vektoren bleiben unverändert.
-2. Abgleich mit jedem Research Paper der Sammlung: über die DOI oder den Titel. Verglichen wird auf einer
-   „kompakten“ Form (nur Buchstaben und Ziffern, ohne Akzente), damit Silbentrennung am Zeilenende
-   („organiza- tions“), Zeilenumbrüche in DOIs („https://doi. org/10.…“) und Satzzeichen nicht stören.
-   Ein Titeltreffer wird mit Nachname der Erstautor:in und Jahr in der Nähe bestätigt.
-3. Ergebnis als Payload am Dokument: cites = [{doc_id, via, confidence, evidence}], cited_by = [doc_id, …].
-   Im Graphen: (:Document)-[:CITES {via, confidence, bibo:'bibo:cites', cito:'cito:cites'}]->(:Document).
+1. Find the reference list: chunks with deo:BibliographicReference. Running heads ("Management Learning",
+   "L. T. DO KHAC ET AL.") are recognised as new headings during extraction and interrupt the section;
+   so the list is followed across chunks as long as they look like references
+   (many years). Such continuation chunks get deo:BibliographicReference afterwards
+   (deo_source = "bibliography") – payload only, the vectors stay unchanged.
+2. Match against every research paper of the collection: by DOI or title. The comparison uses a
+   "compact" form (only letters and digits, without accents), so that hyphenation at line ends
+   ("organiza- tions"), line breaks in DOIs ("https://doi. org/10.…") and punctuation do not interfere.
+   A title match is confirmed by the surname of the first author and the year nearby.
+3. Result as payload on the document: cites = [{doc_id, via, confidence, evidence}], cited_by = [doc_id, …].
+   In the graph: (:Document)-[:CITES {via, confidence, bibo:'bibo:cites', cito:'cito:cites'}]->(:Document).
 
-Die Funktionen ohne Unterstrich-Präfix sind rein (ohne Qdrant/Neo4j) und in tests/test_citations.py getestet.
+The functions without an underscore prefix are pure (no Qdrant/Neo4j) and tested in tests/test_citations.py.
 """
 from __future__ import annotations
 
@@ -27,29 +27,29 @@ BIB = "BibliographicReference"
 YEAR_RX = re.compile(r"(?<!\d)(?:19[5-9]\d|20[0-4]\d)[a-z]?(?!\d)")
 REF_HEADING_RX = re.compile(r"^\s*(references?|bibliography|literatur(verzeichnis)?|quellen(verzeichnis)?|works cited|"
                             r"literature( cited)?)\b", re.I)
-MIN_TITLE = 22          # kürzere kompakte Titel sind zu unspezifisch für einen Treffer ohne DOI
-TITLE_PREFIX = 70       # verglichen wird höchstens der Anfang des Titels (Untertitel werden oft gekürzt)
-NEAR_AUTHOR = 320       # so weit vor dem Titel darf der Nachname der Erstautor:in stehen (kompakte Zeichen)
-NEAR_YEAR = 260         # so weit vor/nach dem Titel darf das Jahr stehen
-START_KEY = 45         # Titelanfang (z. B. Konferenzfassung mit kürzerem Titel) – zählt nur mit Autor:in und Jahr
+MIN_TITLE = 22          # shorter compact titles are too unspecific for a match without a DOI
+TITLE_PREFIX = 70       # at most the beginning of the title is compared (subtitles are often shortened)
+NEAR_AUTHOR = 320       # how far before the title the surname of the first author may stand (compact characters)
+NEAR_YEAR = 260         # how far before/after the title the year may stand
+START_KEY = 45         # beginning of the title (e.g. conference version with a shorter title) – counts only with author and year
 VIA_SCORE = {"doi": 1.0, "title+author+year": 0.95, "title+author": 0.85, "title-start+author+year": 0.8,
              "title+year": 0.75, "title": 0.6}
 MIN_CONFIDENCE = 0.6
 CITING_TYPES = {"research_paper", "research_notes", "research_project"}
 
 
-# ----------------------------------------------------------------- Normalisieren
+# ----------------------------------------------------------------- normalising
 def _fold(ch: str) -> str:
     return unicodedata.normalize("NFKD", ch).encode("ascii", "ignore").decode().lower()
 
 
 def compact(text: str | None) -> str:
-    """Nur Kleinbuchstaben und Ziffern, Akzente entfernt: 'Long-\\nterm Effects' -> 'longtermeffects'."""
+    """Only lower-case letters and digits, accents removed: 'Long-\\nterm Effects' -> 'longtermeffects'."""
     return "".join(c for c in _fold(text or "") if c.isalnum())
 
 
 def compact_map(text: str) -> tuple[str, list[int]]:
-    """Wie compact(), dazu für jedes kompakte Zeichen die Position im Originaltext (für Belegstellen)."""
+    """Like compact(), plus the position in the original text for each compact character (for evidence)."""
     out, pos = [], []
     for i, ch in enumerate(text or ""):
         for c in _fold(ch):
@@ -60,7 +60,7 @@ def compact_map(text: str) -> tuple[str, list[int]]:
 
 
 def surname(name: str | None) -> str:
-    """Nachname aus 'Ghasem Zaefarian', 'Zaefarian, G.' oder 'Stumpf-Wollersheim J' (kompakt)."""
+    """Surname from 'Ghasem Zaefarian', 'Zaefarian, G.' or 'Stumpf-Wollersheim J' (compact)."""
     n = (name or "").strip()
     if not n:
         return ""
@@ -68,7 +68,7 @@ def surname(name: str | None) -> str:
         n = n.split(",")[0]
     else:
         parts = [p for p in re.split(r"\s+", n) if p]
-        # 'Leischnig A' / 'Do Khac L. T.' -> Initialen am Ende abschneiden
+        # 'Leischnig A' / 'Do Khac L. T.' -> cut off the initials at the end
         while len(parts) > 1 and re.fullmatch(r"[A-ZÄÖÜ](\.|[A-ZÄÖÜ]{0,2}\.?)", parts[-1]):
             parts.pop()
         n = parts[-1] if parts else n
@@ -76,7 +76,7 @@ def surname(name: str | None) -> str:
 
 
 def title_keys(title: str | None) -> list[str]:
-    """Kompakte Suchschlüssel eines Titels: Anfang des ganzen Titels und (falls lang genug) der Haupttitel vor ':' / '?'."""
+    """Compact search keys of a title: the beginning of the whole title and (if long enough) the main title before ':' / '?'."""
     t = (title or "").strip()
     keys: list[str] = []
     full = compact(t)[:TITLE_PREFIX]
@@ -90,15 +90,16 @@ def title_keys(title: str | None) -> list[str]:
 
 
 def doi_key(doi: str | None) -> str:
+    """Normalised DOI key (without doi.org prefix and trailing punctuation); empty when too short to be reliable."""
     d = (doi or "").strip().lower()
     d = re.sub(r"^(https?://)?(dx\.)?doi\.org/", "", d).rstrip(".)];,")
     k = compact(d)
     return k if len(k) >= 12 else ""
 
 
-# ----------------------------------------------------------------- Literaturverzeichnis
+# ----------------------------------------------------------------- reference list
 def ref_density(text: str) -> float:
-    """Jahreszahlen je 1000 Zeichen – Literaturverzeichnisse haben viele, Fließtext wenige."""
+    """Years per 1000 characters – reference lists have many, running text few."""
     t = text or ""
     return 1000 * len(YEAR_RX.findall(t)) / max(len(t), 1)
 
@@ -108,11 +109,11 @@ def _is_bib_start(c: dict) -> bool:
 
 
 def reference_region(chunks: list[dict], min_density: float = 4.0) -> tuple[str, list[str]]:
-    """Text des Literaturverzeichnisses und die IDs der Fortsetzungs-Chunks, denen deo:BibliographicReference fehlt.
+    """Text of the reference list and the ids of the continuation chunks that lack deo:BibliographicReference.
 
-    Ab jedem Chunk mit deo:BibliographicReference (oder Überschrift 'References', 'Literatur' …) werden die
-    folgenden Chunks mitgenommen, solange sie wie Literaturangaben aussehen; sehr kurze Chunks (Kopfzeilen)
-    werden übersprungen, ein Chunk mit einer anderen DEO-Rolle aus einer Überschrift beendet das Verzeichnis.
+    From every chunk with deo:BibliographicReference (or a heading 'References', 'Literatur' …) the
+    following chunks are taken along as long as they look like references; very short chunks (running heads)
+    are skipped, a chunk with another DEO role from a heading ends the list.
     """
     cs = sorted(chunks, key=lambda c: c.get("ordinal", 0))
     parts: list[str] = []
@@ -127,10 +128,10 @@ def reference_region(chunks: list[dict], min_density: float = 4.0) -> tuple[str,
             continue
         if not inside:
             continue
-        if deo and c.get("deo_source") == "heading":      # neuer, echter Abschnitt (z. B. Appendix-Tabellen mit DEO)
+        if deo and c.get("deo_source") == "heading":      # a new, real section (e.g. appendix tables with DEO)
             inside = False
             continue
-        if len(text.strip()) < 200:                         # Kopfzeile / Seitenzahl
+        if len(text.strip()) < 200:                         # running head / page number
             continue
         if ref_density(text) >= min_density:
             parts.append(text)
@@ -141,20 +142,22 @@ def reference_region(chunks: list[dict], min_density: float = 4.0) -> tuple[str,
     return "\n".join(parts), [c for c in cont if c]
 
 
-# ----------------------------------------------------------------- Abgleich
+# ----------------------------------------------------------------- matching
 @dataclass
 class Target:
+    """A research paper that citations can point to, with the keys used to match reference-list entries."""
     doc_id: str
     title: str
     year: int | None = None
     first_author: str = ""
     doi: str = ""
     keys: list[str] = field(default_factory=list)
-    start: str = ""           # Titelanfang (START_KEY Zeichen), nur gültig mit Autor:in + Jahr
-    group: str = ""           # gleiche Gruppe = gleiche Arbeit (Mehrfach-Exporte, gleiche DOI/gleicher Titel)
+    start: str = ""           # beginning of the title (START_KEY characters), valid only with author + year
+    group: str = ""           # same group = same work (repeated exports, same DOI/same title)
 
     @classmethod
     def from_payload(cls, p: dict) -> "Target":
+        """Build a target from a Qdrant document payload."""
         title = p.get("title") or ""
         keys = title_keys(title)
         dk = doi_key(p.get("doi"))
@@ -166,7 +169,7 @@ class Target:
 
 
 def _snippet(text: str, pos: list[int], a: int, b: int, before: int = 0, after: int = 40) -> str:
-    """Belegstelle im Originaltext zwischen den kompakten Positionen a und b (plus etwas Rand)."""
+    """Evidence in the original text between the compact positions a and b (plus some margin)."""
     if not pos:
         return ""
     s = max(0, pos[max(0, min(a, len(pos) - 1))] - before)
@@ -176,7 +179,7 @@ def _snippet(text: str, pos: list[int], a: int, b: int, before: int = 0, after: 
 
 
 def match_target(ref_text: str, comp: str, pos: list[int], t: Target) -> dict | None:
-    """Zitiert dieses Literaturverzeichnis das Paper t? -> {via, confidence, evidence} oder None."""
+    """Does this reference list cite paper t? -> {via, confidence, evidence} or None."""
     if t.doi:
         i = comp.find(t.doi)
         if i >= 0:
@@ -200,7 +203,7 @@ def match_target(ref_text: str, comp: str, pos: list[int], t: Target) -> dict | 
                 via = "title-start+author+year"
             else:
                 via = "title" + ("+author" if has_author else "") + ("+year" if has_year else "")
-                if via == "title" and len(key) < 40:        # kurzer Titel ohne Bestätigung: zu unsicher
+                if via == "title" and len(key) < 40:        # short title without confirmation: too uncertain
                     continue
             score = VIA_SCORE[via]
             if not best or score > best["confidence"]:
@@ -212,7 +215,7 @@ def match_target(ref_text: str, comp: str, pos: list[int], t: Target) -> dict | 
 
 
 def is_citing_candidate(p: dict) -> bool:
-    """Welche Dokumente können zitieren: Papers, Notes und aktuelle, nicht archivierte Projektdateien (keine Dubletten)."""
+    """Which documents can cite: papers, notes and current, non-archived project files (no duplicates)."""
     if p.get("doc_type") not in CITING_TYPES or p.get("duplicate_of"):
         return False
     if p.get("doc_type") == "research_project":
@@ -221,11 +224,12 @@ def is_citing_candidate(p: dict) -> bool:
 
 
 def is_target(p: dict) -> bool:
+    """True for research papers with a title that are not duplicates – only these can be cited."""
     return p.get("doc_type") == "research_paper" and not p.get("duplicate_of") and bool(p.get("title"))
 
 
 def find_citations(citing: dict, chunks: list[dict], targets: list[Target]) -> tuple[list[dict], list[str], int]:
-    """(Zitate dieses Dokuments, Fortsetzungs-Chunks ohne DEO, Länge des Literaturverzeichnisses in Zeichen)."""
+    """(citations of this document, continuation chunks without DEO, length of the reference list in characters)."""
     ref_text, cont = reference_region(chunks)
     if not ref_text:
         return [], [], 0
@@ -235,7 +239,7 @@ def find_citations(citing: dict, chunks: list[dict], targets: list[Target]) -> t
     for t in targets:
         if t.doc_id == citing["doc_id"] or (own and t.group == own.group):
             continue
-        if t.year and citing.get("year") and t.year > citing["year"] + 1:   # kann ein älteres Dokument nicht zitieren
+        if t.year and citing.get("year") and t.year > citing["year"] + 1:   # cannot be cited by an older document
             continue
         m = match_target(ref_text, comp, pos, t)
         if not m:
@@ -247,10 +251,10 @@ def find_citations(citing: dict, chunks: list[dict], targets: list[Target]) -> t
 
 
 def build(documents: list[dict], chunks_of) -> dict:
-    """Ganzes Zitationsnetz: {doc_id: {cites, cited_by, refs_chars}} und die Fortsetzungs-Chunks.
+    """The whole citation network: {doc_id: {cites, cited_by, refs_chars}} and the continuation chunks.
 
-    documents: Payloads aller Dokumente; chunks_of(doc_id) -> Chunks (Payload mit chunk_id).
-    Bei mehreren Dateien derselben Arbeit (gleiche DOI / gleicher Titel) zählt das zuerst gefundene Paper als Ziel.
+    documents: payloads of all documents; chunks_of(doc_id) -> chunks (payload with chunk_id).
+    With several files of the same work (same DOI / same title) the paper found first counts as the target.
     """
     targets, seen = [], set()
     for p in sorted((d for d in documents if is_target(d)), key=lambda d: d["doc_id"]):
@@ -279,9 +283,9 @@ def build(documents: list[dict], chunks_of) -> dict:
     return {"documents": res, "relabel": relabel, "targets": len(targets)}
 
 
-# ----------------------------------------------------------------- Netz für die Ansicht
+# ----------------------------------------------------------------- network for the view
 def short_label(p: dict) -> str:
-    """'Zaefarian et al. 2017' – kurze Beschriftung eines Papers."""
+    """'Zaefarian et al. 2017' – short label of a paper."""
     au = [a for a in (p.get("authors") or []) if a and a.strip()]
     first = (au[0].split(",")[0] if au and "," in au[0] else (au[0].split()[-1] if au else "")).strip()
     who = first + (" et al." if len(au) > 2 else f" & {au[1].split()[-1]}" if len(au) == 2 else "")
@@ -290,10 +294,10 @@ def short_label(p: dict) -> str:
 
 
 def network(documents: list[dict], databases: list[str] | None = None, min_confidence: float = MIN_CONFIDENCE) -> dict:
-    """Knoten und Kanten für die Zitationsnetz-Ansicht, aus den Payloads (cites) gebaut.
+    """Nodes and edges for the citation network view, built from the payloads (cites).
 
-    Projektdateien werden zu einem Knoten je Projekt zusammengefasst („project:<Name>“); Papers und Notes sind
-    eigene Knoten. Nur Dokumente mit mindestens einer Kante (oder Papers der Auswahl) kommen ins Netz.
+    Project files are combined into one node per project ("project:<name>"); papers and notes are
+    nodes of their own. Only documents with at least one edge (or papers of the selection) enter the network.
     """
     dbs = set(databases or [])
     by_id = {d["doc_id"]: d for d in documents}
@@ -329,7 +333,7 @@ def network(documents: list[dict], databases: list[str] | None = None, min_confi
             n = nodes[nid]
             n["files"] += 1
             if d.get("cites") and len(d.get("cites")) > len(by_id.get(n["doc_id"], {}).get("cites") or []):
-                n["doc_id"] = d["doc_id"]        # Projekt: die Datei mit den meisten Zitaten öffnet sich beim Klick
+                n["doc_id"] = d["doc_id"]        # project: the file with the most citations opens on click
             n["databases"] = sorted(set(n["databases"]) | set(d.get("databases") or []))
             continue
         is_proj = nid.startswith("project:")
@@ -355,10 +359,10 @@ def network(documents: list[dict], databases: list[str] | None = None, min_confi
                       "run": run}}
 
 
-# ----------------------------------------------------------------- Ausführen (Qdrant + Neo4j)
+# ----------------------------------------------------------------- running it (Qdrant + Neo4j)
 def rebuild(relabel: bool = True) -> dict:
-    """Zitationsnetz aus dem Index neu berechnen und als Payload speichern; danach die CITES-Kanten im Graphen.
-    Braucht weder API-Key noch Embeddings; dauert Sekunden."""
+    """Recompute the citation network from the index and store it as payload; then the CITES edges in the graph.
+    Needs neither an API key nor embeddings; takes seconds."""
     from qdrant_client import models as qm
 
     from . import store
@@ -385,7 +389,7 @@ def rebuild(relabel: bool = True) -> dict:
             from . import graph
             graph.sync_citations({k: v["cites"] for k, v in res["documents"].items()})
             graph_ok = True
-        except Exception as e:      # Graph ist optional
+        except Exception as e:      # the graph is optional
             graph_ok = f"not updated: {e}"[:200]
     return {"documents": len(docs), "targets": res["targets"], "citing": sum(1 for r in res["documents"].values() if r["cites"]),
             "citations": n_edges, "relabelled_chunks": len(res["relabel"]) if relabel else 0, "graph": graph_ok, "run": run}
@@ -393,7 +397,7 @@ def rebuild(relabel: bool = True) -> dict:
 
 def chat_context(question: str, documents: list[dict], doc_ids: list[str] | None = None, databases: list[str] | None = None,
                  limit: int = 8) -> str:
-    """Kontext für den Graph Chat bei Fragen nach Zitaten/Referenzen: meistzitierte Papers und die Zitate der gefundenen Dokumente."""
+    """Context for the Graph Chat on questions about citations/references: most cited papers and the citations of the documents found."""
     if not CITE_Q_RX.search(question or ""):
         return ""
     net = network(documents, databases)

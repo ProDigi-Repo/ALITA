@@ -1,5 +1,5 @@
 FROM python:3.12-slim
-# LibreOffice nur für alte .doc/.ppt-Dateien; weglassen spart ~500 MB
+# LibreOffice only for old .doc/.ppt files; leaving it out saves ~500 MB
 RUN apt-get update && apt-get install -y --no-install-recommends libreoffice-writer-nogui libreoffice-impress-nogui \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app/backend

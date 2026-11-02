@@ -1,8 +1,8 @@
-"""Gesprächsgedächtnis: der bisherige Verlauf einer Unterhaltung geht mit jeder Frage an das LLM.
+"""Conversation memory: the conversation so far goes to the LLM with every question.
 
-- select_memory: kürzt den Verlauf von vorn (älteste Wechsel zuerst), bis Turn- und Zeichenlimit passen.
-- retrieval_query: macht aus einer Anschlussfrage („Und wie stark ist die Evidenz dafür?“) eine
-  eigenständige Suchanfrage – per LLM, falls verfügbar, sonst heuristisch aus der letzten Frage + der neuen.
+- select_memory: shortens the history from the start (oldest turns first) until the turn and character limits fit.
+- retrieval_query: turns a follow-up question ("And how strong is the evidence for that?") into a
+  standalone search query – by LLM if available, otherwise heuristically from the last question + the new one.
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ FOLLOW_UP = re.compile(
 
 
 def select_memory(history: list, max_turns: int = 20, max_chars: int = 24000) -> list:
-    """Neueste Wechsel behalten; beginnt immer mit einer Nutzerfrage."""
+    """Keep the newest turns; always starts with a user question."""
     turns = [t for t in history if (getattr(t, "content", "") or "").strip()][-max_turns:]
     while turns and sum(len(t.content) for t in turns) > max_chars:
         turns = turns[1:]
@@ -25,12 +25,13 @@ def select_memory(history: list, max_turns: int = 20, max_chars: int = 24000) ->
 
 
 def is_follow_up(query: str) -> bool:
+    """True for short questions or ones that refer back ("and that?", "more on this") – they need the chat history."""
     q = query.strip()
     return len(q.split()) <= 6 or bool(FOLLOW_UP.search(q))
 
 
 def heuristic_query(query: str, memory: list) -> str:
-    """Letzte Nutzerfrage + neue Frage, wenn die neue nach einer Anschlussfrage aussieht."""
+    """Last user question + new question, if the new one looks like a follow-up."""
     if not memory or not is_follow_up(query):
         return query
     last = next((t.content for t in reversed(memory) if t.role == "user"), "")
@@ -38,6 +39,7 @@ def heuristic_query(query: str, memory: list) -> str:
 
 
 def transcript(memory: list, max_chars: int = 6000) -> str:
+    """The chat memory as a plain transcript, at most max_chars from the end."""
     lines = [f"{'Researcher' if t.role == 'user' else 'ALITA'}: {t.content}" for t in memory]
     text = "\n".join(lines)
     return text[-max_chars:]

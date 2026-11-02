@@ -1,16 +1,16 @@
-# Komplettes Setup: Qdrant + Backend (FastAPI) + Frontend (nginx) + Ingestion/Tests als On-Demand-Jobs
+# Complete setup: Qdrant + backend (FastAPI) + front end (nginx) + ingestion/tests as on-demand jobs
 #
-#   docker compose up -d --build                                   # Stack starten -> http://localhost:8080
-#                                                                  # (seed liest Projektordner aus RESEARCH_DIR automatisch ein)
-#   docker compose run --rm ingest project /research/<Ordner>      # ein research project (neu) einlesen
-#   docker compose run --rm -e OPENROUTER_API_KEY=sk-or-v1-… ingest all /research --force   # neu einlesen mit Key nur für diesen Lauf
-#   docker compose run --rm ingest paper  /research/paper.pdf      # research paper einlesen
+#   docker compose up -d --build                                   # start the stack -> http://localhost:8080
+#                                                                  # (seed ingests the project folders from RESEARCH_DIR automatically)
+#   docker compose run --rm ingest project /research/<folder>     # ingest (again) one research project
+#   docker compose run --rm -e OPENROUTER_API_KEY=sk-or-v1-… ingest all /research --force   # ingest again with a key for this run only
+#   docker compose run --rm ingest paper  /research/paper.pdf      # ingest a research paper
 #   docker compose --profile test run --rm tests                   # Tests
-#   docker compose run --rm migrate export                         # Index für einen Umzug nach ./migrate exportieren
+#   docker compose run --rm migrate export                         # export the index to ./migrate for a move
 #
-# Server (Oracle Cloud + Cloudflare Tunnel/Access): siehe deploy/oracle/README.md
+# Server (Oracle Cloud + Cloudflare Tunnel/Access): see deploy/oracle/README.md
 #
-# Konfiguration über .env (Vorlage: .env.example).
+# Configuration via .env (template: .env.example).
 
 name: research-rag
 
@@ -33,13 +33,13 @@ x-backend: &backend
     GLOSSARY_PATH: /app/glossary/methods.yaml
     FRONTEND_DIR: /app/frontend
   volumes:
-    - app_data:/data                                  # Uploads (ZIP-Projekte, Paper, Notes)
+    - app_data:/data                                  # uploads (project ZIPs, papers, notes)
     - ${ACCOUNTS_DIR:-./.secrets/accounts}:/run/alita-accounts   # REQ-77: accounts.json (not in git); no file = no accounts
-    - ./glossary:/app/glossary:ro                     # Methoden-Glossar, ohne Rebuild austauschbar
-    - ./frontend:/app/frontend:ro                     # Backend liefert das Frontend auch selbst aus (Port 8000)
-    - ./CHANGELOG.md:/app/CHANGELOG.md:ro             # Release notes für /api/release-notes
-    - ./docs:/app/docs:ro                             # ISO 42001 / EU AI Act Doku und Technical Documentation (Ontologie)
-    - ${RESEARCH_DIR:-./research}:/research:ro        # eigene Forschungsordner (read-only)
+    - ./glossary:/app/glossary:ro                     # methods glossary, replaceable without a rebuild
+    - ./frontend:/app/frontend:ro                     # the backend also serves the front end itself (port 8000)
+    - ./CHANGELOG.md:/app/CHANGELOG.md:ro             # release notes for /api/release-notes
+    - ./docs:/app/docs:ro                             # ISO 42001 / EU AI Act docs and technical documentation (ontology)
+    - ${RESEARCH_DIR:-./research}:/research:ro        # your own research folders (read-only)
   depends_on:
     qdrant:
       condition: service_healthy
@@ -47,13 +47,13 @@ x-backend: &backend
       condition: service_healthy
 
 services:
-  # Wissensgraph für Graph RAG (Kachel B): DoCO/DEO-Ontologie, Design-Entscheidung ADR-001
+  # knowledge graph for Graph RAG (tile B): DoCO/DEO ontology, design decision ADR-001
   neo4j:
     image: neo4j:${NEO4J_VERSION:-5.26-community}
     restart: unless-stopped
     environment:
       NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}
-      NEO4J_PLUGINS: '["n10s"]'                         # neosemantics: OWL/RDF-Ontologien (DoCO, DEO, FaBiO, CiTO) importieren
+      NEO4J_PLUGINS: '["n10s"]'                         # neosemantics: import OWL/RDF ontologies (DoCO, DEO, FaBiO, CiTO)
       NEO4J_dbms_unmanaged__extension__classes: n10s.endpoint=/rdf
       NEO4J_server_memory_heap_max__size: ${NEO4J_HEAP:-1G}
     volumes:
@@ -88,7 +88,7 @@ services:
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
     expose: ["8000"]
     ports:
-      - "${BACKEND_PORT:-8000}:8000"                  # API direkt (Swagger: /docs)
+      - "${BACKEND_PORT:-8000}:8000"                  # API directly (Swagger: /docs)
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health',timeout=3).status==200 else 1)"]
       interval: 10s
@@ -108,21 +108,21 @@ services:
       backend:
         condition: service_healthy
 
-  # Läuft bei jedem "up" einmal: liest neue Projektordner aus RESEARCH_DIR ein, bekannte werden übersprungen
+  # runs once on every "up": ingests new project folders from RESEARCH_DIR, known ones are skipped
   seed:
     <<: *backend
     restart: "no"
     entrypoint: ["python", "-m", "app.ingestion"]
     command: ["all", "/research", "-v"]
 
-  # Einmal-Job: docker compose run --rm ingest <project|paper|notes> <pfad> [--no-llm] [-v]
+  # one-off job: docker compose run --rm ingest <project|paper|notes> <path> [--no-llm] [-v]
   ingest:
     <<: *backend
     profiles: ["ingest"]
     entrypoint: ["python", "-m", "app.ingestion"]
     command: ["--help"]
 
-  # Umzug auf einen Server: docker compose run --rm migrate export | import   (Ordner ./migrate)
+  # moving to a server: docker compose run --rm migrate export | import   (folder ./migrate)
   migrate:
     <<: *backend
     profiles: ["migrate"]

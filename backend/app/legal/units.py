@@ -6,12 +6,12 @@ import re
 from .common import FAR_FUTURE, STAGE_LABEL, _uuid, ts
 
 
-# ----------------------------------------------------------------- Text Units (Chunks)
+# ----------------------------------------------------------------- Text Units (chunks)
 def text_units(model: dict, base: dict[str, dict], max_chars: int = 1800) -> list[dict]:
-    """Eine Text Unit je CTV mit eigenem Text (lange Teile werden geteilt) und je Action.
+    """One Text Unit per CTV with its own text (long parts are split) and per action.
 
-    base: doc_id -> Payload-Grundlage des Dokuments (databases, title, filename, filetype, project_name …).
-    Ergebnis: [{id, text, embed_text, payload}] – payload enthält die Zeitfelder für den Stichtag-Filter."""
+    base: doc_id -> payload basis of the document (databases, title, filename, filetype, project_name …).
+    Result: [{id, text, embed_text, payload}] – the payload holds the time fields for the reference-date filter."""
     norm = model["norm"]
     name = norm.get("short") or norm.get("title") or norm["norm_id"]
     comps = model["components"]

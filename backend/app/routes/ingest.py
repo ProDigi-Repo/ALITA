@@ -30,13 +30,14 @@ PROJECT_TYPES = (DocType.research_project, DocType.legal_project)
 
 
 async def run_job(job_id: str, coro) -> None:
+    """Run an ingestion coroutine as background job and store its status, result and token usage in JOBS."""
     JOBS[job_id]["status"] = "running"
     meter = usage.start()                      # tokens of this job (LLM + embeddings) for the pop-up after the upload
     try:
         res = await coro
         upd = {"status": "done", "result": res.model_dump(mode="json", exclude={"source_path"})}
     except Exception as e:  # make the failure visible in the job status
-        log.exception("Ingestion %s fehlgeschlagen", job_id)
+        log.exception("Ingestion %s failed", job_id)
         upd = {"status": "error", "error": str(e)}
     try:
         upd["usage"] = await asyncio.to_thread(usage.summary, meter)
@@ -86,13 +87,14 @@ async def ingest(
     background: BackgroundTasks,
     request: Request,
     doc_type: Annotated[DocType, Form()],
-    files: Annotated[list[UploadFile], File(description="Projekt: ZIP des Projektordners; Paper/Notes: Einzeldateien")],
+    files: Annotated[list[UploadFile], File(description="project: ZIP of the project folder; papers/notes: single files")],
     project_name: Annotated[str | None, Form()] = None,
-    databases: Annotated[str | None, Form(description="komma-getrennt, z. B. ML,UM")] = None,
+    databases: Annotated[str | None, Form(description="comma-separated, e.g. ML,UM")] = None,
     use_llm: Annotated[bool, Form()] = True,
-    date: Annotated[str | None, Form(description="Gesamtdatum YYYY-MM-DD (Projekt: für Dateien ohne eigenes Datum; Paper/Notes: Datum)")] = None,
+    date: Annotated[str | None, Form(description="Overall date YYYY-MM-DD (project: for files without their own date; papers/notes: their date)")] = None,
     x_key: KeyHeader = None,
 ):
+    """Upload and ingest documents (admin): a project ZIP, papers, notes or legal texts; returns a job id to poll."""
     from ..ingestion import IngestOptions, ingest_file, ingest_project
     from ..legal_ingest import ingest_legal
 
@@ -134,6 +136,7 @@ async def ingest(
 
 @router.get("/jobs/{job_id}")
 def job(job_id: str):
+    """Status of an ingestion job."""
     if job_id not in JOBS:
         raise HTTPException(404, "Unknown job")
     return JOBS[job_id]

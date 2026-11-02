@@ -46,6 +46,7 @@ log = logging.getLogger("ingest")
 
 # --------------------------------------------------------------- Hilfsfunktionen
 def sha256_of(path: Path) -> str:
+    """SHA-256 of a file, read in 1 MiB blocks."""
     h = hashlib.sha256()
     with path.open("rb") as f:
         for block in iter(lambda: f.read(1 << 20), b""):
@@ -64,6 +65,7 @@ def matching_exclusion(rel: str, patterns: list[str]) -> str | None:
 
 
 def is_excluded(rel: str, patterns: list[str]) -> bool:
+    """True when a project-relative path matches one of the exclusion patterns."""
     return matching_exclusion(rel, patterns) is not None
 
 
@@ -78,13 +80,13 @@ def count_excluded(folder: Path, patterns: list[str]) -> tuple[int, dict[str, in
     return sum(by.values()), by
 
 
-DOI_RE = re.compile(r"\b10\.\d{4,9}/[^\s\"<>]+", re.I)  # \u2011 (geschützter Bindestrich) wird unten normalisiert
+DOI_RE = re.compile(r"\b10\.\d{4,9}/[^\s\"<>]+", re.I)  # ‑ (non-breaking hyphen) is normalised below
 JUNK_TITLE = re.compile(r"template|author guidelines|microsoft (word|powerpoint)|untitled|^document\d*$|^folie|^präsentation|^slide|^title$|\.docx?$|\.pptx?$|\.indd$", re.I)
 
 
 def pick_title(doc_title: str | None, path: Path, in_project: bool) -> str:
-    """Projektdateien: Dateiname ist aussagekräftiger (Versionen!). Paper/Notes: Dokumenttitel, wenn plausibel,
-    sonst ein bereinigter Dateiname (Browser-Exporte wie '… _ by Autor _ Medium')."""
+    """Project files: the file name says more (versions!). Papers/notes: the document title if plausible,
+    otherwise a cleaned file name (browser exports like '… _ by Author _ Medium')."""
     if not in_project and doc_title and len(doc_title.strip()) > 8 and not JUNK_TITLE.search(doc_title.strip()):
         return doc_title.strip()
     if not in_project:
@@ -93,6 +95,7 @@ def pick_title(doc_title: str | None, path: Path, in_project: bool) -> str:
 
 def build_record(path: Path, doc_type: DocType, *, scope: str, rel_path: str,
                  project: ProjectContext | None = None) -> Item:
+    """Extract a file and build its DocumentRecord (dates, title, language, project role …)."""
     s = get_settings()
     ex = extract(path)
     st = path.stat()
@@ -100,17 +103,17 @@ def build_record(path: Path, doc_type: DocType, *, scope: str, rel_path: str,
     date, date_src = best_date(path.name, ex.created, ex.modified, st.st_mtime)
     text = ex.text[: s.max_text_chars]
     if doc_type == DocType.research_paper:
-        # Bei Papern ist das Jahr im Dateinamen (Autor_et_al_2022) verlässlicher als PDF-Erstell-/Download-Datum
+        # for papers the year in the file name (Author_et_al_2022) is more reliable than the PDF creation/download date
         fy = YEAR_IN_NAME.search(path.stem)
         if fy and (not date or date.year != int(fy.group(1))):
             date, date_src = datetime(int(fy.group(1)), 1, 1, tzinfo=timezone.utc), "filename_year"
     if doc_type == DocType.research_notes and text:
-        # Notizen/Web-Artikel: Veröffentlichungsdatum im Text schlägt das PDF-Druckdatum
+        # notes/web articles: a publication date in the text beats the PDF print date
         td = date_from_text(text)
         if td:
             date, date_src = td, "text"
     byline = re.search(r"\b[Bb]y ([A-ZÄÖÜ][\w-]+(?: [A-ZÄÖÜ][\w-]+){1,3})", text[:600]) if text and not ex.authors else None
-    # DOI nur bei Papern: in Notizen stammen DOIs meist aus zitierten Quellen
+    # DOI only for papers: in notes DOIs mostly come from cited sources
     doi = DOI_RE.search(text[:8000]) if text and doc_type == DocType.research_paper else None
     norm = re.sub(r"[\d\s]+", "", text.lower()) if text else ""
     content_hash = hashlib.sha256(norm.encode()).hexdigest() if len(norm) > 200 else None
@@ -129,7 +132,7 @@ def build_record(path: Path, doc_type: DocType, *, scope: str, rel_path: str,
         year=date.year if date else None,
         created=ex.created,
         modified=ex.modified,
-        # REQ-19: in Projektdateien nennen die Metadaten nur, wer die Datei gespeichert hat -> editors; Autor:innen = Projektteam
+        # REQ-19: in project files the metadata only names who saved the file -> editors; authors = project team
         authors=[] if project is not None else (clean_people(ex.authors) or ([a] if (a := clean_export_title(path.stem)[1]) else [])
                                                or ([byline.group(1)] if byline else [])),
         editors=clean_people(ex.authors) if project is not None else [],
@@ -151,6 +154,7 @@ def build_record(path: Path, doc_type: DocType, *, scope: str, rel_path: str,
 
 # --------------------------------------------------------------- research project
 def scan_project(folder: Path, exclude: list[str] | None = None) -> tuple[ProjectRecord, list[Item]]:
+    """Read every file of a project folder (minus exclusions) and build the project record and its items."""
     s = get_settings()
     folder = folder.resolve()
     name = folder.name
@@ -187,22 +191,22 @@ def scan_project(folder: Path, exclude: list[str] | None = None) -> tuple[Projec
             archived=is_archived(parts),
         )
         items.append(build_record(path, DocType.research_project, scope=name, rel_path=rel, project=ctx))
-        log.info("erfasst %s (%s, %s)", rel, ctx.role.value, items[-1].record.date_source)
+        log.info("recorded %s (%s, %s)", rel, ctx.role.value, items[-1].record.date_source)
 
     mark_latest(items)
     mark_duplicates(items)
     project = aggregate_project(folder, items, exclude)
-    for it in items:                       # REQ-19: Autor:innen einer Projektdatei = kuratiertes Projektteam
+    for it in items:                       # REQ-19: authors of a project file = curated project team
         if not it.record.authors:
             it.record.authors = list(project.authors)
     project.excluded_count, project.excluded_by = skipped, excluded_by
-    log.info("Projekt %s: %d Dateien, %d ausgeschlossen", name, len(items), skipped)
+    log.info("Project %s: %d files, %d excluded", name, len(items), skipped)
     return project, items
 
 
 def mark_latest(items: list[Item]) -> None:
-    """Pro Versionsgruppe (Basisname + Dateityp) ist nur die höchste Version 'latest'.
-    Unversionierte Dateien mit gleichem Namen (z. B. 'Title page.docx' je Journal): neuestes Datum gewinnt."""
+    """Per version group (base name + file type) only the highest version is 'latest'.
+    Unversioned files with the same name (e.g. 'Title page.docx' per journal): the newest date wins."""
     groups: dict[str, list[Item]] = defaultdict(list)
     for it in items:
         groups[it.record.project.version_group].append(it)
@@ -221,11 +225,12 @@ def mark_latest(items: list[Item]) -> None:
 
 
 def mark_duplicates(items: list[Item]) -> None:
+    """Mark files with the same bytes or the same text as duplicates of the first one, so their content is indexed once."""
     first: dict[str, Item] = {}
     for it in items:
         h = it.record.sha256
         if h not in first and it.record.content_hash and it.record.content_hash in first:
-            h = it.record.content_hash   # gleicher Text, andere Datei (z. B. erneuter PDF-Export)
+            h = it.record.content_hash   # same text, different file (e.g. exported to PDF again)
         if h in first:
             it.record.project.duplicate_of = first[h].record.doc_id
             it.record.index_note = f"Identical to {first[h].record.project.rel_path} – content indexed only once"
@@ -237,15 +242,16 @@ def mark_duplicates(items: list[Item]) -> None:
 
 
 def aggregate_project(folder: Path, items: list[Item], exclude: list[str]) -> ProjectRecord:
+    """Project record from its files: title, period, roles, versions and file counts."""
     recs = [i.record for i in items]
-    # Dateisystem-Zeitstempel sind nach Kopieren/Entpacken oft falsch -> nur für Spanne, wenn sonst nichts da ist
+    # file system timestamps are often wrong after copying/unzipping -> only for the span when nothing else exists
     dates = [r.date for r in recs if r.date and r.date_source != "file_mtime"] or [r.date for r in recs if r.date]
 
     def newest(role: ProjectRole) -> Item | None:
         cand = [i for i in items if i.record.project.role == role and i.extracted.text.strip()]
         return max(cand, key=lambda i: (version_sort_key(i.record.project.version), i.record.date or _MIN), default=None)
 
-    # Titel: erste Zeile der neuesten Titelseite, sonst Titel des neuesten Manuskripts
+    # title: first line of the newest title page, otherwise the title of the newest manuscript
     title = None
     tp = newest(ProjectRole.title_page)
     if tp:
@@ -254,7 +260,7 @@ def aggregate_project(folder: Path, items: list[Item], exclude: list[str]) -> Pr
     if not title and ms:
         title = ms.record.title
 
-    # Projekt-Summary: neuestes Abstract mit Structured-Format > neuestes Manuskript
+    # project summary: newest abstract in structured format > newest manuscript
     summary = StructuredSummary()
     for cand in (newest(ProjectRole.abstract), ms, tp):
         if cand and cand.record.summary.source == "parsed":
@@ -290,12 +296,13 @@ def aggregate_project(folder: Path, items: list[Item], exclude: list[str]) -> Pr
     )
 
 def detect_databases(path: Path) -> list[str]:
-    """Ordnerstruktur research/<DB>/<Projekt>: liegt ein Elternordner mit DB-Namen darüber, gilt diese DB."""
+    """Folder structure research/<DB>/<project>: if a parent folder carries a database name, that database applies."""
     known = {d.lower(): d for d in get_settings().databases}
     return [known[p.name.lower()] for p in path.resolve().parents if p.name.lower() in known][:1]
 
 
 def apply_databases(project: ProjectRecord | None, items: list[Item], dbs: list[str]) -> None:
+    """Assign the project and all its items to the given databases."""
     for it in items:
         it.record.databases = list(dbs)
     if project:
@@ -303,8 +310,8 @@ def apply_databases(project: ProjectRecord | None, items: list[Item], dbs: list[
 
 
 def apply_overall_date(project: ProjectRecord, items: list[Item], date: datetime) -> None:
-    """Gesamtdatum eines hochgeladenen Projekts: gilt fürs Projekt und für Dateien ohne verlässliches eigenes Datum.
-    Dateien mit Datum aus den Dokumenteigenschaften behalten es – sonst ginge die Versionshistorie (REQ-10) verloren."""
+    """Overall date of an uploaded project: applies to the project and to files without a reliable date of their own.
+    Files with a date from their document properties keep it – otherwise the version history (REQ-10) would be lost."""
     project.date = date
     for it in items:
         r = it.record
@@ -315,7 +322,7 @@ def apply_overall_date(project: ProjectRecord, items: list[Item], date: datetime
         project.date_from, project.date_to = min(dates), max(dates)
 
 def curated_summaries(folder: Path) -> dict:
-    """Optional: <ordner>/_summaries.yaml mit kuratierten Structured Summaries je Dateiname."""
+    """Optional: <folder>/_summaries.yaml with curated Structured Summaries per file name."""
     import yaml
 
     f = folder / "_summaries.yaml"
@@ -325,7 +332,7 @@ def curated_summaries(folder: Path) -> dict:
 
 
 def apply_curated_summary(rec: DocumentRecord, path: Path) -> None:
-    """Übernimmt Summary-Felder und optional title, authors, date (ISO) aus _summaries.yaml."""
+    """Takes summary fields and optionally title, authors, date (ISO) from _summaries.yaml."""
     data = curated_summaries(path.parent).get(path.name)
     if not data:
         return

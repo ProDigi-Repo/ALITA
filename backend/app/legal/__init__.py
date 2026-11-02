@@ -1,29 +1,29 @@
-"""Legal-Ontologie (REQ-37/REQ-38): Gesetze, Leitlinien und Standards als strukturierte, versionierte Normen.
+"""Legal ontology (REQ-37/REQ-38): laws, guidelines and standards as structured, versioned norms.
 
-Modell nach de Martim (2025), "An Ontology-Driven Graph RAG for Legal Norms" (SAT-Graph RAG, arXiv:2505.00039),
-LRMoo-inspiriert und an ELI (European Legislation Identifier) ausgerichtet:
+Model after de Martim (2025), "An Ontology-Driven Graph RAG for Legal Norms" (SAT-Graph RAG, arXiv:2505.00039),
+inspired by LRMoo and aligned with ELI (European Legislation Identifier):
 
-  Norm (Work, eli:LegalResource)                      das Gesetz / die Leitlinie / der Standard als abstraktes Werk
-    └─ Component (Component Work, eli:LegalResourceSubdivision)   Kapitel, Artikel/§, Absatz, Nummer, Erwägungsgrund,
-                                                                  Anhang, Clause, Randnummer – dauerhafte Identität
-         └─ Temporal Version (CTV, LRMoo F2 Expression)  Stand eines Bestandteils über einen Zeitraum
-              └─ Language Version (CLV, eli:LegalExpression)  Wortlaut in einer Sprache  ← Text Unit (Chunk)
-  Action (Ereignis)   beendet eine CTV und erzeugt eine neue (Erlass, Änderung, Streichung, geänderter Anwendungsbeginn,
-                      Änderung im Gesetzgebungsverfahren); hat einen eigenen, eingebetteten Beschreibungstext.
+  Norm (Work, eli:LegalResource)                      the law / guideline / standard as an abstract work
+    └─ Component (Component Work, eli:LegalResourceSubdivision)   chapter, article/§, paragraph, point, recital,
+                                                                  annex, clause, margin number – lasting identity
+         └─ Temporal Version (CTV, LRMoo F2 Expression)  state of a component over a period
+              └─ Language Version (CLV, eli:LegalExpression)  wording in one language  ← Text Unit (chunk)
+  Action (event)      ends a CTV and creates a new one (enactment, amendment, repeal, changed start of application,
+                      change in the legislative procedure); has its own embedded description text.
 
-Wie im Paper sind neue Fassungen übergeordneter Teile **Aggregationen**: eine neue Artikel-CTV verweist auf die neue CTV
-des geänderten Absatzes und auf die alten CTVs der unveränderten Absätze (keine Kopien). Eine CTV, die über mehrere
-Fassungen gleich bleibt, wird wiederverwendet – sie wird auch nur einmal eingebettet.
+As in the paper, new versions of higher-level parts are **aggregations**: a new article CTV refers to the new CTV of
+the amended paragraph and to the old CTVs of the unchanged paragraphs (no copies). A CTV that stays the same across
+several versions is reused – and embedded only once.
 
-Zwei Zeitachsen:
-  * Geltung: Fassungen mit Inkrafttreten (in_force) bilden eine Kette; eine CTV gilt von valid_from bis valid_to
-    (ausschließlich). Abfrage „Stand am Tag t“: valid_from ≤ t < valid_to.
-  * Entstehung: Fassungen ohne Inkrafttreten (Vorschlag, Positionen, Entwurf, Konsultationsfassung) haben keine Geltung,
-    nur eine Stufe (stage); Abfrage „Stand im Kommissionsvorschlag“: stage ∈ stages der CTV.
-Der Anwendungsbeginn (applicable_from) kann je Bestandteil abweichen (z. B. KI-Verordnung) und gehört zur Identität
-der CTV: ändert ein Rechtsakt nur das Datum (AI Omnibus), entsteht trotzdem eine neue CTV mit eigener Action.
+Two time axes:
+  * Validity: versions with entry into force (in_force) form a chain; a CTV is valid from valid_from to valid_to
+    (exclusive). Query "state on day t": valid_from ≤ t < valid_to.
+  * Genesis: versions without entry into force (proposal, positions, draft, consultation version) are not in force,
+    they only have a stage; query "state in the Commission proposal": stage ∈ stages of the CTV.
+The start of application (applicable_from) may differ per component (e.g. AI Act) and is part of the identity of
+the CTV: if an act only changes the date (AI Omnibus), a new CTV with its own action is created anyway.
 
-Die Funktionen ohne Unterstrich sind rein (kein Qdrant/Neo4j) und in tests/test_legal.py getestet.
+The functions without a leading underscore are pure (no Qdrant/Neo4j) and tested in tests/test_legal.py.
 
 Package layout (3.13.0, REQ-81): ``common`` (constants, helpers), ``parse`` (components in the text), ``history``
 (Temporal Versions and Actions), ``query`` (queries on a model, references in questions), ``units`` (Text Units).

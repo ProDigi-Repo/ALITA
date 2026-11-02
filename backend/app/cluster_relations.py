@@ -1,16 +1,16 @@
-"""Cluster-Beziehungen über Datenbankgrenzen hinweg (3.7.0, REQ-59).
+"""Cluster relations across database borders (3.7.0, REQ-59).
 
-Jede Datenbank wird für sich geclustert (`ingest cluster --db X`); Brücken (`cluster_alt_id`) gibt es daher nur
-innerhalb einer Datenbank. Dieses Modul vergleicht die Cluster zweier oder mehrerer Datenbanken, ohne neu zu clustern:
+Every database is clustered on its own (`ingest cluster --db X`); bridges (`cluster_alt_id`) therefore exist only
+within one database. This module compares the clusters of two or more databases without clustering again:
 
-- Zentroid je Cluster = Mittel der normierten Summary-Vektoren seiner Einheiten (Paper, Notes, Rechtstexte, Projekte).
-- Ähnlichkeit zweier Cluster = Kosinus ihrer Zentroide.
-- Brücken = Einheiten eines Clusters, deren nächster Cluster in der anderen Datenbank der Partner ist.
-- Je Cluster bleibt mindestens die beste Beziehung zur jeweils anderen Datenbank; weitere nur mit Brücken oder ab
+- centroid per cluster = mean of the normalised summary vectors of its units (papers, notes, legal texts, projects).
+- similarity of two clusters = cosine of their centroids.
+- bridges = units of a cluster whose nearest cluster in the other database is the partner.
+- per cluster at least the best relation to each other database stays; further ones only with bridges or from
   MIN_SIMILARITY.
 
-Nutzer: `GET /api/clusters/relations` (Karte, Dropdown „Compare“) und der Graph Chat (`relations_context`), damit
-ausgewählte Cluster aus verschiedenen Datenbanken gemeinsam befragt werden können.
+Used by: `GET /api/clusters/relations` (map, "Compare" dropdown) and the Graph Chat (`relations_context`), so that
+selected clusters from different databases can be asked about together.
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ MIN_SIMILARITY = 0.55
 
 
 def _unit_rows(docs: list[dict], projects: list[dict]) -> list[dict]:
-    """Geclusterte Einheiten mit eigener Summary (keine geerbten Projektdateien)."""
+    """Clustered units with their own summary (no inherited project files)."""
     rows = [{"id": d["doc_id"], "kind": "documents", "cluster_id": d["cluster_id"], "databases": d.get("databases") or [],
              "label": d.get("cluster_label"), "title": d.get("cluster_title")}
             for d in docs if d.get("cluster_id") is not None and d.get("cluster_basis") == "summary"]
@@ -40,9 +40,9 @@ def _norm(v) -> np.ndarray:
 
 def cross_relations(rows: list[dict], vectors: dict[str, list[float]], databases: list[str],
                     min_similarity: float = MIN_SIMILARITY) -> dict:
-    """rows: Einheiten (id, cluster_id, databases, label, title); vectors: id -> Summary-Vektor.
-    Ergebnis: Cluster der gewählten Datenbanken (mit ihrer Datenbank) und Beziehungen zwischen Clustern verschiedener
-    Datenbanken, stärkste zuerst."""
+    """rows: units (id, cluster_id, databases, label, title); vectors: id -> summary vector.
+    Result: clusters of the chosen databases (with their database) and relations between clusters of different
+    databases, strongest first."""
     wanted = [d for d in dict.fromkeys(databases)]
     members: dict[int, list[np.ndarray]] = defaultdict(list)
     db_votes: dict[int, Counter] = defaultdict(Counter)
@@ -71,7 +71,7 @@ def cross_relations(rows: list[dict], vectors: dict[str, list[float]], databases
     sim = {(a, b): float(clusters[a]["centroid"] @ clusters[b]["centroid"])
            for a in ids for b in ids if a < b and clusters[a]["database"] != clusters[b]["database"]}
     bridges: Counter = Counter()
-    for cid, vec in unit_vecs:                    # nächster Cluster in jeder anderen Datenbank
+    for cid, vec in unit_vecs:                    # nearest cluster in each other database
         own = clusters[cid]["database"]
         best: dict[str, tuple[float, int]] = {}
         for o in ids:
@@ -84,7 +84,7 @@ def cross_relations(rows: list[dict], vectors: dict[str, list[float]], databases
         for _, o in best.values():
             bridges[(min(cid, o), max(cid, o))] += 1
     keep = set()
-    for c in ids:                                 # je Cluster die beste Beziehung zu jeder anderen Datenbank
+    for c in ids:                                 # per cluster the best relation to each other database
         per_db: dict[str, tuple[float, tuple[int, int]]] = {}
         for (a, b), s in sim.items():
             if c not in (a, b):
@@ -106,7 +106,7 @@ def _public(c: dict) -> dict:
 
 
 def relations(databases: list[str]) -> dict:
-    """Beziehungen zwischen den Clustern der gegebenen Datenbanken aus dem Index."""
+    """Relations between the clusters of the given databases, from the index."""
     from . import store
 
     rows = _unit_rows(store.scroll_documents(), store.list_projects())
@@ -115,8 +115,8 @@ def relations(databases: list[str]) -> dict:
 
 
 def relations_context(cluster_ids: list[int], databases: list[str], db_name=lambda d: d) -> tuple[str, list[dict]]:
-    """Für den Graph Chat: liegen die gewählten Cluster in mehreren Datenbanken, eine kurze Beschreibung ihrer
-    Beziehungen (für den Prompt) und die Beziehungen selbst (für die Antwort-Metadaten)."""
+    """For the Graph Chat: if the selected clusters lie in several databases, a short description of their
+    relations (for the prompt) and the relations themselves (for the answer metadata)."""
     if len(cluster_ids) < 2:
         return "", []
     res = relations(databases) if len(databases) >= 2 else {"clusters": [], "links": []}
@@ -138,7 +138,7 @@ def relations_context(cluster_ids: list[int], databases: list[str], db_name=lamb
 
 
 def group_by_database(cluster_ids: list[int], docs: list[dict]) -> dict[str, list[int]]:
-    """Cluster-IDs je Datenbank (Mehrheit der Mitglieder) – für die ausgewogene Suche im Graph Chat."""
+    """Cluster ids per database (majority of the members) – for the balanced search in the Graph Chat."""
     votes: dict[int, Counter] = defaultdict(Counter)
     wanted = set(cluster_ids)
     for d in docs:

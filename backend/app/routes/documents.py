@@ -24,6 +24,7 @@ LIST_FIELDS = ["doc_id", "databases", "cluster_id", "cluster_label", "cluster_sc
 
 
 class DatabaseAssignment(BaseModel):
+    """New database assignment of a document."""
     databases: list[str]
 
 
@@ -44,6 +45,7 @@ def list_documents(
     limit: int = Query(200, le=5000),
     offset: int = 0,
 ):
+    """Documents matching the filters, sorted and limited (visible databases only)."""
     from ..filters import to_qdrant
 
     flt = SearchFilters(database=databases_param(database), cluster=cluster or [], doc_type=doc_type or [], project=project or [],
@@ -62,6 +64,7 @@ def list_documents(
 
 @router.get("/api/documents/{doc_id}")
 def document_detail(doc_id: str):
+    """All metadata of one document (without its server path)."""
     d = store.get_document(doc_id)
     if not d:
         raise HTTPException(404, "Document not found")
@@ -71,6 +74,7 @@ def document_detail(doc_id: str):
 
 @router.put("/api/documents/{doc_id}/databases")
 def assign_document(doc_id: str, body: DatabaseAssignment):
+    """Assign a document to databases (admin)."""
     n = store.set_databases(databases_param(body.databases), doc_ids=[doc_id])
     if not n:
         raise HTTPException(404, "Document not found")
@@ -79,6 +83,7 @@ def assign_document(doc_id: str, body: DatabaseAssignment):
 
 @router.get("/api/facets")
 def facets():
+    """Counts per filter value (clusters, databases, types, projects, years, methods …) for the filter panel."""
     rows = store.scroll_documents()
 
     def count(key: str) -> dict:
@@ -95,7 +100,7 @@ def facets():
 
 @router.get("/api/databases")
 def databases():
-    """Konfigurierte Datenbanken (Registry: Name, Farbe, öffentlich) mit Anzahl Dokumente und Projekte."""
+    """Configured databases (registry: name, colour, public) with the number of documents and projects."""
     rows = store.scroll_documents()
     out = []
     for db in settings().registry():
@@ -107,7 +112,7 @@ def databases():
 
 @router.get("/api/export")
 def export_all():
-    """Backup aller Metadaten (Dokumente inkl. Summaries, Datenbanken, Projekte) als JSON – ohne Vektoren."""
+    """Backup of all metadata (documents incl. summaries, databases, projects) as JSON – without vectors."""
     from datetime import datetime, timezone
     docs = store.scroll_documents()
     for d in docs:
@@ -118,6 +123,7 @@ def export_all():
 
 @router.get("/files/{doc_id}")
 def file(doc_id: str):
+    """Download/preview of the original file; only PDFs are shown inline, everything else is an attachment in a sandbox."""
     d = store.get_document(doc_id)
     if not d or not Path(d["source_path"]).is_file():
         raise HTTPException(404, "File not found")

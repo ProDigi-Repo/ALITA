@@ -1,8 +1,8 @@
-"""Regeln, mit denen Dateien eines research project angereichert werden:
-Rolle, Version, Journal/Einreichungsstufe, Archiv-Status, bestes Datum, Sprache.
+"""Rules by which the files of a research project are enriched:
+role, version, journal/submission stage, archive status, best date, language.
 
-Alle Regeln sind bewusst einfache, nachvollziehbare Muster. Sie lassen sich hier
-erweitern, ohne dass das LLM gefragt werden muss.
+All rules are deliberately simple, traceable patterns. They can be extended here
+without asking the LLM.
 """
 from __future__ import annotations
 
@@ -12,8 +12,8 @@ from pathlib import PurePosixPath
 
 from .schemas import ProjectRole
 
-# --------------------------------------------------------------------- Rollen
-# Reihenfolge zählt: erste passende Regel gewinnt. Muster gelten für den Dateinamen (klein).
+# --------------------------------------------------------------------- roles
+# order matters: the first matching rule wins. Patterns apply to the file name (lower case).
 ROLE_RULES: list[tuple[ProjectRole, re.Pattern, set[str] | None]] = [
     (ProjectRole.reviewer_response, re.compile(r"answers? to reviewers?|response to review|rebuttal"), None),
     (ProjectRole.cover_letter, re.compile(r"cover ?letter|anschreiben"), None),
@@ -46,9 +46,10 @@ ARCHIVE_DIRS = {"alt", "old", "archiv", "archive", "_old", "backup"}
 
 
 def detect_role(filename: str, filetype: str, folder_parts: list[str]) -> ProjectRole:
+    """Role of a project file (manuscript, data, analysis output, reference …) from its name, type and folders."""
     name = filename.lower()
     if filetype == "pdf" and REFERENCE_NAME.search(name) and not re.search(r"fragebogen|daten|data|proof|figure|original_v\d", name):
-        return ProjectRole.reference  # Autor-Jahr-Muster: zitierte Fremdliteratur
+        return ProjectRole.reference  # author-year pattern: cited third-party literature
     for role, pat, exts in ROLE_RULES:
         if pat.search(name) and (exts is None or filetype in exts):
             return role
@@ -59,13 +60,13 @@ def detect_role(filename: str, filetype: str, folder_parts: list[str]) -> Projec
     if filetype == "pdf" and any(p.lower() in {"literatur", "literature", "references"} for p in folder_parts):
         return ProjectRole.reference
     if filetype == "pdf" and REFERENCE_NAME.search(name):
-        return ProjectRole.reference  # Autor-Jahr-Muster: zitierte Fremdliteratur
+        return ProjectRole.reference  # author-year pattern: cited third-party literature
     if filetype in {"docx", "doc"}:
         return ProjectRole.notes
     return ProjectRole.other
 
 
-# ------------------------------------------------------------------ Versionen
+# ------------------------------------------------------------------ versions
 VERSION_RE = re.compile(r"^(?P<base>.*?)[_\- ]?v(?P<num>\d+)(?P<suffix>[a-z]?)$", re.I)
 COPY_RE = re.compile(r"\s*\(\d+\)$")
 
@@ -81,13 +82,14 @@ def parse_version(stem: str) -> tuple[str, str | None, int | None]:
 
 
 def version_sort_key(version: str | None) -> tuple[int, str]:
+    """Sort key for version strings such as "27a" (number, then letter); missing versions sort first."""
     if not version:
         return (-1, "")
     m = re.match(r"(\d+)([a-z]?)", version)
     return (int(m.group(1)), m.group(2)) if m else (-1, version)
 
 
-# ------------------------------------------------------ Journal & Einreichung
+# ------------------------------------------------------ journal & submission
 VENUE_DIR_RE = re.compile(r"^(?P<n>\d+)\s+(?P<name>.+)$")
 STAGE_PATTERNS = [
     (re.compile(r"ersteinreichung|initial|submission|^v0$", re.I), "initial_submission"),
@@ -97,7 +99,7 @@ STAGE_PATTERNS = [
 
 
 def detect_venue(folder_parts: list[str]) -> tuple[str | None, int | None, str | None]:
-    """Erkennt Ordnerstruktur wie 'Journal/2 European Management Review/R1'."""
+    """Recognises a folder structure like 'Journal/2 European Management Review/R1'."""
     venue = sub_no = stage = None
     for i, part in enumerate(folder_parts):
         if part.lower() in {"journal", "journals", "submissions", "einreichungen", "conference"}:
@@ -120,13 +122,14 @@ def detect_venue(folder_parts: list[str]) -> tuple[str | None, int | None, str |
 
 
 def is_archived(folder_parts: list[str]) -> bool:
+    """True when the file lies in an archive folder (alt/old/archiv …)."""
     return any(p.lower() in ARCHIVE_DIRS for p in folder_parts)
 
 
-# ---------------------------------------------------------------------- Datum
+# ---------------------------------------------------------------------- date
 YEAR_IN_NAME = re.compile(r"(?<!\d)(19[5-9]\d|20[0-4]\d)(?!\d)")
 DATE_IN_NAME = re.compile(r"(?<!\d)(20\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?!\d)")
-# Zip-/Kopier-Zeitstempel sind unzuverlässig; Office-/PDF-Eigenschaften haben Vorrang.
+# zip/copy timestamps are unreliable; Office/PDF properties take precedence.
 
 
 def best_date(
@@ -135,7 +138,7 @@ def best_date(
     modified: datetime | None,
     mtime: float | None,
 ) -> tuple[datetime | None, str | None]:
-    """Liefert (Datum, Quelle). Priorität: Dokument-Änderungsdatum > Erstelldatum > Datum im Namen > Dateisystem."""
+    """Returns (date, source). Priority: document modification date > creation date > date in the name > file system."""
     def ok(d: datetime | None) -> bool:
         return d is not None and 1980 <= d.year <= datetime.now().year + 1
 
@@ -154,12 +157,13 @@ def best_date(
     return None, None
 
 
-# --------------------------------------------------------------------- Sprache
+# --------------------------------------------------------------------- language
 _DE = set("und der die das nicht mit ist für auf den von zu eine wird sich auch".split())
 _EN = set("the and of to in is that for with on are this by be as we our".split())
 
 
 def detect_language(text: str) -> str | None:
+    """"de" or "en" by counting common function words; None when the text is too short or unclear."""
     words = re.findall(r"[a-zäöüß]+", text[:6000].lower())
     if len(words) < 20:
         return None
@@ -171,15 +175,17 @@ def detect_language(text: str) -> str | None:
 
 
 def title_from_filename(stem: str) -> str:
+    """Readable title from a file name: underscores to spaces, first letter upper case."""
     t = re.sub(r"[_]+", " ", stem).strip()
     return t[:1].upper() + t[1:] if t else stem
 
 
 def folder_parts_of(rel_path: str) -> list[str]:
+    """Folder names of a project-relative path."""
     return list(PurePosixPath(rel_path).parent.parts)
 
 
-# ------------------------------------------------- Web-Exporte (Medium, Blogs)
+# ------------------------------------------------- web exports (Medium, blogs)
 _MONTHS = {m: i for i, m in enumerate(
     "jan feb mar apr may jun jul aug sep oct nov dec".split(), start=1)}
 _MONTHS.update({"januar": 1, "februar": 2, "märz": 3, "maerz": 3, "april": 4, "mai": 5, "juni": 6, "juli": 7,
@@ -190,7 +196,7 @@ EXPORT_SUFFIX = re.compile(r"\s*_\s*(?:by\s+(?P<author>.+?)\s*_\s*)?(?P<site>Med
 
 
 def date_from_text(text: str) -> datetime | None:
-    """Veröffentlichungsdatum aus dem Textanfang, z. B. '4 min read · May 31, 2024' oder '25. September 2023'."""
+    """Publication date from the beginning of the text, e.g. '4 min read · May 31, 2024' or '25. September 2023'."""
     head = text[:1500]
     m = DATE_EN.search(head)
     if m:
@@ -207,14 +213,14 @@ def date_from_text(text: str) -> datetime | None:
 
 def clean_export_title(stem: str) -> tuple[str, str | None]:
     """'Lecture notes_ AI and Data _ by Lilian Do Khac _ Medium' -> ('Lecture notes: AI and Data', 'Lilian Do Khac').
-    Browser-Exporte ersetzen ':' und '?' durch '_'."""
+    Browser exports replace ':' and '?' by '_'."""
     author = None
     m = EXPORT_SUFFIX.search(stem)
     if m:
         author = (m.group("author") or "").strip() or None
         stem = stem[: m.start()]
     t = re.sub(r"_ ", ": ", stem).rstrip("_ ")
-    # zwischen Buchstaben stand meist ein '/', sonst ersetzt '_' Leerzeichen (Dateinamen ohne Leerzeichen)
+    # between letters there was mostly a '/', otherwise '_' replaces spaces (file names without spaces)
     t = re.sub(r"(?<=[a-zäöü])_(?=[a-zäöü])", "/", t).replace("_", " ") if " " in t else t.replace("_", " ")
     t = re.sub(r"\s{2,}", " ", t).strip()
     return t, author

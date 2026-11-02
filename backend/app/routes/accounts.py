@@ -14,11 +14,13 @@ router = APIRouter(prefix="/api", tags=["accounts"])
 
 
 class Login(BaseModel):
+    """Login form: user name and password."""
     user: str = Field(min_length=1, max_length=64)
     password: str = Field(min_length=1, max_length=256)
 
 
 def account_view(acc: accounts.Account | None) -> dict | None:
+    """Account as shown to the front end (no hash)."""
     if acc is None:
         return None
     return {"user": acc.user, "database": acc.database, "label": acc.label, "all": acc.all_databases}
@@ -34,6 +36,7 @@ def list_accounts() -> dict:
 
 @router.post("/login")
 async def login(body: Login, request: Request) -> JSONResponse:
+    """Log in with user name and password; sets the session cookie. Repeated failures are slowed down."""
     s = settings()
     user = body.user.strip().lower()
     wait = accounts.login_wait(user)
@@ -53,6 +56,7 @@ async def login(body: Login, request: Request) -> JSONResponse:
 
 @router.post("/logout")
 def logout(request: Request) -> JSONResponse:
+    """Log out by deleting the session cookie."""
     response = JSONResponse({"ok": True})
     response.delete_cookie(accounts.COOKIE_NAME, httponly=True, samesite="strict", secure=request.url.scheme == "https", path="/")
     return response

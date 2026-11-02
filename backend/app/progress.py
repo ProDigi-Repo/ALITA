@@ -1,16 +1,16 @@
-"""REQ-10, REQ-15 bis REQ-18: Erkenntnisfortschritt eines research project.
+"""REQ-10, REQ-15 to REQ-18: progress of insight of a research project.
 
-1. Rückgrat: die Manuskriptversionen des Projekts in ihrer Reihenfolge (Versionsnummer, dann Datum), nummeriert 1..N.
-2. Jede Version wird mit der vorherigen verglichen (REQ-17): identisch · nur Format · umformuliert · Wiedereinreichung · inhaltlich.
-   Maße: Text-Überlappung (5-Wort-Shingles) gesamt und in Results/Discussion/Conclusion, neue Zahlen (Kennwerte, n, p),
-   geänderte Methoden, Wechsel von Journal/Einreichungsstufe.
-3. Erkenntnisstufen (REQ-16): die stärksten inhaltlichen Änderungen sind die Stufengrenzen (3, 5, 10 … Stufen).
-   Gibt es weniger inhaltliche Sprünge, gibt es ehrlich weniger Stufen.
-4. Weitere Projektdateien (Analysen, Daten, Modelle, Einreichungen …) werden einer Stufe zugeordnet (REQ-10):
-   über den Journal-Ordner der Einreichung, sonst über das Datum; jede Zuordnung nennt ihre Grundlage.
-5. Optional (Knopf „mit KI zusammenfassen“): ein LLM formuliert je Stufe den Erkenntnisstand.
+1. Backbone: the manuscript versions of the project in their order (version number, then date), numbered 1..N.
+2. Each version is compared with the previous one (REQ-17): identical · format only · reworded · resubmission · substantive.
+   Measures: text overlap (5-word shingles) overall and in Results/Discussion/Conclusion, new numbers (statistics, n, p),
+   changed methods, change of journal/submission stage.
+3. Stages of insight (REQ-16): the strongest substantive changes are the stage borders (3, 5, 10 … stages).
+   If there are fewer substantive jumps, there are honestly fewer stages.
+4. Further project files (analyses, data, models, submissions …) are assigned to a stage (REQ-10):
+   via the journal folder of the submission, otherwise via the date; every assignment names its basis.
+5. Optional (button "summarise with AI"): an LLM words the state of insight per stage.
 
-Die Vergleiche sind regelbasiert und brauchen kein LLM; das Ergebnis wird je Projekt unter <DATA_DIR>/progress/ zwischengespeichert.
+The comparisons are rule-based and need no LLM; the result is cached per project under <DATA_DIR>/progress/.
 """
 from __future__ import annotations
 
@@ -22,9 +22,9 @@ from datetime import datetime, timezone
 
 log = logging.getLogger("progress")
 
-SPINE_ROLES = {"manuscript", "legal_text"}          # REQ-38: in Legal projects sind die Gesetzesfassungen das Rückgrat
+SPINE_ROLES = {"manuscript", "legal_text"}          # REQ-38: in legal projects the versions of the law are the backbone
 ANALYSIS_ROLES = {"analysis_output", "analysis_script", "model_file", "data"}
-SKIP_ROLES = {"reference"}                           # zitierte Fremdliteratur gehört nicht zur Projektgeschichte
+SKIP_ROLES = {"reference"}                           # cited third-party literature is not part of the project history
 RESULT_DEO = {"Results", "Discussion", "Conclusion"}
 KIND_LABEL = {"start": "first version", "identical": "identical copy", "format": "formatting only", "reword": "rewording",
               "resubmission": "resubmission", "substantive": "substantive change", "unknown": "not comparable (no text)"}
@@ -34,8 +34,9 @@ WORD_RE = re.compile(r"[a-zäöüß0-9]+")
 RELIABLE_DATE = {"doc_properties", "pdf_metadata", "filename"}
 
 
-# ------------------------------------------------------------------ Vergleich
+# ------------------------------------------------------------------ comparison
 def shingles(text: str, n: int = 5) -> set[int]:
+    """Hashed word n-grams of a text, for similarity between versions."""
     w = WORD_RE.findall((text or "").lower())
     if len(w) < n:
         return {hash(" ".join(w))} if w else set()
@@ -43,12 +44,14 @@ def shingles(text: str, n: int = 5) -> set[int]:
 
 
 def jaccard(a: set, b: set) -> float | None:
+    """Jaccard similarity of two sets; None when both are empty."""
     if not a and not b:
         return None
     return len(a & b) / max(1, len(a | b))
 
 
 def numbers(text: str) -> set[str]:
+    """Normalised numbers found in a text (decimal comma -> point, Unicode minus -> "-")."""
     return {re.sub(r"\s+", "", m.group(0)).replace(",", ".").replace("−", "-").lower() for m in NUM_RE.finditer(text or "")}
 
 
@@ -59,7 +62,7 @@ def _texts(chunks: list[dict]) -> tuple[str, str]:
 
 
 def compare(prev: dict, cur: dict, prev_chunks: list[dict], cur_chunks: list[dict]) -> dict:
-    """Wie hat sich cur gegenüber prev verändert? -> {kind, score, metrics, why}"""
+    """How did cur change compared to prev? -> {kind, score, metrics, why}"""
     pf, pr = _texts(prev_chunks)
     cf, cr = _texts(cur_chunks)
     venue_changed = (prev.get("venue"), prev.get("stage")) != (cur.get("venue"), cur.get("stage")) and bool(cur.get("venue") or cur.get("stage"))
@@ -105,7 +108,7 @@ def compare(prev: dict, cur: dict, prev_chunks: list[dict], cur_chunks: list[dic
     return {"kind": kind, "score": score, "metrics": m, "why": "; ".join(why) or KIND_LABEL[kind]}
 
 
-# --------------------------------------------------------------------- Rückgrat
+# --------------------------------------------------------------------- backbone
 def _proj(d: dict) -> dict:
     return d.get("project") or {}
 
@@ -118,7 +121,7 @@ def _ver(d: dict) -> tuple:
 
 
 def pick_spine(docs: list[dict]) -> tuple[list[dict], str | None]:
-    """Längste Versionskette der Manuskripte (z. B. Artikel_v1 … v60); ohne Kette: alle Manuskripte nach Datum."""
+    """Longest version chain of the manuscripts (e.g. Artikel_v1 … v60); without a chain: all manuscripts by date."""
     ms = [d for d in docs if (d.get("role") in SPINE_ROLES) and not _proj(d).get("duplicate_of")]
     if not ms:
         return [], None
@@ -134,6 +137,7 @@ def pick_spine(docs: list[dict]) -> tuple[list[dict], str | None]:
 
 
 def signature(docs: list[dict]) -> str:
+    """Fingerprint of a set of project documents; changes when files, contents, roles or dates change."""
     h = hashlib.sha1()
     for d in sorted(docs, key=lambda x: x["doc_id"]):
         h.update(f"{d['doc_id']}|{d.get('content_hash')}|{d.get('role')}|{d.get('date')}\n".encode())
@@ -149,7 +153,7 @@ def _file(d: dict, n: int | None = None) -> dict:
 
 
 def analyze(docs: list[dict], chunks_of) -> dict:
-    """Vergleicht alle aufeinanderfolgenden Rückgrat-Versionen. chunks_of(doc_id) -> Chunks (für Tests austauschbar)."""
+    """Compares all consecutive backbone versions. chunks_of(doc_id) -> chunks (replaceable for tests)."""
     spine, group = pick_spine(docs)
     versions, prev, prev_ch = [], None, None
     for i, d in enumerate(spine, start=1):
@@ -185,9 +189,9 @@ def _results_excerpt(chunks: list[dict]) -> str:
     return ""
 
 
-# ----------------------------------------------------------------- Stufen
+# ----------------------------------------------------------------- stages
 def build_stages(res: dict, k: int = 5) -> dict:
-    """Teilt die Versionen an den k-1 stärksten inhaltlichen Änderungen; ordnet die übrigen Dateien den Stufen zu."""
+    """Splits the versions at the k-1 strongest substantive changes; assigns the other files to the stages."""
     k = max(1, min(int(k or 5), 20))
     vs = res["versions"]
     notes: list[str] = []
@@ -222,7 +226,7 @@ def build_stages(res: dict, k: int = 5) -> dict:
             "formal_versions": sum(n for kd, n in counts.items() if kd in FORMAL), "counts": counts,
             "files": [v["n"] for v in part], "analyses": [], "related": [],
         })
-    # weitere Dateien zuordnen: 1) gleicher Journal-Ordner/Stufe der Einreichung 2) Datum 3) nicht zuordenbar
+    # assign further files: 1) same journal folder/stage of the submission 2) date 3) not assignable
     unassigned = []
     for f in res.get("others", []):
         st, basis = None, None
@@ -254,12 +258,13 @@ def build_stages(res: dict, k: int = 5) -> dict:
 
 
 def stage_count(question: str, default: int = 5) -> int:
+    """Number of knowledge stages a question asks for ("in 4 stages"), otherwise `default`."""
     m = re.search(r"\b(\d{1,2})\s*(?:knowledge\s+)?(?:stages|stufen|phasen|phases|steps|schritte|erkenntnisstufen)", question.lower())
     return int(m.group(1)) if m else default
 
 
 def table_text(p: dict, max_files: int = 6) -> str:
-    """Kompakte Textfassung für den Prompt."""
+    """Compact text version for the prompt."""
     vs = {v["n"]: v for v in p.get("versions", [])}
     lines = []
     for s in p.get("stages", []):
@@ -271,7 +276,7 @@ def table_text(p: dict, max_files: int = 6) -> str:
     return "\n".join(lines + [f"Note: {n}" for n in p.get("notes", [])])
 
 
-# ----------------------------------------------------------------- Speicher
+# ----------------------------------------------------------------- storage
 def _cache_file(project: str):
     from .config import get_settings
 
@@ -288,7 +293,7 @@ def _project_docs(project: str) -> list[dict]:
 
 
 def load(project: str, recompute: bool = False) -> dict:
-    """Ergebnis aus dem Zwischenspeicher; neu berechnen, wenn sich die Projektdateien geändert haben."""
+    """Result from the cache; recomputed when the project files have changed."""
     from . import store
 
     docs = _project_docs(project)
@@ -302,18 +307,19 @@ def load(project: str, recompute: bool = False) -> dict:
             pass
     res = analyze(docs, store.scroll_chunks)
     old = json.loads(f.read_text(encoding="utf-8")) if f.is_file() else {}
-    res["stage_text"] = {k: v for k, v in (old.get("stage_text") or {}).items()}   # KI-Texte bleiben, solange ihre Stufe gleich ist
+    res["stage_text"] = {k: v for k, v in (old.get("stage_text") or {}).items()}   # AI texts stay as long as their stage is the same
     f.parent.mkdir(parents=True, exist_ok=True)
     f.write_text(json.dumps(res, ensure_ascii=False), encoding="utf-8")
     return res
 
 
 def project_progress(project: str, k: int = 5, recompute: bool = False) -> dict:
+    """Knowledge progress of a project in k stages (cached unless recompute=True)."""
     return {"project": project, **build_stages(load(project, recompute), k)}
 
 
 async def summarize_stages(project: str, k: int, api_key: str | None) -> dict:
-    """KI: je Stufe Erkenntnisstand und was sich geändert hat – aus Findings/Results der ersten und letzten Version."""
+    """AI: per stage the state of insight and what changed – from Findings/Results of the first and last version."""
     from pydantic import BaseModel
     from pydantic_ai import Agent
 
@@ -355,7 +361,7 @@ async def summarize_stages(project: str, k: int, api_key: str | None) -> dict:
 
 
 def compact(p: dict) -> dict:
-    """Für den Chat: Stufen mit Dateilisten, ohne Messwerte."""
+    """For the chat: stages with lists of files, without measurements."""
     vs = {v["n"]: v for v in p.get("versions", [])}
     keep = ("n", "doc_id", "filename", "version", "date", "kind", "why", "venue", "stage")
     return {"project": p.get("project"), "requested": p.get("requested"), "notes": p.get("notes", []), "formal": p.get("formal", {}),
@@ -374,7 +380,7 @@ PROGRESS_RULES = ("The question asks how the knowledge of a project developed or
 
 
 def chat_context(question: str, filters, entities, databases: list[str] | None = None) -> tuple[dict | None, str]:
-    """REQ-15/16: Erkenntnisstufen des Projekts der Frage (Auswahl > Name in der Frage > einziges Projekt im Umfang)."""
+    """REQ-15/16: stages of insight of the project of the question (selection > name in the question > only project in scope)."""
     from . import store
     names = list(getattr(filters, "project", None) or []) or [e.value for e in entities if e.type == "project"]
     if not names:

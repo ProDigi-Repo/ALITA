@@ -21,11 +21,13 @@ _EXCL_TTL = 300   # seconds
 
 
 class ProgressRequest(BaseModel):
+    """Options for the knowledge-progress view of a project."""
     stages: int = 5
     use_llm: bool = False
 
 
 class TeamAssignment(BaseModel):
+    """New team of a project."""
     team: list[str] = []
 
 
@@ -55,17 +57,19 @@ def _with_excluded(p: dict) -> dict:
 
 @router.get("/projects")
 def projects():
+    """All visible projects."""
     return [_with_excluded(p) for p in store.list_projects()]
 
 
 @router.get("/projects/{name}")
 def project_detail(name: str):
+    """One project with its excluded files."""
     return _with_excluded(_project_or_404(name))
 
 
 @router.put("/projects/{name}/databases")
 def assign_project(name: str, body: DatabaseAssignment):
-    """Gilt für das Projekt und alle seine Dateien."""
+    """Applies to the project and all of its files."""
     n = store.set_databases(databases_param(body.databases), project_name=name)
     if not n:
         raise HTTPException(404, "Project not found")
@@ -74,7 +78,7 @@ def assign_project(name: str, body: DatabaseAssignment):
 
 @router.get("/projects/{name}/progress")
 def project_progress(name: str, request: Request, stages: int = 5, recompute: bool = False):
-    """REQ-10/16/17/18: Versionshistorie in Erkenntnisstufen – Versionen, Art jeder Änderung, Stufen mit Dateien und Analysen."""
+    """REQ-10/16/17/18: version history in stages of insight – versions, kind of each change, stages with files and analyses."""
     from ..progress import project_progress as pp
     if recompute and not request.state.is_admin:
         raise HTTPException(403, "Admin access required")
@@ -84,7 +88,7 @@ def project_progress(name: str, request: Request, stages: int = 5, recompute: bo
 
 @router.post("/projects/{name}/progress")
 async def project_progress_llm(name: str, body: ProgressRequest, x_key: KeyHeader = None):
-    """Wie GET, berechnet neu und lässt (use_llm) je Stufe den Erkenntnisstand von der KI formulieren."""
+    """Like GET, recomputed; with use_llm the AI also words the state of insight of each stage."""
     from ..progress import project_progress as pp
     from ..progress import summarize_stages
     _project_or_404(name)
@@ -98,7 +102,7 @@ async def project_progress_llm(name: str, body: ProgressRequest, x_key: KeyHeade
 
 @router.put("/projects/{name}/team")
 def assign_team(name: str, body: TeamAssignment):
-    """REQ-19: kuratiertes Projektteam – Autor:innen des Projekts und aller seiner Dateien (Metadaten-Namen bleiben 'editors')."""
+    """REQ-19: curated project team – authors of the project and of all its files (names from file metadata stay 'editors')."""
     from ..people import save_team
     from ..project_teams import apply_team
     _project_or_404(name)
@@ -109,6 +113,6 @@ def assign_team(name: str, body: TeamAssignment):
 
 @router.get("/people")
 def people(database: Annotated[list[str] | None, Query()] = None):
-    """REQ-19: Personen für den Personen-Filter – Projektteams und Autor:innen von Papern/Notizen (ohne Datei-Bearbeiter:innen)."""
+    """REQ-19: people for the person filter – project teams and authors of papers/notes (without file editors)."""
     from ..people import people_index
     return people_index(store.scroll_documents(), store.list_projects(), databases_param(database))

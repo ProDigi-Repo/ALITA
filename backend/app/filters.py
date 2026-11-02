@@ -1,7 +1,7 @@
-"""Filter aus dem UI und aus dem Prompt (@schlüssel:wert) zusammenführen
-und in einen Qdrant-Filter übersetzen.
+"""Merge the filters from the UI and from the prompt (@key:value)
+and translate them into a Qdrant filter.
 
-Beispiele im Prompt:
+Examples in the prompt (German and English keys work):
   @typ:paper  @projekt:11-MentalModelProcesses  @dateityp:pdf
   @jahr:2021  @jahr:2018-2021  @rolle:manuscript  @methode:survey
   @version:latest  @journal:"European Management Review"
@@ -36,7 +36,7 @@ PROMPT_FILTER = re.compile(r'@([\wäöüß]+):(?:"([^"]+)"|([^\s;]+))', re.I)
 
 
 def parse_prompt_filters(text: str, base: SearchFilters) -> tuple[str, SearchFilters, list[str]]:
-    """Entfernt @-Filter aus dem Prompt und ergänzt sie zu den UI-Filtern."""
+    """Removes @ filters from the prompt and adds them to the UI filters."""
     f = base.model_copy(deep=True)
     applied: list[str] = []
 
@@ -81,7 +81,7 @@ def parse_prompt_filters(text: str, base: SearchFilters) -> tuple[str, SearchFil
 
 
 def to_qdrant(f: SearchFilters):
-    """SearchFilters -> qdrant_client.models.Filter (oder None)."""
+    """SearchFilters -> qdrant_client.models.Filter (or None)."""
     from qdrant_client import models as qm
 
     must: list = []
@@ -100,7 +100,7 @@ def to_qdrant(f: SearchFilters):
     any_of("venue", f.venue)
     any_of("deo", f.deo)
     any_of("doc_id", f.doc_ids)
-    # Rechtstext-Stellen (REQ-37) wählt der Stichtag, nicht Dateijahr, „neueste Version“ oder Archiv
+    # passages of legal texts (REQ-37) are chosen by the reference date, not by file year, "latest version" or archive
     legal_unit = [qm.Filter(must_not=[qm.IsEmptyCondition(is_empty=qm.PayloadField(key="ctv_id"))]),
                   qm.Filter(must_not=[qm.IsEmptyCondition(is_empty=qm.PayloadField(key="action_id"))])]
     if f.year_from or f.year_to:
@@ -116,9 +116,9 @@ def to_qdrant(f: SearchFilters):
 
 
 def legal_condition(f: SearchFilters):
-    """REQ-37: Stichtag für Rechtstexte. Andere Textstellen passieren unverändert; Bestandteil-Fassungen (ctv_id) nur, wenn sie
-    am Stichtag galten (valid_from ≤ t < valid_to) bzw. zur gewählten Stufe gehören; Änderungs-Texte (action_id) bis zum
-    Stichtag, bei Fragen nach Änderungen ab legal_from. legal_all_versions: keine Einschränkung."""
+    """REQ-37: reference date for legal texts. Other passages pass unchanged; component versions (ctv_id) only if they
+    were in force on the reference date (valid_from ≤ t < valid_to) or belong to the chosen stage; texts of changes (action_id)
+    up to the reference date, for questions about changes from legal_from. legal_all_versions: no restriction."""
     from datetime import date
 
     from qdrant_client import models as qm

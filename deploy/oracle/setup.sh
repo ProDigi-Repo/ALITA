@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Einrichtung auf einer frischen Oracle-Cloud-VM (Ubuntu 24.04, ARM/Ampere A1). Im Projektordner ausführen:
+# Set-up on a fresh Oracle Cloud VM (Ubuntu 24.04, ARM/Ampere A1). Run in the project folder:
 #   cd ~/research-rag && bash deploy/oracle/setup.sh
-# Mehrfach ausführbar: was schon da ist, wird übersprungen.
+# Can be run several times: what already exists is skipped.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 echo "== ALITA auf Oracle Cloud: $(pwd)"
 
-# 1) Docker Engine + Compose-Plugin aus dem offiziellen Docker-Repository
+# 1) Docker Engine + Compose plugin from the official Docker repository
 if ! command -v docker >/dev/null 2>&1; then
   echo "== Docker installieren"
   sudo apt-get update -y
@@ -22,16 +22,16 @@ if ! command -v docker >/dev/null 2>&1; then
   echo "   Docker installiert. Nach dem Skript einmal ab- und wieder anmelden (dann geht docker ohne sudo)."
 fi
 
-# 2) Swap (4 GB) als Puffer beim Bauen des Backend-Images
+# 2) swap (4 GB) as a buffer while building the backend image
 if ! sudo swapon --show | grep -q /swapfile; then
   echo "== Swap 4 GB anlegen"
   sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile >/dev/null && sudo swapon /swapfile
   grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab >/dev/null
 fi
 
-# 3) .env für den Server
+# 3) .env for the server
 if [ ! -f .env ]; then cp .env.example .env; echo "== .env aus .env.example angelegt"; fi
-setkey() {  # setkey NAME WERT  (nur wenn noch nicht gesetzt)
+setkey() {  # setkey NAME VALUE  (only if not set yet)
   if ! grep -q "^$1=" .env; then echo "$1=$2" >> .env; echo "   $1 gesetzt"; fi
 }
 setkey COMPOSE_FILE "docker-compose.yml:deploy/oracle/docker-compose.oracle.yml"
@@ -51,7 +51,7 @@ if ! grep -q '^CLOUDFLARE_TUNNEL_TOKEN=.\+' .env; then
 fi
 mkdir -p migrate research
 
-# 4) Starten
+# 4) start
 SUDO=""; docker info >/dev/null 2>&1 || SUDO="sudo"
 $SUDO docker compose up -d --build
 echo

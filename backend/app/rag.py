@@ -31,6 +31,7 @@ NO_PASSAGE = "No single document passage matched this question; answer from the 
 
 
 class Answer(BaseModel):
+    # Structured output the language model returns in the RAG chat. (comment, not a docstring: it would enter the LLM output schema)
     answer: str = Field(description="Antwort mit Quellenverweisen im Format [1], [2]")
     used_sources: list[int] = Field(default=[], description="Nummern der tatsächlich genutzten Quellen")
     intent: Intent = Field("question", description="Intention der Frage")
@@ -39,6 +40,7 @@ class Answer(BaseModel):
 
 @dataclass
 class Prepared:
+    """Everything prepared for one RAG answer: key, query, filters, prompt, sources and history."""
     key: str
     query: str
     filters: object
@@ -118,6 +120,7 @@ def _response(p: Prepared, text: str, used: set[int], intent=None, entities=None
 
 
 async def answer(req: ChatRequest, api_key: str | None = None) -> ChatResponse:
+    """Answer a RAG chat question in one piece (non-streaming)."""
     from pydantic_ai import Agent
 
     meter = usage.start()                     # what question and answer cost

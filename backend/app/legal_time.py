@@ -1,16 +1,16 @@
-"""REQ-37: Zeitlicher Planer für Rechtstexte (Paper de Martim 2025, Abschnitt 4.3/4.4) – regelbasiert, ohne LLM.
+"""REQ-37: temporal planner for legal texts (paper de Martim 2025, sections 4.3/4.4) – rule-based, no LLM.
 
-Aus der Frage werden Stichtag, Zeitraum, Verfahrensstufe, genannte Bestandteile und ein gesuchter Begriff gelesen.
-Daraus folgt eine **offengelegte Regel** (policy), nach der die Fassungen gewählt werden:
+From the question it reads the reference date, period, procedural stage, components named and a term searched for.
+From that follows a **disclosed rule** (policy) by which the versions are chosen:
 
-  current        keine Zeitangabe – die heute gültige Fassung (Standard)
-  point_in_time  Stichtag („am 1.9.2026“, „on 2 August 2026“) – die an diesem Tag gültige Fassung
-  snapshot_last  Zeitraum („in 2025“, „im September 2026“) – die am letzten Tag des Zeitraums gültige Fassung
-  stage          Verfahrensstufe („im Kommissionsvorschlag“, „draft“) – die Fassung dieser Stufe (ohne Geltung)
-  all_versions   „alle Fassungen“ – keine Einschränkung
+  current        no time given – the version in force today (default)
+  point_in_time  reference date ("am 1.9.2026", "on 2 August 2026") – the version in force on that day
+  snapshot_last  period ("in 2025", "im September 2026") – the version in force on the last day of the period
+  stage          procedural stage ("im Kommissionsvorschlag", "draft") – the version of that stage (not in force)
+  all_versions   "all versions" – no restriction
 
-Fragen nach Änderungen („was hat sich seit 2024 geändert“, „seit wann steht … drin“) setzen history=True; dann gehen
-auch die Action-Texte des Zeitraums in die Suche (Paper Query Pattern 2 und 3).
+Questions about changes ("what has changed since 2024", "since when does … contain") set history=True; then
+the action texts of the period also go into the search (paper query patterns 2 and 3).
 """
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ RX_BEFORE = re.compile(rf"\b(before|prior to|vor|bis)\s+(?:dem\s+|the\s+)?(.{{0,
 RX_BETWEEN = re.compile(rf"\b(between|zwischen)\s+{_YEAR}\s+(and|und)\s+{_YEAR}", re.I)
 RX_YEAR_CTX = re.compile(rf"\b(in|im|during|während|stand|as of|as at|zum|am|on|jahr|year|fassung|version)\s+(?:dem\s+|the\s+|jahr\s+|year\s+)?{_YEAR}", re.I)
 
-STAGE_WORDS = [                                # erste Fundstelle gewinnt – „draft compromise amendments“ ist Ausschuss, kein Vorschlag
+STAGE_WORDS = [                                # the first match wins – "draft compromise amendments" is the committee stage, not the proposal
     ("committee", r"\b(imco|libe|committee (?:text|amendments?|report|vote|stage|version)|compromise amendments?|"
                   r"ausschuss\w*|kompromissänderung\w*|kompromisstext\w*)\b"),
     ("proposal", r"\b(commission proposal|kommissionsvorschlag|proposal|vorschlag|gesetzentwurf|referentenentwurf|entwurf|draft)\b"),
@@ -78,7 +78,7 @@ def _dates(q: str) -> list[date]:
 
 
 def plan(question: str, today: date | None = None, refs=None) -> dict:
-    """Zeitliche Einordnung einer Frage zu Rechtstexten -> {policy, as_of, interval, stage, history, term, refs, label}."""
+    """Temporal classification of a question about legal texts -> {policy, as_of, interval, stage, history, term, refs, label}."""
     from .legal import refs_in
 
     today = today or date.today()
@@ -135,7 +135,7 @@ def plan(question: str, today: date | None = None, refs=None) -> dict:
 
 
 def describe(p: dict) -> str:
-    """Offenlegung der Regel in einem Satz (für Antwort und Oberfläche)."""
+    """Disclosure of the rule in one sentence (for the answer and the interface)."""
     from .legal import STAGE_LABEL
 
     pol = p.get("policy")
@@ -155,8 +155,8 @@ def describe(p: dict) -> str:
 
 
 def draft_fallback(models: list[dict], as_of: str) -> str | None:
-    """Kein Gesetz im Umfang hat am Stichtag eine geltende Fassung, aber es gibt Entwürfe (z. B. nur der Kommissionsvorschlag
-    ist eingelesen)? -> jüngste Entwurfsstufe bis zum Stichtag, sonst None. Wird in der Antwort offengelegt."""
+    """No law in scope has a version in force on the reference date, but there are drafts (e.g. only the Commission
+    proposal is ingested)? -> the latest draft stage up to the reference date, otherwise None. Disclosed in the answer."""
     from .legal import DRAFT_STAGES
     drafts = []
     for m in models:
@@ -170,7 +170,7 @@ def draft_fallback(models: list[dict], as_of: str) -> str | None:
 
 
 def apply(filters, p: dict):
-    """Planer-Ergebnis in SearchFilters übertragen (eine Angabe aus der Oberfläche hat Vorrang)."""
+    """Transfer the planner result into SearchFilters (a setting from the interface takes precedence)."""
     if filters.as_of or filters.legal_stage or filters.legal_all_versions:
         return filters
     upd = {}

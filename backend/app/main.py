@@ -18,6 +18,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    """Startup: create the data folder and Qdrant collections, migrate old people data in the background."""
     from .project_teams import migrate_people_once
     get_settings().data_dir.mkdir(parents=True, exist_ok=True)
     store.ensure_collections()
@@ -26,6 +27,7 @@ async def lifespan(_: FastAPI):
 
 
 def create_app() -> FastAPI:
+    """Build the FastAPI app: access middleware, all routers and the static front end at "/"."""
     application = FastAPI(title="ALITA API", version=__version__, lifespan=lifespan)
     application.middleware("http")(protect_request)  # front end and API are same-origin; no permissive CORS
     for router in ROUTERS:

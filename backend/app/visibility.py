@@ -12,6 +12,7 @@ _ALLOWED: ContextVar[frozenset[str] | None] = ContextVar("alita_allowed_database
 
 
 def allowed() -> frozenset[str] | None:
+    """Database ids the current request may see; None means all."""
     return _ALLOWED.get()
 
 
@@ -21,6 +22,7 @@ def restrict(databases) -> Token:
 
 
 def reset(token: Token) -> None:
+    """Restore the previous visibility after a request."""
     _ALLOWED.reset(token)
 
 

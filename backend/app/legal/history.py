@@ -8,29 +8,30 @@ from .common import DRAFT_STAGES, STAGE_LABEL, _h, cmp_key, iso
 from .parse import Component, ancestors, component_label
 
 
-# ----------------------------------------------------------------- Fassungen (Temporal Versions) und Actions
+# ----------------------------------------------------------------- versions (Temporal Versions) and Actions
 @dataclass
 class VersionInput:
+    """One version of a norm as input for the history: stage, dates, parsed components and amendment details."""
     seq: int
     doc_id: str
     stage: str
-    date: str | None = None             # Datum des Dokuments (Annahme, Veröffentlichung, Entwurf)
-    in_force: str | None = None         # Inkrafttreten dieser Fassung; None = keine Geltung (Entwurf)
-    applicable: str | None = None       # allgemeiner Anwendungsbeginn
+    date: str | None = None             # date of the document (adoption, publication, draft)
+    in_force: str | None = None         # entry into force of this version; None = not in force (draft)
+    applicable: str | None = None       # general start of application
     applicability: list[dict] = field(default_factory=list)   # [{components: [prefix…], from: date}]
     no_longer_in_force: str | None = None
     language: str = "en"
     amended_by: dict | None = None      # {title, eli}
     title: str = ""
     components: list[Component] = field(default_factory=list)
-    partial: bool = False               # Dokument enthält nur geänderte Teile; fehlende sind aus der Vorfassung übernommen
-    amendments: list[dict] = field(default_factory=list)   # Fassung aus einer Änderungsverordnung erzeugt: Bericht je Befehl
+    partial: bool = False               # the document contains only changed parts; the missing ones are taken from the previous version
+    amendments: list[dict] = field(default_factory=list)   # version created from an amending regulation: report per instruction
 
 
 def applicable_for(cid: str, path: list[str], v: VersionInput) -> str | None:
-    """Anwendungsbeginn eines Bestandteils in dieser Fassung: spezifischste Regel gewinnt – die Regel, die den Bestandteil
-    selbst (oder seinen nächsten Vorfahren) nennt, vor der Regel für sein Kapitel; bei Gleichstand das längere Präfix.
-    Beispiel Art. 113 AI Act: Kapitel XII ab 2.8.2025, „mit Ausnahme von Artikel 101“ (ab 2.8.2026)."""
+    """Start of application of a component in this version: the most specific rule wins – the rule that names the
+    component itself (or its nearest ancestor) before the rule for its chapter; on a tie the longer prefix.
+    Example Art. 113 AI Act: chapter XII from 2.8.2025, "with the exception of Article 101" (from 2.8.2026)."""
     best, best_score = iso(v.applicable), None
     for rule in v.applicability or []:
         for pref in rule.get("components") or []:
@@ -45,14 +46,14 @@ def applicable_for(cid: str, path: list[str], v: VersionInput) -> str | None:
 
 
 def build_history(norm: dict, versions: list[VersionInput]) -> dict:
-    """Fassungsgeschichte einer Norm: Bestandteile, CTVs (mit Wiederverwendung/Aggregation) und Actions.
+    """Version history of a norm: components, CTVs (with reuse/aggregation) and actions.
 
-    norm: {norm_id, title, short, kind, eli, issuer}. versions: in zeitlicher Reihenfolge (seq aufsteigend).
+    norm: {norm_id, title, short, kind, eli, issuer}. versions: in chronological order (seq ascending).
     """
     nid = norm["norm_id"]
     vs = sorted(versions, key=lambda v: v.seq)
-    # Anwendungsbeginn erben: eine Fassung ohne eigene Angabe übernimmt die der vorigen; neue Regeln ersetzen alte
-    # Regeln für dieselben Bestandteile (so muss eine konsolidierte Fassung nur nennen, was sich geändert hat)
+    # inherit the start of application: a version without its own rules takes those of the previous one; new rules replace
+    # old rules for the same components (so a consolidated version only has to name what changed)
     for a, b in zip(vs, vs[1:]):
         if not b.applicable:
             b.applicable = a.applicable
@@ -63,7 +64,7 @@ def build_history(norm: dict, versions: list[VersionInput]) -> dict:
             if rest:
                 kept.append({**r, "components": rest})
         b.applicability = kept + list(b.applicability or [])
-    # Geltungskette: Fassungen mit Inkrafttreten
+    # chain of validity: versions with entry into force
     valid = [v for v in vs if v.in_force and v.stage not in DRAFT_STAGES]
     vfrom: dict[int, str] = {v.seq: iso(v.in_force) for v in valid}
     vto: dict[int, str | None] = {}
@@ -73,7 +74,7 @@ def build_history(norm: dict, versions: list[VersionInput]) -> dict:
     components: dict[str, dict] = {}
     ctvs: dict[str, dict] = {}
     actions: list[dict] = []
-    prev: dict[str, dict] = {}          # cid -> aktuelle CTV
+    prev: dict[str, dict] = {}          # cid -> current CTV
     prev_v: VersionInput | None = None
     vsum = []
     for v in vs:
@@ -90,7 +91,7 @@ def build_history(norm: dict, versions: list[VersionInput]) -> dict:
         depth = {cid: len(ancestors(cid, comps)) for cid in comps}
         cur: dict[str, dict] = {}
         changed = added = 0
-        for cid in sorted(comps, key=lambda x: -depth[x]):          # Kinder vor Eltern
+        for cid in sorted(comps, key=lambda x: -depth[x]):          # children before parents
             c = comps[cid]
             path = ancestors(cid, comps)
             appl = applicable_for(cid, path, v)
@@ -117,7 +118,7 @@ def build_history(norm: dict, versions: list[VersionInput]) -> dict:
             elif (p["applicable_from"] or "") != (appl or ""):
                 kind = "applicability_changed"
             else:
-                kind = None                       # nur Unterteile geändert: neue Aggregation ohne eigene Action
+                kind = None                       # only sub-parts changed: new aggregation without an action of its own
             if kind and (kind != "enacted" or c.type in ("article", "annex", "recital", "clause", "margin", "chapter", "title")):
                 act = _action(norm, kind, c, components[cid]["label"], p, ctv, prev_v, v)
                 actions.append(act)
@@ -140,7 +141,7 @@ def build_history(norm: dict, versions: list[VersionInput]) -> dict:
                      "components": len(comps), "added": added, "changed": changed, "removed": removed,
                      "partial": v.partial, "amendments": v.amendments})
         prev, prev_v = cur, v
-    # Geltung je CTV: über die gültigen Fassungen, die sie umfasst
+    # validity per CTV: across the versions in force that it covers
     for c in ctvs.values():
         span = [s for s in range(c["seq_from"], c["seq_to"] + 1) if s in vfrom]
         c["valid_from"] = vfrom[span[0]] if span else None
@@ -151,7 +152,7 @@ def build_history(norm: dict, versions: list[VersionInput]) -> dict:
 
 
 def _pair_renumbered(actions: list[dict], ctvs: dict, seq: int) -> None:
-    """Gestrichener + neu hinzugekommener Bestandteil mit fast gleichem Text (Umnummerierung im Gesetzgebungsverfahren)."""
+    """A deleted + a newly added component with almost the same text (renumbering in the legislative procedure)."""
     rem = [a for a in actions if a["seq"] == seq and a["kind"] == "removed"]
     add = [a for a in actions if a["seq"] == seq and a["kind"] == "added"]
     for r in rem:
@@ -186,7 +187,7 @@ def _short(t: str, n: int = 320) -> str:
 
 def _action(norm: dict, kind: str, c: Component | None, label: str, p: dict | None, ctv: dict | None,
             pv: VersionInput | None, v: VersionInput) -> dict:
-    """Action-Knoten (Paper Abschnitt 3.5.1) mit beschreibender Text Unit."""
+    """Action node (paper section 3.5.1) with a descriptive Text Unit."""
     name = norm.get("short") or norm.get("title") or norm["norm_id"]
     when = iso(v.in_force) if v.stage not in DRAFT_STAGES else None
     when = when or iso(v.date)

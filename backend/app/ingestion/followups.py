@@ -12,16 +12,16 @@ log = logging.getLogger("ingest")
 
 
 def uses_project_files(db: str) -> bool:
-    """Wurde diese Datenbank zuletzt mit Projektdateien als Einheiten geclustert (`ingest cluster --files`)?"""
+    """Was this database last clustered with project files as units (`ingest cluster --files`)?"""
     from .. import store
     return any(d.get("doc_type") == "research_project" and d.get("cluster_basis") == "summary"
                and db in (d.get("databases") or []) for d in store.scroll_documents())
 
 
 async def maybe_recluster(opts: IngestOptions, databases: list[str] | None = None) -> dict | None:
-    """Clustert nach einer Ingestion neu, wenn aktiviert und Embeddings erzeugt wurden – nur die betroffenen Datenbanken,
-    jede für sich und mit ihrer bisherigen Einheit (Projekte oder Projektdateien). Die Cluster aller anderen Datenbanken
-    bleiben unverändert. Ohne bekannte Datenbank (Dokumente ohne Zuordnung) wie bisher über alles."""
+    """Re-clusters after an ingestion when enabled and embeddings were created – only the databases concerned,
+    each on its own and with its previous unit (projects or project files). The clusters of all other databases
+    stay unchanged. Without a known database (documents without an assignment) over everything, as before."""
     s = get_settings()
     if not (opts.recluster and opts.embed and s.auto_cluster):
         return None
@@ -37,13 +37,13 @@ async def maybe_recluster(opts: IngestOptions, databases: list[str] | None = Non
             out = res if out is None else {**res, "k": out["k"] + res["k"],
                                            "documents": out.get("documents", 0) + res.get("documents", 0)}
         return out
-    except Exception as e:  # Clustering darf die Ingestion nicht scheitern lassen
-        log.warning("Clustering fehlgeschlagen: %s", e)
+    except Exception as e:  # clustering must not make the ingestion fail
+        log.warning("Clustering failed: %s", e)
         return out
 
 
 def maybe_citations(opts: IngestOptions) -> dict | None:
-    """REQ-35: Zitationsnetz am Ende einer Ingestion neu berechnen (Sekunden, ohne LLM und ohne Embeddings)."""
+    """REQ-35: recompute the citation network at the end of an ingestion (seconds, no LLM and no embeddings)."""
     if not (opts.recluster and get_settings().auto_citations):
         return None
     from ..citations import rebuild
@@ -52,21 +52,21 @@ def maybe_citations(opts: IngestOptions) -> dict | None:
         res = rebuild()
         log.info("Zitationsnetz: %s", res)
         return res
-    except Exception as e:   # das Zitationsnetz darf die Ingestion nicht scheitern lassen
-        log.warning("Zitationsnetz fehlgeschlagen: %s", e)
+    except Exception as e:   # the citation network must not make the ingestion fail
+        log.warning("Citation network failed: %s", e)
         return None
 
 
 def maybe_provisions(opts: IngestOptions) -> dict | None:
-    """REQ-68: Verweise der Paper auf Artikel der Gesetze neu auflösen (Sekunden, ohne LLM und ohne Embeddings)."""
+    """REQ-68: resolve again the references of papers to articles of laws (seconds, no LLM and no embeddings)."""
     if not (opts.recluster and get_settings().auto_provisions):
         return None
     from ..provisions import rebuild
 
     try:
         res = rebuild()
-        log.info("Bestimmungen: %s", res)
+        log.info("Provisions: %s", res)
         return res
-    except Exception as e:   # darf die Ingestion nicht scheitern lassen
-        log.warning("Verknüpfung mit Bestimmungen fehlgeschlagen: %s", e)
+    except Exception as e:   # must not make the ingestion fail
+        log.warning("Linking with provisions failed: %s", e)
         return None

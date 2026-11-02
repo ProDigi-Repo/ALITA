@@ -1,12 +1,12 @@
-"""REQ-38: Einlesen von Rechtstexten – Legal projects, Legal guidelines, Standards.
+"""REQ-38: ingestion of legal texts – legal projects, legal guidelines, standards.
 
-Ordner (wie bei research projects unter research/<DB>/):
-  research/<DB>/legal/<Projekt>/      ein Legal project: Fassungen eines Gesetzes (Vorschlag, angenommener Text,
-                                      konsolidierte Fassungen …) plus Begleitdokumente (Folgenabschätzung, Stellungnahmen …)
-  research/<DB>/guidelines/           Leitlinien (jede Datei eine Leitlinie, Fassungen per _legal.yaml gruppiert)
-  research/<DB>/standards/            Standards (dito)
+Folders (as for research projects under research/<DB>/):
+  research/<DB>/legal/<project>/      a legal project: versions of a law (proposal, adopted text,
+                                      consolidated versions …) plus accompanying documents (impact assessment, opinions …)
+  research/<DB>/guidelines/           guidelines (each file one guideline, versions grouped via _legal.yaml)
+  research/<DB>/standards/            standards (likewise)
 
-Die Daten, die man nicht sicher aus dem Text lesen kann, stehen in _legal.yaml im Ordner – Beispiel:
+What cannot be read reliably from the text is in _legal.yaml in the folder – example:
 
   norms:
     - id: eu-ai-act
@@ -15,7 +15,7 @@ Die Daten, die man nicht sicher aus dem Text lesen kann, stehen in _legal.yaml i
       eli: http://data.europa.eu/eli/reg/2024/1689/oj
       issuer: European Parliament and Council
       versions:
-        - {file: [proposal.pdf, proposal_annexes.pdf], stage: proposal, date: 2021-04-21}   # mehrere Dateien = eine Fassung
+        - {file: [proposal.pdf, proposal_annexes.pdf], stage: proposal, date: 2021-04-21}   # several files = one version
         - file: regulation_2024_1689.pdf
           stage: adopted
           date: 2024-06-13
@@ -31,8 +31,8 @@ Die Daten, die man nicht sicher aus dem Text lesen kann, stehen in _legal.yaml i
           applicability:
             - {components: [anx_III], from: 2027-12-02}
 
-Ohne _legal.yaml: Dateien eines Legal project mit erkennbarer Gesetzesstruktur (mindestens 3 Artikel/§) gelten als Fassungen
-einer Norm in Datumsreihenfolge, jede gültig ab ihrem Datum; Leitlinien/Standards gelten ab ihrem Datum.
+Without _legal.yaml: files of a legal project with a recognisable legal structure (at least 3 articles/§) are versions
+of one norm in date order, each in force from its date; guidelines/standards apply from their date.
 """
 from __future__ import annotations
 
@@ -67,6 +67,7 @@ FOLDERS = {"legal": DocType.legal_project, "laws": DocType.legal_project, "geset
 
 
 def read_meta(folder: Path) -> dict:
+    """Metadata from the _legal.yaml file of a legal folder (empty when missing)."""
     import yaml
 
     f = folder / LEGAL_YAML
@@ -90,7 +91,7 @@ def _files(path: Path, exclude: list[str]) -> list[Path]:
 
 
 def plan_norms(meta: dict, files: list[Path], kind: str, default_id: str, texts: dict[str, str]) -> tuple[list[dict], list[Path]]:
-    """Welche Dateien sind Fassungen welcher Norm (aus _legal.yaml, sonst geschätzt)? -> (norms, Begleitdokumente).
+    """Which files are versions of which norm (from _legal.yaml, otherwise guessed)? -> (norms, accompanying documents).
 
     norms: [{norm_id, title, short, kind, eli, issuer, versions: [{path, stage, date, in_force, …}]}]."""
     by_name = {p.name: p for p in files}
@@ -103,10 +104,10 @@ def plan_norms(meta: dict, files: list[Path], kind: str, default_id: str, texts:
             names = v.get("file") or v.get("files") or []
             names = [str(x) for x in (names if isinstance(names, list) else [names])]
             paths = []
-            for nm in names:            # Hauptdokument + Anhänge (z. B. COM(2021) 206 final und „ANNEXES 1 to 9“) = eine Fassung
+            for nm in names:            # main document + annexes (e.g. COM(2021) 206 final and "ANNEXES 1 to 9") = one version
                 p = by_name.get(nm) or next((q for r, q in by_rel.items() if r.endswith("/" + nm)), None)
                 if p is None:
-                    log.warning("_legal.yaml: Datei %s nicht gefunden", nm)
+                    log.warning("_legal.yaml: file %s not found", nm)
                     continue
                 paths.append(p)
             if not paths:
@@ -119,7 +120,7 @@ def plan_norms(meta: dict, files: list[Path], kind: str, default_id: str, texts:
                           "kind": n.get("kind") or kind, "eli": n.get("eli"), "issuer": n.get("issuer"),
                           "language": n.get("language") or "en", "no_longer_in_force": n.get("no_longer_in_force"),
                           "versions": vs})
-    named = {str(d.get("file")) for d in meta.get("documents") or []}   # REQ-51: Begleitdokumente aus _legal.yaml
+    named = {str(d.get("file")) for d in meta.get("documents") or []}   # REQ-51: accompanying documents from _legal.yaml
     rest = [p for p in files if p not in used and p.name not in named]
     pre_support = [p for p in files if p not in used and p.name in named]
     support: list[Path] = []
@@ -165,6 +166,7 @@ class LegalRun:
 
     @property
     def name(self) -> str:
+        """Folder name of the legal project."""
         return self.folder.name
 
     @property
@@ -174,6 +176,7 @@ class LegalRun:
 
     @property
     def support_items(self) -> list:
+        """Items of the supporting documents (not versions of the norm)."""
         return [self.by_path[p] for p in self.support]
 
 
@@ -214,14 +217,14 @@ def _supporting_metadata(run: LegalRun) -> None:
     for d in run.meta.get("documents") or []:
         it = next((run.by_path[p] for p in run.support if p.name == str(d.get("file"))), None)
         if it is None:
-            log.warning("_legal.yaml: Begleitdokument %s nicht gefunden", d.get("file"))
+            log.warning("_legal.yaml: accompanying document %s not found", d.get("file"))
             continue
         r = it.record
         if d.get("role") and r.project is not None:
             try:
                 r.project.role = ProjectRole(str(d["role"]))
             except ValueError:
-                log.warning("_legal.yaml: unbekannte Rolle %s", d["role"])
+                log.warning("_legal.yaml: unknown role %s", d["role"])
         if d.get("date"):
             dd = _legal_date(d["date"])
             r.date, r.date_source, r.year = dd, "legal_meta", dd.year
@@ -268,7 +271,7 @@ def _version_input(run: LegalRun, n: dict, v: dict, seq: int, vlist: list[dict],
         src = (v.get("amended_by") or {}).get("title") or r.title
         comps, report = apply_amendments(vin[-1].components, it.extracted.text, str(v["apply_amendments"]), src)
         st = {k: sum(1 for x in report if x["status"] == k) for k in ("applied", "approximate", "not_applied")}
-        log.info("%s: %d Änderungsbefehle – %s", n["norm_id"], len(report), st)
+        log.info("%s: %d amending instructions – %s", n["norm_id"], len(report), st)
     else:
         comps = parse_components(it.extracted.text, n["kind"])
         if partial:                       # only changed parts in the document: the rest from the previous version
@@ -349,7 +352,7 @@ async def _embed_units(run: LegalRun, chunk_size: int) -> None:
         old.update({u["id"]: v for u, v in zip(todo, vecs)})
         store.replace_legal_units(model["norm"]["norm_id"], units, [old[u["id"]] for u in units])
         run.n_units += len(units)
-        log.info("Norm %s: %d Text Units (%d neu eingebettet, %d wiederverwendet)", model["norm"]["norm_id"], len(units), len(todo),
+        log.info("Norm %s: %d Text Units (%d newly embedded, %d reused)", model["norm"]["norm_id"], len(units), len(todo),
                  len(units) - len(todo))
 
 
@@ -382,7 +385,7 @@ def _sync_graph(run: LegalRun) -> None:
         for model in run.models:
             graph.sync_legal(model)
     except Exception as e:
-        log.warning("Graph (Legal) nicht aktualisiert: %s", e)
+        log.warning("Graph (legal) not updated: %s", e)
 
 
 def _result(run: LegalRun, exclude: list[str]):
@@ -433,19 +436,21 @@ async def ingest_legal(path: Path, doc_type: DocType, opts):
     return result
 
 
-# ----------------------------------------------------------------- Modell-Ablage (für API, Chat, Oberfläche)
+# ----------------------------------------------------------------- model store (for API, chat, interface)
 def _model_file(norm_id: str) -> Path:
     safe = re.sub(r"[^\w.-]+", "_", norm_id)[:80]
     return get_settings().data_dir / "legal" / f"{safe}.json"
 
 
 def save_model(model: dict) -> None:
+    """Store the legal model of a norm as JSON in <DATA_DIR>/legal."""
     f = _model_file(model["norm"]["norm_id"])
     f.parent.mkdir(parents=True, exist_ok=True)
     f.write_text(json.dumps(model, ensure_ascii=False), encoding="utf-8")
 
 
 def load_model(norm_id: str) -> dict | None:
+    """Stored legal model of a norm, or None when missing or not visible to the current account."""
     from . import visibility
     f = _model_file(norm_id)
     m = json.loads(f.read_text(encoding="utf-8")) if f.is_file() else None
@@ -453,6 +458,7 @@ def load_model(norm_id: str) -> dict | None:
 
 
 def list_models(databases: list[str] | None = None) -> list[dict]:
+    """All stored legal models, optionally only those of the given databases and always only the visible ones."""
     from . import visibility
     d = get_settings().data_dir / "legal"
     out = []
@@ -470,6 +476,7 @@ def list_models(databases: list[str] | None = None) -> list[dict]:
 
 
 def summary_of(m: dict) -> dict:
+    """Short overview of a legal model: norm data, versions and counts of components, temporal versions and actions."""
     return {**m["norm"], "databases": m.get("databases"), "project": m.get("project"), "doc_type": m.get("doc_type"),
             "versions": m["versions"], "components": len(m["components"]), "temporal_versions": len(m["ctvs"]),
             "actions": len(m["actions"])}

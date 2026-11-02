@@ -1,16 +1,16 @@
-"""REQ-68: Kanten im Wissensgraphen von Papern zu den Bestimmungen, die sie diskutieren.
+"""REQ-68: edges in the knowledge graph from papers to the provisions they discuss.
 
-Ein Paper zitiert „Art. 33(4) AI Act“ – gemeint ist die Nummerierung der Fassung, die die Autor:innen vor sich hatten
-(z. B. den Kommissionsvorschlag 2021). ALITA
-  1. findet die Verweise im Text (Artikel, Absätze, Buchstaben, Anhänge, Erwägungsgründe; Verweise auf andere
-     Rechtsakte wie DSGVO, AEUV oder die Charta werden übersprungen),
-  2. ordnet sie einem Gesetz der Sammlung zu (Name des Gesetzes in der Nähe oder im ganzen Paper),
-  3. bestimmt die Fassung, auf die sich das Paper bezieht (Fassungen bis zum Datum des Papers; die, in der die zitierten
-     Bestandteile existieren und zitierte Wortlaute vorkommen),
-  4. bildet die Bestimmung auf die geltende Nummerierung ab (Textvergleich: Art. 33 des Vorschlags -> Art. 31 heute).
+A paper cites "Art. 33(4) AI Act" – meaning the numbering of the version the authors had in front of them
+(e.g. the Commission proposal of 2021). ALITA
+  1. finds the references in the text (articles, paragraphs, letters, annexes, recitals; references to other
+     acts such as the GDPR, the TFEU or the Charter are skipped),
+  2. assigns them to a law of the collection (name of the law nearby or in the whole paper),
+  3. determines the version the paper refers to (versions up to the date of the paper; the one in which the cited
+     components exist and cited wordings occur),
+  4. maps the provision to the current numbering (text comparison: Art. 33 of the proposal -> Art. 31 today).
 
-Ergebnis: Dokument-Payload `discusses`, Chunk-Payload `provisions` (["eu-ai-act#art_31", …], geltende Nummern) und im
-Graphen (:Document)-[:DISCUSSES]->(:Component), (:Chunk)-[:REFERS_TO]->(:Component). Ohne LLM, ohne Embeddings.
+Result: document payload `discusses`, chunk payload `provisions` (["eu-ai-act#art_31", …], current numbers) and in
+the graph (:Document)-[:DISCUSSES]->(:Component), (:Chunk)-[:REFERS_TO]->(:Component). No LLM, no embeddings.
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ log = logging.getLogger(__name__)
 LEGAL_TYPES = {"legal_project", "legal_guideline", "standard", "guidance"}
 BIB = "deo:BibliographicReference"
 
-# ----------------------------------------------------------------- 1. Verweise finden
+# ----------------------------------------------------------------- 1. finding references
 _NUM = r"\d{1,3}[a-z]?"
 _PAR = r"(?:\s?\(\s?[0-9]{1,3}[a-z]?\s?(?:\(\s?[a-z]{1,4}\s?\)\s?)?\)|\s?\(\s?[a-z]{1,4}\s?\))*"      # (1)(c), (4(k)), (h)
 _PARA_WORD = r"(?:,?\s*(?:paragraph|para\.?|Abs(?:atz|\.)?|point|lit\.|Buchst(?:abe|\.)?|Nr\.)\s*[0-9a-z]{1,3}(?:\s?\([a-z0-9]{1,4}\))*)*"
@@ -32,7 +32,7 @@ _ITEM = rf"{_NUM}{_PAR}{_PARA_WORD}"
 _ART_RX = re.compile(rf"\b(?:Articles?|Arts?\.|Art|Artikel|Artt?\.)\s*({_ITEM}(?:\s*(?:,|and|und|or|oder|&|to|bis|–|-)\s*{_ITEM})*)")
 _ANX_RX = re.compile(r"\b(?:Annex(?:es)?|Anh(?:ang|änge|\.))\s+([IVXLC]{1,6})\b(?!\w)((?:\s*(?:,|and|und)\s*[IVXLC]{1,6}\b)*)")
 _REC_RX = re.compile(r"\b(?:[Rr]ecitals?|Erwägungsgr(?:und|ünde)|ErwGr\.?)\s*\(?(\d{1,3})\)?((?:\s*(?:,|and|und|to|bis|–|-)\s*\(?\d{1,3}\)?)*)")
-# Verweise, die einem anderen Rechtsakt gehören (nachgestellt) – „Article 6 GDPR“, „Article 2 of the Treaty on …“
+# references that belong to another act (placed after it) – "Article 6 GDPR", "Article 2 of the Treaty on …"
 _OTHER_AFTER = re.compile(
     r"^\s*(?:of\s+(?:the\s+)?|des\s+|der\s+)?(?:\(?\s*)?(?:GDPR|DSGVO|DS-GVO|TFEU|TEU|AEUV|EUV|Charter|Charta|Treaty|ECHR|EMRK|"
     r"Convention|Directive|Richtlinie|Regulation\s*\((?:EU|EC)\)\s*(?!2024/1689)\d|Verordnung\s*\((?:EU|EG)\)\s*(?!2024/1689)\d|"
@@ -51,7 +51,7 @@ def _tokens(item: str) -> tuple[str, list[str]]:
 
 
 def _cid_variants(kind: str, num: str, parts: list[str]) -> list[str]:
-    """Mögliche Bestandteil-IDs vom genauesten zum gröbsten: art_60/abs_4/pt_k, art_60/pt_4/pt_k, …, art_60."""
+    """Possible component ids from the most precise to the coarsest: art_60/abs_4/pt_k, art_60/pt_4/pt_k, …, art_60."""
     root = f"{kind}_{num}"
     out: list[list[str]] = [[]]
     for p in parts[:3]:
@@ -84,7 +84,7 @@ def _items(first: str, rest: str) -> list[str]:
 
 
 def find_refs(text: str) -> list[dict]:
-    """Verweise auf Bestandteile eines Gesetzes: [{kind, num, parts, variants, pos, end, raw}]."""
+    """References to components of a law: [{kind, num, parts, variants, pos, end, raw}]."""
     text = text or ""
     out: list[dict] = []
     taken: list[tuple[int, int]] = []
@@ -99,7 +99,7 @@ def find_refs(text: str) -> list[dict]:
     for m in _ART_RX.finditer(text):
         if _other_act(text, m.start(), m.end()):
             continue
-        if re.match(r"\s*(?:of\s+)?(?:Annex|Anhang)\b", text[m.end():m.end() + 16]):     # „Article 4(1) Annex VII“: Verweis in einen Anhang
+        if re.match(r"\s*(?:of\s+)?(?:Annex|Anhang)\b", text[m.end():m.end() + 16]):     # "Article 4(1) Annex VII": a reference into an annex
             continue
         listing = m.group(1)
         pieces = re.split(r"\s*(?:,(?!\s*(?:paragraph|para|point|Abs|lit))|\band\b|\bund\b|\bor\b|\boder\b|&)\s*", listing)
@@ -124,9 +124,9 @@ def find_refs(text: str) -> list[dict]:
     return sorted(out, key=lambda r: r["pos"])
 
 
-# ----------------------------------------------------------------- 2. Gesetz zuordnen
+# ----------------------------------------------------------------- 2. assigning the law
 def aliases(model: dict) -> re.Pattern | None:
-    """Namen, unter denen Paper ein Gesetz nennen (Kurzname, Titel, Nummer; beim AI Act auch AIA, KI-VO, COM(2021) 206)."""
+    """Names under which papers mention a law (short name, title, number; for the AI Act also AIA, KI-VO, COM(2021) 206)."""
     n = model["norm"]
     names = {x for x in (n.get("short"), n.get("title")) if x and len(x) >= 4}
     blob = " ".join(str(x or "") for x in (n.get("title"), n.get("short"), n.get("eli"), n.get("norm_id")))
@@ -142,7 +142,7 @@ def aliases(model: dict) -> re.Pattern | None:
 
 
 def pick_norm(text_before: str, laws: list[tuple[dict, re.Pattern]], dominant: dict | None) -> dict | None:
-    """Gesetz eines Verweises: das zuletzt genannte in den 400 Zeichen davor, sonst das im Paper vorherrschende."""
+    """Law of a reference: the last one named in the 400 characters before it, otherwise the one dominating the paper."""
     best, at = None, -1
     window = text_before[-400:]
     for model, rx in laws:
@@ -152,7 +152,7 @@ def pick_norm(text_before: str, laws: list[tuple[dict, re.Pattern]], dominant: d
     return best or dominant
 
 
-# ----------------------------------------------------------------- 3./4. Fassung bestimmen und abbilden
+# ----------------------------------------------------------------- 3./4. determining and mapping the version
 def _norm(t: str) -> str:
     return re.sub(r"[^\w]+", " ", (t or "").lower()).strip()
 
@@ -167,7 +167,7 @@ def _jac(a: set, b: set) -> float:
 
 
 class Resolver:
-    """Fassungen und Konkordanz eines Gesetzes (zwischengespeichert für einen Lauf)."""
+    """Versions and concordance of a law (cached for one run)."""
 
     def __init__(self, model: dict):
         from .legal import valid_at
@@ -181,13 +181,15 @@ class Resolver:
         self._map: dict[tuple[int, str], str | None] = {}
 
     def exists(self, seq: int, cid: str) -> bool:
+        """True when component cid exists in version seq."""
         return cid in self._valid.get(seq, {})
 
     def resolve(self, seq: int, variants: list[str]) -> str | None:
+        """First of the id variants that exists in version seq."""
         return next((c for c in variants if self.exists(seq, c)), None)
 
     def text(self, seq: int, cid: str) -> str:
-        """Wortlaut mit allen Unterteilen (über die Präfixe der IDs – unabhängig von der Aggregation)."""
+        """Wording with all sub-parts (via the prefixes of the ids – independent of the aggregation)."""
         k = (seq, cid)
         if k not in self._text:
             v = self._valid.get(seq, {})
@@ -197,25 +199,29 @@ class Resolver:
         return self._text[k]
 
     def sh(self, seq: int, cid: str) -> set:
+        """Shingles of a component's text in version seq (cached)."""
         k = (seq, cid)
         if k not in self._sh:
             self._sh[k] = _shingles(self.text(seq, cid))
         return self._sh[k]
 
     def title(self, seq: int, cid: str) -> str:
+        """Title of a component in version seq, else its general title."""
         c = self._valid.get(seq, {}).get(cid) or {}
         return c.get("title") or self.m["components"].get(cid, {}).get("title") or ""
 
     def stage(self, seq: int) -> dict:
+        """Version entry with sequence number seq."""
         return next((v for v in self.versions if v["seq"] == seq), {})
 
     def candidates(self, when: str | None) -> list[int]:
+        """Sequence numbers of the versions published up to `when` (all when none match)."""
         seqs = [v["seq"] for v in self.versions if not when or not v.get("date") or v["date"] <= when]
         return seqs or [v["seq"] for v in self.versions]
 
     def choose(self, refs: list[dict], quotes: list[tuple[dict, str]], when: str | None) -> int | None:
-        """Fassung, auf die sich das Paper bezieht: die meisten zitierten Bestandteile existieren und zitierte Wortlaute
-        kommen in ihnen vor; bei Gleichstand die jüngste bis zum Datum des Papers."""
+        """Version the paper refers to: most of the cited components exist and cited wordings occur in them;
+        on a tie the latest up to the date of the paper."""
         best, score = None, -1.0
         for seq in self.candidates(when):
             s = 0.0
@@ -232,8 +238,8 @@ class Resolver:
         return best
 
     def to_current(self, seq: int, cid: str) -> str | None:
-        """Bestandteil einer früheren Fassung -> Bestandteil der geltenden Fassung (gleiche Nummer, wenn der Text passt,
-        sonst der ähnlichste Bestandteil gleicher Art; Unterteile innerhalb des gefundenen Artikels)."""
+        """Component of an earlier version -> component of the version in force (same number if the text fits,
+        otherwise the most similar component of the same kind; sub-parts within the article found)."""
         if seq == self.current:
             return cid if self.exists(seq, cid) else None
         k = (seq, cid)
@@ -276,12 +282,13 @@ class Resolver:
 
 
 def label(cid: str, title: str = "") -> str:
+    """Human-readable label of a component id."""
     from .legal import component_label
     return component_label(cid, title)
 
 
 def _quote_near(text: str, pos: int, end: int) -> str | None:
-    """Zitierter Wortlaut direkt vor oder nach dem Verweis („… independent“ [Art. 33(4) AI Act])."""
+    """Quoted wording right before or after the reference ("… independent" [Art. 33(4) AI Act])."""
     win = text[max(0, pos - 260):pos] + " " + text[end:end + 120]
     qs = re.findall(r"[“\"„«‘']([^”\"“»’']{12,240})[”\"“»’']", win)
     qs = [_norm(q) for q in qs]
@@ -296,13 +303,13 @@ def _doc_date(d: dict) -> str | None:
     if dt:
         dt = str(dt)[:10]
         if d.get("date_source") in (None, "year", "filename") and dt.endswith("-01-01"):
-            return f"{dt[:4]}-12-31"     # nur das Jahr bekannt: bis Jahresende
+            return f"{dt[:4]}-12-31"     # only the year is known: up to the end of the year
         return dt
     return f"{d['year']}-12-31" if d.get("year") else None
 
 
 def link_document(doc: dict, chunks: list[dict], laws: list[tuple[dict, re.Pattern]], resolvers: dict[str, Resolver]) -> dict:
-    """Verweise eines Dokuments auflösen. -> {"discusses": [...], "chunks": {chunk_id: ["nid#cid", …]}}"""
+    """Resolve the references of a document. -> {"discusses": [...], "chunks": {chunk_id: ["nid#cid", …]}}"""
     body = [c for c in chunks if BIB not in (c.get("deo") or []) and c.get("text")]
     full = "\n".join(c["text"] for c in body)
     hits = Counter()
@@ -352,6 +359,7 @@ def link_document(doc: dict, chunks: list[dict], laws: list[tuple[dict, re.Patte
 
 
 def laws_of(models: list[dict]) -> list[tuple[dict, re.Pattern]]:
+    """Laws among the legal models together with the regex of their names and aliases."""
     out = []
     for m in models:
         if (m["norm"].get("kind") or "law") != "law":
@@ -363,7 +371,7 @@ def laws_of(models: list[dict]) -> list[tuple[dict, re.Pattern]]:
 
 
 def by_article(discusses: list[dict]) -> list[dict]:
-    """Einträge je (geltendem) Artikel zusammenfassen – für Anzeige, Graph und Prompt."""
+    """Combine the entries per (current) article – for display, graph and prompt."""
     out: dict[tuple, dict] = {}
     for e in discusses:
         k = (e["norm_id"], e.get("current_article") or e["article"])
@@ -378,9 +386,9 @@ def by_article(discusses: list[dict]) -> list[dict]:
     return sorted(out.values(), key=lambda a: (-a["count"], a["label"]))
 
 
-# ----------------------------------------------------------------- Ausführen (Qdrant + Neo4j)
+# ----------------------------------------------------------------- running it (Qdrant + Neo4j)
 def rebuild() -> dict:
-    """Alle Paper, Notes und Projektdateien gegen alle Gesetze der Sammlung verknüpfen; Payload + Graph schreiben."""
+    """Link all papers, notes and project files with all laws of the collection; write payloads + graph."""
     from qdrant_client import models as qm
 
     from . import store
@@ -425,14 +433,14 @@ def rebuild() -> dict:
             from . import graph
             graph.sync_provisions(edges, chunk_edges)
             graph_ok = True
-        except Exception as e:      # Graph ist optional
+        except Exception as e:      # the graph is optional
             graph_ok = f"not updated: {e}"[:200]
     return {"laws": len(laws), "documents": n_docs, "links": n_links, "chunks": len(chunk_edges), "graph": graph_ok, "run": run}
 
 
 def links(documents: list[dict], databases: list[str] | None = None, norm_id: str | None = None,
           article: str | None = None) -> list[dict]:
-    """Paper -> Bestimmungen aus den Payloads (für API, Graph Chat und Anzeige). article: geltende ID, z. B. art_31."""
+    """Paper -> provisions from the payloads (for the API, Graph Chat and display). article: current id, e.g. art_31."""
     out = []
     for d in documents:
         arts = d.get("discusses") or []
@@ -447,7 +455,7 @@ def links(documents: list[dict], databases: list[str] | None = None, norm_id: st
 
 
 def describe(a: dict, short: str = "") -> str:
-    """„Art. 33 (Notified bodies) of the 2021 proposal – now Art. 31 (Requirements relating to notified bodies)“."""
+    """"Art. 33 (Notified bodies) of the 2021 proposal – now Art. 31 (Requirements relating to notified bodies)"."""
     from .legal import STAGE_LABEL
     head = a["label"] + (f" ({a['title']})" if a.get("title") else "")
     if a.get("parts"):
@@ -461,13 +469,13 @@ def describe(a: dict, short: str = "") -> str:
 
 
 # ----------------------------------------------------------------- Graph Chat (REQ-68)
-MAX_LINES = 12          # Kanten Paper -> Bestimmung im Prompt
-PAPER_PASSAGES = 4      # Stellen aus Papern, die die Bestimmung diskutieren
-LAW_PASSAGES = 3        # Wortlaut der Bestimmung (geltende Fassung)
+MAX_LINES = 12          # edges paper -> provision in the prompt
+PAPER_PASSAGES = 4      # passages of papers that discuss the provision
+LAW_PASSAGES = 3        # wording of the provision (version in force)
 
 
 def asked_articles(question: str) -> list[str]:
-    """Artikel, Anhänge, Erwägungsgründe, die die Frage nennt (Wurzel-IDs: art_31, anx_III, rec_46)."""
+    """Articles, annexes, recitals the question names (root ids: art_31, anx_III, rec_46)."""
     from .legal import refs_in
     out = []
     for c in refs_in(question or ""):
@@ -479,12 +487,12 @@ def asked_articles(question: str) -> list[str]:
 
 def chat_scope(question: str, documents: list[dict], cluster_ids: list[int] | None = None,
                databases: list[str] | None = None, db_name=lambda d: d) -> dict:
-    """Kanten Paper -[:DISCUSSES]-> Bestimmung, die zur Frage gehören: Bestimmungen, die die Frage nennt (geltende oder
-    zitierte Nummer), und – bei gewählten Clustern – alles, was die Paper dieser Cluster diskutieren.
+    """Edges paper -[:DISCUSSES]-> provision that belong to the question: provisions the question names (current or
+    cited number) and – with selected clusters – everything the papers of these clusters discuss.
     -> {"links", "context", "ids", "doc_ids", "articles", "path"}"""
     asked = asked_articles(question)
     wanted = set(cluster_ids or [])
-    law_cluster: dict[str, set] = defaultdict(set)      # norm_id -> Cluster der Fassungen des Gesetzes
+    law_cluster: dict[str, set] = defaultdict(set)      # norm_id -> clusters of the versions of the law
     law_name: dict[str, str] = {}
     for d in documents:
         lg = d.get("legal") or {}
@@ -545,8 +553,8 @@ def chat_scope(question: str, documents: list[dict], cluster_ids: list[int] | No
 
 
 async def chat_passages(scope: dict, query: str, key: str, have: set[str]) -> list:
-    """Belege zu den Kanten: Stellen der Paper, die die Bestimmung diskutieren, und der Wortlaut der Bestimmung in der
-    geltenden Fassung (über die TemporalVersions des Rechtsmodells)."""
+    """Evidence for the edges: passages of the papers that discuss the provision, and the wording of the provision in the
+    version in force (via the TemporalVersions of the legal model)."""
     if not scope.get("ids"):
         return []
     from qdrant_client import models as qm
@@ -584,18 +592,18 @@ async def chat_passages(scope: dict, query: str, key: str, have: set[str]) -> li
     return res
 
 
-# ----------------------------------------------------------------- Rechtstext-Ansicht (REQ-69)
+# ----------------------------------------------------------------- legal text view (REQ-69)
 def discussed_in(model: dict, documents: list[dict], seq: int | None = None) -> list[dict]:
-    """Je Artikel einer Fassung: die Paper, die ihn diskutieren – in der Nummerierung dieser Fassung (über die Konkordanz:
-    Art. 31 heute = Art. 33 des Vorschlags). -> [{article, label, title, papers: [{doc_id, title, year, authors, cited_as,
-    stage, count, parts}]}], nach Zahl der Paper und Reihenfolge im Gesetz."""
+    """Per article of a version: the papers that discuss it – in the numbering of this version (via the concordance:
+    Art. 31 today = Art. 33 of the proposal). -> [{article, label, title, papers: [{doc_id, title, year, authors, cited_as,
+    stage, count, parts}]}], by number of papers and order in the law."""
     nid = model["norm"]["norm_id"]
     rv = Resolver(model)
     seq = seq or rv.current
     if seq not in rv._valid:
         return []
     roots = [c for c in rv._valid[seq] if "/" not in c and c.split("_")[0] in ("art", "anx", "rec")]
-    back: dict[str, list[str]] = defaultdict(list)          # heutige Nummer -> Nummer(n) in Fassung seq
+    back: dict[str, list[str]] = defaultdict(list)          # today's number -> number(s) in version seq
     for r in roots:
         cur = rv.to_current(seq, r) if seq != rv.current else r
         if cur:
@@ -607,7 +615,7 @@ def discussed_in(model: dict, documents: list[dict], seq: int | None = None) -> 
             if a["norm_id"] != nid:
                 continue
             if a.get("seq") == seq and a["article"] in rv._valid[seq]:
-                targets = [a["article"]]                     # Paper zitiert genau diese Fassung
+                targets = [a["article"]]                     # the paper cites exactly this version
             else:
                 targets = back.get(a.get("current_article") or "", [])
             for t in targets:

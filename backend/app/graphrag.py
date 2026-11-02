@@ -1,7 +1,7 @@
-"""Graph RAG für Kachel B (Graph Chat): Frage -> Plan (DEO-Rolle + Entitäten) -> Neo4j-Pfad -> Vektorsuche
-nur in den Textstellen dieses Pfads -> gestreamte Antwort mit Graphpfad.
+"""Graph RAG for tile B (Graph Chat): question -> plan (DEO role + entities) -> Neo4j path -> vector search
+only in the passages of this path -> streamed answer with the graph path.
 
-Ohne erreichbaren Graphen fällt der Dienst auf die Vektorsuche mit DEO-Filter zurück (kein Abbruch).
+Without a reachable graph the service falls back to the vector search with the DEO filter (no failure).
 
 One question runs through the steps of ``answer_stream`` on a ``GraphTurn`` (the state of this question):
 plan → graph documents → filters and scope → passages (+ cluster relations/bridges, + paper → provision links) →
@@ -25,27 +25,28 @@ log = logging.getLogger("graphrag")
 
 
 class GraphRequest(BaseModel):
+    """Request of the GraphRAG chat: the question plus the scope selected in the map/graph (databases, clusters, persons, projects, DEO roles, relation, years)."""
     message: str
     history: list[ChatTurn] = []
     system_prompt: str | None = None
     model: str | None = None
     databases: list[str] = []
-    clusters: list[int] = []                  # ausgewählte Cluster (Klick in Karte/Graph); leer = alle
-    persons: list[str] = []                   # REQ-19: nur Daten dieser Person(en)
-    projects: list[str] = []                  # REQ-12: ausgewähltes Projekt (Klick in der Karte) – nur dieses Projekt
-    overview: bool = False                    # REQ-12: nichts ausgewählt (Landkarte) – Überblick über alle Projekte/Cluster mitgeben
-    deo: list[str] = []                       # aus dem UI („Discourse element“); leer = aus der Frage ableiten
+    clusters: list[int] = []                  # selected clusters (click in map/graph); empty = all
+    persons: list[str] = []                   # REQ-19: only data of these person(s)
+    projects: list[str] = []                  # REQ-12: selected project (click in the map) – only this project
+    overview: bool = False                    # REQ-12: nothing selected (whole map) – add an overview of all projects/clusters
+    deo: list[str] = []                       # from the UI ("Discourse element"); empty = derived from the question
     entity_types: list[str] = ["person", "organization", "project", "method"]
     relation: str | None = None               # authored | uses_method | cites | in_cluster | contains
     year_from: int | None = None
     year_to: int | None = None
     hops: int = Field(2, ge=1, le=4)
-    as_of: str | None = None                  # REQ-37: Stichtag für Rechtstexte (YYYY-MM-DD); leer = aus der Frage, sonst heute
+    as_of: str | None = None                  # REQ-37: reference date for legal texts (YYYY-MM-DD); empty = from the question, else today
     top_k: int = Field(6, ge=1, le=20)
 
 
 def plan_question(req: GraphRequest, vocab: dict, filters_meta=None) -> dict:
-    """Welche DEO-Rollen und Entitäten spricht die Frage an? (regelbasiert, ohne LLM)"""
+    """Which DEO roles and entities does the question address? (rule-based, no LLM)"""
     from .query_meta import analyze
 
     meta = analyze(req.message, vocab, filters_meta)
@@ -73,7 +74,7 @@ def plan_question(req: GraphRequest, vocab: dict, filters_meta=None) -> dict:
 
 
 def path_for(plan: dict, doc: dict | None) -> list:
-    """Graphpfad für die Anzeige: [[Wert, Typ], "relation", …] (Format des Frontends)."""
+    """Graph path for display: [[value, type], "relation", …] (format of the front end)."""
     if not doc:
         return [[r, "DEO"] for r in plan.get("deo", [])[:2]]
     p: list = []
@@ -129,9 +130,11 @@ class GraphTurn:
 
     @property
     def by_id(self) -> dict[str, dict]:
+        """Documents of the scope by doc_id."""
         return {d["doc_id"]: d for d in self.all_docs}
 
     def positions(self) -> dict[str, int]:
+        """1-based source number of every retrieved hit, by point id."""
         return {str(h.id): i + 1 for i, h in enumerate(self.hits)}
 
 
@@ -166,7 +169,7 @@ def _graph_documents(t: GraphTurn, graph_enabled: bool) -> None:
             t.graph_docs = [d for d in t.graph_docs if d.get("doc_id") in seen]
             t.neighbours = [n for n in t.neighbours if n.get("doc_id") in seen]
     except Exception as e:
-        log.warning("Graph-Abfrage fehlgeschlagen, nur Vektorsuche: %s", e)
+        log.warning("Graph query failed, vector search only: %s", e)
 
 
 def _filters(t: GraphTurn) -> None:
@@ -200,11 +203,11 @@ async def _cluster_relations(t: GraphTurn) -> None:
     try:
         t.rel_head, t.rel_links = relations_context(t.plan["clusters"], list(t.groups), db_name)
     except Exception as e:                         # relations are an extra: never block the answer
-        log.warning("Cluster-Beziehungen nicht verfügbar: %s", e)
+        log.warning("Cluster relations not available: %s", e)
     try:
         t.bridges = await bridge_passages(t.hits, t.plan["clusters"], t.groups)
     except Exception as e:
-        log.warning("Brücken-Stellen nicht verfügbar: %s", e)
+        log.warning("Bridge passages not available: %s", e)
     have = {str(h.id) for h in t.hits}
     for b in t.bridges:                            # partner passages the search did not find are added
         for h in (b["left"], b["right"]):
@@ -223,7 +226,7 @@ async def _provisions(t: GraphTurn) -> None:
             t.hits += await chat_passages(t.prov, t.search_q, t.key, {str(h.id) for h in t.hits})
             t.prov_head = t.prov["context"]
     except Exception as e:                         # an extra: never block the answer
-        log.warning("Bestimmungen nicht verfügbar: %s", e)
+        log.warning("Provisions not available: %s", e)
 
 
 def _graph_path(t: GraphTurn) -> None:
@@ -305,6 +308,7 @@ def _prompt(t: GraphTurn, overview: str, prog_head: str) -> str:
 
 
 async def answer_stream(req: GraphRequest, api_key: str | None = None):
+    """Answer a GraphRAG question as a stream of events: scope, graph context, sources, text deltas, usage and the final answer."""
     from . import store
     from .chat_common import StreamedAnswer, scope_overview, standalone_query, temporal_head, to_sources
     from .config import get_settings

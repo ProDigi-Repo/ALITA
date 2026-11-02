@@ -7,9 +7,9 @@ from datetime import date
 from .common import DRAFT_STAGES, norm_text
 
 
-# ----------------------------------------------------------------- Abfragen auf dem Modell
+# ----------------------------------------------------------------- queries on the model
 def valid_at(model: dict, t: str | None = None, stage: str | None = None, seq: int | None = None) -> dict[str, dict]:
-    """CTVs, die zum Stichtag t gelten (valid_from ≤ t < valid_to) – oder die zu einer Stufe / Fassung gehören."""
+    """CTVs valid on the reference date t (valid_from ≤ t < valid_to) – or belonging to a stage / version."""
     out = {}
     for c in model["ctvs"].values():
         if seq is not None:
@@ -26,7 +26,7 @@ def valid_at(model: dict, t: str | None = None, stage: str | None = None, seq: i
 
 
 def text_at(model: dict, cid: str, **when) -> str:
-    """Vollständiger Text eines Bestandteils (mit allen Unterteilen) zu einem Stand – über die Aggregation."""
+    """Full text of a component (with all sub-parts) at a point in time – via the aggregation."""
     cur = valid_at(model, **when)
     root = cur.get(cid)
     if not root:
@@ -44,7 +44,7 @@ def text_at(model: dict, cid: str, **when) -> str:
 
 def actions_in(model: dict, frm: str | None = None, to: str | None = None, scope: list[str] | None = None,
                include_drafting: bool = True) -> list[dict]:
-    """Actions im Zeitraum (frm ≤ Datum ≤ to) und unterhalb der Bestandteile in scope (z. B. ['art_6'])."""
+    """Actions in the period (frm ≤ date ≤ to) and below the components in scope (e.g. ['art_6'])."""
     out = []
     for a in model["actions"]:
         if not include_drafting and a["stage"] in DRAFT_STAGES:
@@ -62,7 +62,7 @@ def actions_in(model: dict, frm: str | None = None, to: str | None = None, scope
 
 
 def provenance(model: dict, term: str, scope: list[str] | None = None) -> list[dict]:
-    """Herkunft eines Begriffs (Paper Query Pattern 3): je Bestandteil die erste Fassung, die ihn enthält, und die Action dazu."""
+    """Provenance of a term (paper query pattern 3): per component the first version that contains it, and its action."""
     t = norm_text(term)
     first: dict[str, dict] = {}
     for c in sorted(model["ctvs"].values(), key=lambda c: c["seq_from"]):
@@ -81,7 +81,7 @@ def provenance(model: dict, term: str, scope: list[str] | None = None) -> list[d
     return out
 
 
-# ----------------------------------------------------------------- Verweise auf Bestandteile in Fragen
+# ----------------------------------------------------------------- references to components in questions
 _REF_PATTERNS = [
     (re.compile(r"\b(?:Art(?:icle|ikel|\.)?)\s*(\d+[a-z]?)(?:\s*(?:\((\d+)\)|Abs(?:atz|\.)?\s*(\d+)|para(?:graph)?\s*(\d+)))?"
                 r"(?:\s*(?:\(([a-z])\)|(?:lit\.|Buchst(?:abe|\.)?)\s*([a-z])|point\s*\(?([a-z])\)?))?", re.I), "art"),
@@ -93,7 +93,7 @@ _REF_PATTERNS = [
 
 
 def refs_in(text: str) -> list[str]:
-    """Bestandteil-IDs, die eine Frage nennt: 'Art. 6(1)' -> art_6/abs_1, 'Anhang III' -> anx_III, 'clause 6.1.2' -> cl_6.1.2."""
+    """Component ids a question names: 'Art. 6(1)' -> art_6/abs_1, 'Anhang III' -> anx_III, 'clause 6.1.2' -> cl_6.1.2."""
     out: list[str] = []
     for rx, kind in _REF_PATTERNS:
         for m in rx.finditer(text or ""):

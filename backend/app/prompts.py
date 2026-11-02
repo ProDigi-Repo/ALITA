@@ -1,7 +1,7 @@
-"""System Prompts für Document Chat und Graph Chat (ohne schwere Abhängigkeiten, damit testbar).
+"""System prompts for Document Chat and Graph Chat (no heavy dependencies, so it can be tested).
 
-Der im Frontend eingegebene System Prompt kommt als `system_prompt` mit jeder Anfrage an `/api/chat`
-und ersetzt dort den Standard. Die Quellenregeln werden immer angehängt.
+The system prompt entered in the front end comes as `system_prompt` with every request to `/api/chat`
+and replaces the default there. The source rules are always appended.
 """
 from __future__ import annotations
 
@@ -26,24 +26,24 @@ Answer like a short FAQ answer: one coherent reply of two to four short sentence
 Keep facts from the graph apart from your own interpretation, and say so if the graph does not contain the answer.
 Only if it truly helps, end with one short follow-up question."""
 
-# Wird immer angehängt, auch bei eigenem System Prompt: sonst funktionieren Quellenverweise und Ausgabeformat nicht.
+# always appended, also with a custom system prompt: otherwise source references and output format do not work.
 SOURCE_RULES = """Technical rules (always apply): the sources are given as numbered blocks [n].
 Cite them inline as [n], directly after the statement they support.
 The earlier turns of this conversation are your memory: use them to understand follow-up questions and to build on
 what was already discussed. Citation numbers in earlier answers referred to the sources of those answers; [n] in your
 answer refers only to the sources given with the current question."""
 
-VOICE_SYSTEM = GRAPH_SYSTEM   # alter Name (bis 0.18.0)
+VOICE_SYSTEM = GRAPH_SYSTEM   # old name (until 0.18.0)
 DEFAULTS = {"rag": SYSTEM, "graph": GRAPH_SYSTEM}
 
 
 def prompt_id(text: str) -> str:
-    """Kurzer, stabiler Fingerabdruck eines Prompts (für Chat-Verlauf und Nachvollziehbarkeit)."""
+    """Short, stable fingerprint of a prompt (for chat history and traceability)."""
     return hashlib.sha1(text.strip().encode("utf-8")).hexdigest()[:10]
 
 
 def resolve(custom: str | None, tile: str = "rag") -> tuple[str, str, str]:
-    """(Quelle "default"|"custom", wirksamer Prompt ohne Quellenregeln, id)."""
+    """(source "default"|"custom", effective prompt without source rules, id)."""
     base = DEFAULTS.get(tile, SYSTEM)
     text = (custom or "").strip()
     if not text or text == base.strip():
@@ -52,5 +52,5 @@ def resolve(custom: str | None, tile: str = "rag") -> tuple[str, str, str]:
 
 
 def system_prompt(custom: str | None, tile: str = "rag") -> str:
-    """Eigener System Prompt ersetzt den Standard; die Quellenregeln bleiben."""
+    """A custom system prompt replaces the default; the source rules stay."""
     return f"{resolve(custom, tile)[1]}\n\n{SOURCE_RULES}"

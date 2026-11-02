@@ -15,6 +15,7 @@ from dataclasses import asdict, dataclass
 
 @dataclass(frozen=True)
 class Database:
+    """A database (data collection) with its display name, colours and visibility."""
     id: str
     name: str                    # display name (flowers); questions may use id or name
     color: str                   # light theme
@@ -23,6 +24,7 @@ class Database:
     description: str = ""
 
     def public_dict(self) -> dict:
+        """Fields sent to the front end."""
         return asdict(self)
 
 

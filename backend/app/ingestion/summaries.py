@@ -23,10 +23,11 @@ log = logging.getLogger("ingest")
 
 # --------------------------------------------------------------- LLM & Index
 def wants_summary(rec: DocumentRecord, scope: str) -> bool:
+    """True when a document should get an LLM summary under the given scope (none / latest / all)."""
     if scope == "none" or rec.text_chars < MIN_TEXT_FOR_SUMMARY or rec.summary.source in ("parsed", "manual"):
         return False
     if rec.project is None:
-        return True  # paper / notes immer
+        return True  # papers / notes always
     if rec.project.duplicate_of:
         return False
     if rec.project.role not in SUMMARY_ROLES:
@@ -35,6 +36,7 @@ def wants_summary(rec: DocumentRecord, scope: str) -> bool:
 
 
 async def enrich_items(items: list[Item], opts: IngestOptions, project: ProjectRecord | None = None) -> None:
+    """Add LLM summaries, method tags and keywords to the items that want them (four at a time)."""
     from ..enrich import llm_enrich
     from ..llm import resolve_key
 
@@ -54,18 +56,18 @@ async def enrich_items(items: list[Item], opts: IngestOptions, project: ProjectR
                     project_name=r.project.project_name if r.project else None,
                 )
             except Exception as e:
-                log.warning("LLM-Anreicherung für %s fehlgeschlagen: %s", r.filename, e)
+                log.warning("LLM enrichment of %s failed: %s", r.filename, e)
                 return
         r.summary = summary
         r.methods = merge_tags(r.methods, tags)
         r.keywords = r.keywords or kws
         if title and r.title == title_from_filename(Path(r.filename).stem):
             r.title = title
-        log.info("angereichert %s", r.filename)
+        log.info("enriched %s", r.filename)
 
     await asyncio.gather(*(one(it) for it in items if wants_summary(it.record, scope)))
 
-    # Projekt ohne geparstes Abstract: Summary aus dem neuesten angereicherten Manuskript übernehmen
+    # project without a parsed abstract: take the summary of the newest enriched manuscript
     if project and project.summary.is_empty():
         ms = [i for i in items if i.record.project and i.record.project.role == ProjectRole.manuscript
               and i.record.project.is_latest and not i.record.summary.is_empty()]

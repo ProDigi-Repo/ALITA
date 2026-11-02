@@ -12,6 +12,7 @@ router = APIRouter(prefix="/api", tags=["system"])
 
 @router.get("/health")
 def health() -> dict:
+    """Liveness and public configuration: version, models and the database registry."""
     s = settings()
     return {"status": "ok", "version": __version__, "chat_model": s.chat_model, "embedding_model": s.embedding_model,
             "server_key": False, "key_source": "interface", "databases": s.databases, "database_names": s.database_names,
@@ -20,6 +21,7 @@ def health() -> dict:
 
 @router.get("/me")
 def current_user(request: Request) -> dict:
+    """Who is logged in: e-mail/admin flags, auth mode and, with accounts, the account and its databases."""
     me = {"email": request.state.email, "is_admin": request.state.is_admin,
           "access_enabled": request.state.access_enabled, "auth_mode": request.state.auth_mode}
     if getattr(request.state, "accounts_enabled", False):   # REQ-77: which account, which databases (None = all)
@@ -33,27 +35,28 @@ def current_user(request: Request) -> dict:
 
 @router.get("/glossary")
 def glossary():
+    """The methods glossary."""
     from ..glossary import load_glossary
     return load_glossary(str(settings().glossary_path)).model_dump()
 
 
 @router.get("/system-prompts")
 def system_prompts():
-    """Standard-System-Prompts je Kachel und die immer angehängten Quellenregeln (Frontend zeigt sie im Editor)."""
+    """Default system prompts per tile and the source rules that are always appended (the front end shows them in the editor)."""
     from ..prompts import DEFAULTS, SOURCE_RULES, prompt_id
     return {"defaults": DEFAULTS, "ids": {k: prompt_id(v) for k, v in DEFAULTS.items()}, "source_rules": SOURCE_RULES}
 
 
 @router.get("/release-notes")
 def release_notes():
-    """CHANGELOG.md (Keep a Changelog, SemVer) als JSON, neueste Version zuerst."""
+    """CHANGELOG.md (Keep a Changelog, SemVer) as JSON, newest version first."""
     from ..release_notes import load
     return {"version": __version__, "releases": load(ROOT / "CHANGELOG.md")}
 
 
 @router.get("/technical-docs")
 def technical_docs():
-    """Technische Dokumentation aus docs/technical/<gruppe>/*.md, gruppiert (z. B. Untermenü „Ontology“)."""
+    """Technical documentation from docs/technical/<group>/*.md, grouped (e.g. the submenu "Ontology")."""
     base = ROOT / "docs" / "technical"
     groups = [{"id": folder.name, "title": folder.name.replace("-", " ").title(), "docs": markdown_docs(folder, f"{folder.name}/")}
               for folder in (sorted(p for p in base.iterdir() if p.is_dir()) if base.is_dir() else [])]
@@ -62,5 +65,5 @@ def technical_docs():
 
 @router.get("/compliance-docs")
 def compliance_docs():
-    """ISO/IEC 42001- und EU-AI-Act-Dokumentation aus docs/compliance/*.md (Markdown, sortiert nach Dateiname)."""
+    """ISO/IEC 42001 and EU AI Act documentation from docs/compliance/*.md (Markdown, sorted by file name)."""
     return {"version": __version__, "docs": markdown_docs(ROOT / "docs" / "compliance")}

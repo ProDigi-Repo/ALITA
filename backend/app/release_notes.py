@@ -1,4 +1,4 @@
-"""Liest CHANGELOG.md im Format „Keep a Changelog 1.1.0“ (Versionen nach Semantic Versioning 2.0.0)."""
+"""Reads CHANGELOG.md in the format "Keep a Changelog 1.1.0" (versions after Semantic Versioning 2.0.0)."""
 from __future__ import annotations
 
 import re
@@ -10,7 +10,7 @@ SEMVER = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$")
 
 
 def parse_changelog(text: str) -> list[dict]:
-    """[{version, date, sections: {Added: [...], ...}, changes: [...]}], neueste zuerst; leeres Unreleased wird ausgelassen."""
+    """[{version, date, sections: {Added: [...], ...}, changes: [...]}], newest first; an empty Unreleased is left out."""
     releases: list[dict] = []
     section = None
     for line in text.splitlines():
@@ -24,7 +24,7 @@ def parse_changelog(text: str) -> list[dict]:
             section = m.group(1)
             releases[-1]["sections"].setdefault(section, [])
             continue
-        if line.startswith(">") and releases and section is None:   # Hinweis direkt unter der Versionszeile: besonderes Release
+        if line.startswith(">") and releases and section is None:   # note right below the version line: a special release
             releases[-1]["highlight"] = (releases[-1]["highlight"] + " " + line.lstrip("> ").strip()).strip()
             continue
         if line.startswith("- ") and releases:
@@ -35,4 +35,5 @@ def parse_changelog(text: str) -> list[dict]:
 
 
 def load(path: Path) -> list[dict]:
+    """Release notes parsed from CHANGELOG.md (empty when the file is missing)."""
     return parse_changelog(path.read_text(encoding="utf-8")) if path.is_file() else []

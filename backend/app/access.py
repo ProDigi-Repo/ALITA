@@ -1,4 +1,5 @@
-"""Cloudflare JWT verification and a shared-reader/admin boundary; no local accounts."""
+"""Request gate for every call: Cloudflare Access JWTs, reviewer and account sessions, the reader/admin boundary
+and the databases a request may see (REQ-77)."""
 from collections.abc import Awaitable, Callable
 from functools import lru_cache
 from urllib.parse import urlsplit
@@ -35,6 +36,7 @@ def verified_email(token: str) -> str:
 
 
 def denied(status: int, detail: str) -> JSONResponse:
+    """JSON error response that browsers and proxies must not cache."""
     return JSONResponse({"detail": detail}, status_code=status, headers={"Cache-Control": "no-store"})
 
 

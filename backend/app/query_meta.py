@@ -1,7 +1,7 @@
-"""Meta-Informationen zu einer Chat-Frage: Intention und Entitäten.
+"""Meta information about a chat question: intent and entities.
 
-Regelbasiert (schnell, ohne LLM) als Grundlage; im Live-Chat ergänzt das LLM beides
-in derselben Antwort (rag.Answer). Wird mit jeder Frage im Chat-Verlauf gespeichert.
+Rule-based (fast, no LLM) as the basis; in the live chat the LLM adds both
+in the same answer (rag.Answer). Stored with every question in the chat history.
 """
 from __future__ import annotations
 
@@ -19,9 +19,9 @@ INTENT_LABELS = {
     "authorship": "People & authorship", "timeline": "Timeline", "overview": "Overview", "progress": "Knowledge progress", "question": "Question",
 }
 
-# Reihenfolge = Priorität
+# order = priority
 INTENT_RULES: list[tuple[str, str]] = [
-    # REQ-15: Erkenntnisfortschritt / wie Analysen durchgeführt wurden
+    # REQ-15: progress of insight / how analyses were carried out
     ("progress", r"(erkenntnis(stand|fortschritt|stufe)|knowledge (stage|progress|state)|im zeitverlauf|over time|entwickelt|weiterentwick|"
                  r"evolv|evolution|progress|versionshistorie|version history|stufen|stages|"
                  r"(wie|how)\b.{0,40}\banaly\w*\b.{0,30}(durchgeführt|gemacht|conducted|performed|done|carried out))"),
@@ -39,16 +39,19 @@ INTENT_RULES: list[tuple[str, str]] = [
 
 
 class Entity(BaseModel):
+    # Something a question names: a database, project, person, method, year, document, topic or cluster. (comment, not a docstring: it would enter the LLM output schema)
     type: Literal["database", "project", "person", "method", "year", "document", "topic", "cluster"]
     value: str
 
 
 class QueryMeta(BaseModel):
+    """Intent and named entities of a question."""
     intent: Intent = "question"
     entities: list[Entity] = []
 
 
 def detect_intent(q: str) -> str:
+    """Rule-based intent of a question (e.g. overview, comparison, count; default "question")."""
     low = q.lower()
     for intent, pat in INTENT_RULES:
         if re.search(pat, low):
@@ -62,7 +65,7 @@ def detect_entities(q: str, vocab: dict[str, list[str]] | None = None, filters=N
     seen = set()
 
     def add(t, v):
-        if t == "database":   # Blumenname oder Kürzel -> internes Kürzel
+        if t == "database":   # flower name or id -> internal id
             from .config import db_id
             v = db_id(v)
         key = (t, v.lower())
@@ -89,7 +92,7 @@ def detect_entities(q: str, vocab: dict[str, list[str]] | None = None, filters=N
             add("project", p)
         for c in getattr(filters, "cluster", []) or []:
             add("cluster", f"C{c}")
-    # Fachbegriffe in Großschreibung (z. B. IoT, GenAI, EU AI Act) als Themen
+    # technical terms in capitals (e.g. IoT, GenAI, EU AI Act) as topics
     for m in re.findall(r"\b([A-Z][A-Za-z]*[A-Z][A-Za-z]*(?:\s+[A-Z][\w-]+)*)\b", q):
         if not any(e.value.lower() == m.lower() for e in out):
             add("topic", m)
@@ -97,16 +100,18 @@ def detect_entities(q: str, vocab: dict[str, list[str]] | None = None, filters=N
 
 
 def analyze(q: str, vocab: dict[str, list[str]] | None = None, filters=None) -> QueryMeta:
+    """Rule-based intent and entities of a question."""
     return QueryMeta(intent=detect_intent(q), entities=detect_entities(q, vocab, filters))
 
 
 def vocab_from_documents(rows: list[dict], databases: list[str]) -> dict[str, list[str]]:
+    """Vocabulary for entity detection from the documents of the selected databases: databases, projects, persons, methods."""
     persons, projects = set(), set()
     for r in rows:
         projects.add(r.get("project_name") or "")
         for a in r.get("authors") or []:
             persons.add(a)
-            persons.add(a.split()[-1])   # Nachname allein
+            persons.add(a.split()[-1])   # surname alone
     from .config import get_settings
     from .glossary import load_glossary
 
