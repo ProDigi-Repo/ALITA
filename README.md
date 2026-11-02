@@ -60,20 +60,24 @@ research-rag/
 │  ├─ filters.py       UI and prompt filters (@typ:paper …) -> Qdrant filters
 │  ├─ registry.py      Databases: id, name, colours, public flag – the one place to add a database
 │  ├─ retrieval.py     Retrieval scope shared by both chats (split by database / cluster when needed)
+│  ├─ chat_common.py   Building blocks of both chats (sources, legal context, overview, streaming)
 │  ├─ rag.py           Document Chat (A): prompt, memory, answer with sources
 │  ├─ graphrag.py      Graph Chat (B): plan, graph path, clusters, provisions, answer
 │  ├─ ingestion/       Pipeline: scan (files -> records), summaries, index, followups, pipeline, cli
+│  ├─ legal/           Legal ontology: parse (components), history (versions, actions), query, units
 │  ├─ legal_ingest.py  Legal texts: versions, structure-aware segments (reuses ingestion/)
+│  ├─ accounts.py      Accounts per database (hashes, sessions); visibility.py: what a request may see
 │  ├─ routes/          FastAPI routers per domain: system, chat, documents, clusters, projects, legal, graph, ingest
 │  └─ main.py          Builds the app: access middleware, routers, static front end
 ├─ glossary/methods.yaml   preliminary methods glossary (to be replaced)
 ├─ frontend/               ALITA Prototype, served without a build step
 │  ├─ index.html           Markup, includes css/ and js/
 │  ├─ css/                 base, tiles, clusters, cluster-profile, space3d, pages, …
-│  └─ js/                  data (generated), core, state (change events), databases, release-compliance,
+│  └─ js/                  data (generated), core, state (change events), databases, header-access, release-compliance,
 │                          cluster-core, cluster-3d, cluster-map2d, cluster-page, database-info, cluster-profile,
 │                          chat-tools, docs-nav, documents, chat, space3d, …, start – order as in index.html
 ├─ tools/build_frontend.py regenerate js/data.js and css/databases.css; build the single-file page for publishing
+├─ tools/golden/           compare two versions (chats, legal ingestion, UI states) when refactoring
 ├─ docker/                 backend.Dockerfile, nginx.conf
 ├─ research/               default location for your own research folders (RESEARCH_DIR)
 └─ docker-compose.yml      Qdrant + backend + front end + ingest/test jobs

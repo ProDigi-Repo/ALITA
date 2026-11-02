@@ -23,6 +23,16 @@ ALITA grew from 1.0 to 3.7 in a few weeks: about 7,500 lines of Python and 5,000
 | **4 – 3.13.0 Database registry** | `backend/app/registry.py`: id, name, light/dark colour, public flag, description. Served by `/api/health` (`registry`) and `/api/databases`; `tools/build_frontend.py data` generates `frontend/css/databases.css` and `DB_REGISTRY` in `data.js`; `.env`: `DATABASES`, `DATABASE_NAMES`, `PUBLIC_DATABASES` | Adding a database = one registry entry (plus an optional flower icon) |
 | **5 – 3.13.0 Front-end state** | `frontend/js/state.js`: `Store.on(topic, fn, order)` / `Store.emit(topic)` with the topics `documents`, `databases`, `clusters`, `cluster-page`, `gate`; views subscribe next to their own code. `clusters.js` split without code changes into `cluster-core.js`, `cluster-3d.js`, `cluster-map2d.js`, `cluster-page.js`, `database-info.js` | Update order is explicit (`order`), not a property of the call lists; one failing view never stops the others |
 
+## Round 2 – 3.13.0 (REQ-81)
+
+| Part | Before | After |
+|---|---|---|
+| Chats | `graphrag.answer_stream` one ≈170-line function; `rag.prepare` with four overlapping prompt branches; graphrag imported helpers from rag | `chat_common.py` (sources, legal context, follow-up query, map overview, temporal line, streamed answer) shared by both chats; Graph Chat = `GraphTurn` state + steps (`_cluster_scope`, `_graph_documents`, `_filters`, `_passages`, `_cluster_relations`, `_provisions`, `_graph_path`, `_meta`, `_progress`, `_prompt`); Document Chat = one prompt rule `_prompt` |
+| Legal | `legal.py` 1,105 lines; `ingest_legal` ≈200 lines | `legal/` package: `common`, `parse`, `history`, `query`, `units` (code moved verbatim, `from app.legal import …` unchanged); `ingest_legal` = `LegalRun` state + steps (`_collect`, `_supporting_metadata`, `_databases`, `_build_models`, `_embed_units`, `_store_documents`, `_sync_graph`, `_result`) |
+| Front-end header | key field, password gate and login spread over `documents.js` and `core.js` | `js/header-access.js` (moved verbatim); `documents.js` only the documents view |
+
+Checked against 5a07d4f with the scripts in `tools/golden/` (see its README): 28 chat scenarios byte-identical (prompts, instructions, history, events); legal ingestion of a law with three versions and a guideline byte-identical (models, Text Units, documents, project, graph calls); login flow, password gate with database/cluster clicks and the guided tour give identical UI state; GET endpoints identical. Not changed: the internals of `legal.parse.parse_components` (260 lines of parsing rules) – moved, not rewritten, as no corpus of real legal texts is in the tests.
+
 ## How to add things now
 
 | To add … | Change |
@@ -30,6 +40,10 @@ ALITA grew from 1.0 to 3.7 in a few weeks: about 7,500 lines of Python and 5,000
 | a database | one entry in `backend/app/registry.py` (or `DATABASES` / `DATABASE_NAMES` / `PUBLIC_DATABASES` in the `.env`), optionally a flower in `DB_FLOWER` (`frontend/js/databases.js`); run `python tools/build_frontend.py data` |
 | an API endpoint | a function in the router of its domain under `backend/app/routes/` (or a new router listed in `routes/__init__.py`). Readers may only GET; any other method is admin-only unless it is added to `access.CHAT_ROUTES` |
 | a retrieval rule for both chats | `Scope` in `backend/app/retrieval.py` |
+| something both chats put into the prompt | `backend/app/chat_common.py`; a Graph Chat step: a function on `GraphTurn` in `graphrag.py`, called in `answer_stream` |
+| a step of legal ingestion | a function on `LegalRun` in `legal_ingest.py`; parsing rules in `legal/parse.py`, version history in `legal/history.py` |
+| anything in the header (key, password, login) | `frontend/js/header-access.js` |
+| proof that a refactor changes nothing | `tools/golden/` (chats, legal ingestion, UI states) on the old and the new tree |
 | an ingestion step | a function in the matching `backend/app/ingestion/` module; things to do after every run go into `followups.py` |
 | a front-end view that follows data or selection | `Store.on('documents' \| 'databases' \| 'clusters' \| 'cluster-page' \| 'gate', fn, order)` in the view's own script; report a changed cluster selection with `cvChanged()` |
 
