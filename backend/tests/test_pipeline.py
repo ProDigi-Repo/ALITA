@@ -624,12 +624,13 @@ def test_scope_overview_lists_projects_and_clusters_of_the_selected_databases():
     try:
         import importlib
 
-        from app import rag
-        importlib.reload(rag)
-        text = rag.scope_overview(["ML"])
+        from app import chat_common
+        importlib.reload(chat_common)
+        text = chat_common.scope_overview(["ML"])
     finally:
         if old: sys.modules["app.store"] = old; app.store = old
         else: sys.modules.pop("app.store"); del app.store
+        importlib.reload(chat_common)          # back to the real store for later tests
     assert "Lean-Agile: Lean and job satisfaction. Why lean matters." in text and "284 files" in text
     assert "C19: Lean and Job Satisfaction (1 documents)" in text
     assert "Other" not in text and "Templates" not in text
