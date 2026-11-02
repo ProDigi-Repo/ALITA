@@ -11,6 +11,7 @@ import argparse
 import asyncio
 import json
 import logging
+import sys
 from pathlib import Path
 
 from ..config import get_settings
@@ -64,7 +65,13 @@ def main() -> None:
     opts = IngestOptions(use_llm=not a.no_llm, embed=not a.no_embed, enrich_scope=a.scope,
                          databases=get_settings().normalize_databases(a.db),
                          api_key=(a.api_key or get_settings().openrouter_api_key or None))
+    from ..jobs import write_lock
+    with write_lock(on_wait=lambda: print("Waiting for an upload or another import to finish …", file=sys.stderr)):
+        _run(ap, a, opts)                        # REQ-83: never at the same time as the backend's job queue
 
+
+def _run(ap: argparse.ArgumentParser, a: argparse.Namespace, opts: IngestOptions) -> None:
+    """Carry out one CLI command (inside the write lock)."""
     if a.kind == "graph":
         from .. import graph
         print(json.dumps({"setup": graph.setup(), "rebuild": graph.rebuild_from_store()}, ensure_ascii=False, indent=1, default=str))

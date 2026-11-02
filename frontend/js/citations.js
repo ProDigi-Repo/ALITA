@@ -169,10 +169,18 @@ async function ciRender(force){
   ciDraw();
 }
 
+async function ciWaitJob(job){
+  toast('Recompute queued – another job is running on the server');
+  for(;;){await new Promise(r=>setTimeout(r,2500));
+    const j=await fetch('api/jobs/'+job.id).then(r=>r.json());
+    if(j.status==='done')return j.result;
+    if(j.status==='error'||j.status==='interrupted')throw new Error(j.error||j.status)}
+}
 async function ciRebuild(){
   const b=$('#ciRebuild');if(!LIVE){toast('Needs the running backend');return}
   b.disabled=true;b.textContent='⟳ Recomputing …';
-  try{const r=await fetch('api/citations/rebuild',{method:'POST'});const j=await r.json();if(!r.ok)throw new Error(j.detail||r.status);
+  try{const r=await fetch('api/citations/rebuild',{method:'POST'});let j=await r.json();if(!r.ok)throw new Error(j.detail||r.status);
+    if(r.status===202)j=await ciWaitJob(j);      // REQ-83: still waiting in the queue behind an upload
     toast(`Citation network: ${j.citations} citations from ${j.citing} documents to ${j.targets} papers`);await ciRender(true)}
   catch(e){toast('Recompute failed: '+e.message)}
   b.disabled=false;b.textContent='⟳ Recompute';

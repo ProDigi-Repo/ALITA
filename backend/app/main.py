@@ -18,11 +18,25 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    """Startup: create the data folder and Qdrant collections, migrate old people data in the background."""
+    """Startup: data folder and Qdrant collections, the job queue (REQ-83: jobs of a previous run are marked interrupted,
+    left-over staged uploads removed, more threads for blocking routes), people migration in the background."""
+    import shutil
+
+    from anyio import to_thread
+
+    from .jobs import QUEUE, write_lock
     from .project_teams import migrate_people_once
-    get_settings().data_dir.mkdir(parents=True, exist_ok=True)
+    s = get_settings()
+    s.data_dir.mkdir(parents=True, exist_ok=True)
     store.ensure_collections()
-    threading.Thread(target=migrate_people_once, daemon=True).start()
+    QUEUE.load()
+    shutil.rmtree(s.data_dir / "incoming", ignore_errors=True)   # uploads of jobs that cannot run any more
+    to_thread.current_default_thread_limiter().total_tokens = max(40, s.chat_threads * 2)
+
+    def migrate() -> None:
+        with write_lock():
+            migrate_people_once()
+    threading.Thread(target=migrate, daemon=True).start()
     yield
 
 

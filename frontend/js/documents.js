@@ -345,19 +345,39 @@ $('#uploadForm').addEventListener('submit',async e=>{
     pollJobs(jobs);
   }catch(err){toast('Upload failed: '+err.message)}
 });
+/* REQ-83: uploads wait in one queue on the server (one job at a time). Finished: done | error | interrupted. */
+const JOB_FINISHED=new Set(['done','error','interrupted']),POLLING=new Set();
 async function pollJobs(ids){
-  const open=new Set(ids),done=[];
+  ids=ids.filter(id=>!POLLING.has(id));if(!ids.length)return;
+  ids.forEach(id=>POLLING.add(id));
+  const open=new Set(ids),done=[],told={};
   while(open.size){
     await new Promise(r=>setTimeout(r,2500));
     for(const id of [...open]){
-      const j=await fetch('api/jobs/'+id).then(r=>r.json()).catch(()=>null);
-      if(!j||j.status==='done'||j.status==='error'){open.delete(id);done.push(j||{status:'error',name:id,error:'job not found'});
-        toast(j&&j.status==='error'?`Error in ${j.name}: ${j.error}`:`Done: ${j?j.name:id}`)}
+      const r=await fetch('api/jobs/'+id).catch(()=>null);
+      const j=r&&r.ok?await r.json().catch(()=>null):(r&&r.status===404?null:{status:'unknown'});
+      if(j&&j.status==='queued'){        // say once how many jobs are ahead – other people's uploads count too
+        const ahead=(j.position||1)-1,key=j.waiting_for_lock?'lock':ahead;
+        if(told[id]!==key){told[id]=key;
+          if(j.waiting_for_lock)toast(`${j.name}: waiting for an import on the server to finish`);
+          else if(ahead>0)toast(`${j.name}: waiting in line – ${ahead} job${ahead===1?'':'s'} ahead`)}
+        continue}
+      if(!j||JOB_FINISHED.has(j.status)){open.delete(id);POLLING.delete(id);done.push(j||{status:'error',name:id,error:'job not found'});
+        toast(j&&j.status!=='done'?`Error in ${j.name}: ${j.error}`:`Done: ${j?j.name:id}`)}
     }
   }
   loadDocs();
   try{uploadReport(done)}catch(e){console.error('upload report',e)}
 }
+/* After a reload or login: follow the own uploads that are still waiting or running. */
+async function resumeJobs(){
+  if(!LIVE)return;
+  const r=await fetch('api/jobs?mine=true&limit=20').catch(()=>null);if(!r||!r.ok)return;
+  const {jobs=[]}=await r.json().catch(()=>({}));
+  const open=jobs.filter(j=>j.status==='queued'||j.status==='running').map(j=>j.id);
+  if(open.length){toast(`${open.length} upload${open.length===1?' is':'s are'} still being processed`);pollJobs(open)}
+}
+Store.on('gate',()=>resumeJobs(),40);
 /* After an upload: ALITA tells how many tokens it took and what that cost in euro */
 function uploadReport(jobs){
   if(!jobs.length)return;

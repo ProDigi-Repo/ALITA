@@ -3,9 +3,9 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 
-from .common import KeyHeader, databases_param, settings
+from .common import KeyHeader, databases_param, queued, settings
 
 router = APIRouter(prefix="/api/clusters", tags=["clusters"])
 
@@ -30,11 +30,13 @@ def cluster_relations(databases: Annotated[list[str] | None, Query(description="
 
 
 @router.post("/recompute")
-async def recompute_clusters(k: int = 0, x_key: KeyHeader = None,
+async def recompute_clusters(request: Request, k: int = 0, x_key: KeyHeader = None,
                              database: Annotated[list[str] | None, Query(description="cluster only these database(s), e.g. JSW")] = None,
                              project_files: bool = False):
     """Clusters all embedded documents again (k=0: number found automatically by silhouette).
-    database=JSW: only documents of this database; the clusters of the other databases stay unchanged."""
+    database=JSW: only documents of this database; the clusters of the other databases stay unchanged.
+    Runs in the job queue (REQ-83): 202 with the job when it takes longer than the request may wait."""
     from ..clustering import recompute
-    return await recompute(k or settings().cluster_k or None, x_key, databases=databases_param(database) or None,
-                           project_files=project_files)
+    dbs = databases_param(database) or None
+    return await queued(request, "cluster", ",".join(dbs or ["all"]),
+                        lambda: recompute(k or settings().cluster_k or None, x_key, databases=dbs, project_files=project_files))

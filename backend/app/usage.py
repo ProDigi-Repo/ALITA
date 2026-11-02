@@ -7,6 +7,7 @@ without a connection the prices from the settings apply. Euro = USD × usd_to_eu
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -91,12 +92,24 @@ def add_embed(res, texts: list[str]) -> None:
 
 # ------------------------------------------------------------------ prices
 _PRICES: dict = {"at": 0.0, "data": {}}
+_PRICES_LOCK = threading.Lock()   # REQ-83: many answers finishing together fetch the price list once, not each
+
+
+def _fresh() -> bool:
+    return time.time() - _PRICES["at"] < (86400 if _PRICES["data"] else 600)   # failure: try again in 10 min
 
 
 def _openrouter_prices() -> dict[str, tuple[float, float]]:
     """model id -> (USD per input token, USD per output token); cached 24 h."""
-    if time.time() - _PRICES["at"] < (86400 if _PRICES["data"] else 600):   # failure: try again in 10 min
+    if _fresh():
         return _PRICES["data"]
+    with _PRICES_LOCK:
+        if _fresh():
+            return _PRICES["data"]
+        return _fetch_prices()
+
+
+def _fetch_prices() -> dict[str, tuple[float, float]]:
     import httpx
 
     from .config import get_settings

@@ -20,6 +20,8 @@ import logging
 import re
 from datetime import datetime, timezone
 
+from .fileio import atomic_write_json
+
 log = logging.getLogger("progress")
 
 SPINE_ROLES = {"manuscript", "legal_text"}          # REQ-38: in legal projects the versions of the law are the backbone
@@ -308,8 +310,7 @@ def load(project: str, recompute: bool = False) -> dict:
     res = analyze(docs, store.scroll_chunks)
     old = json.loads(f.read_text(encoding="utf-8")) if f.is_file() else {}
     res["stage_text"] = {k: v for k, v in (old.get("stage_text") or {}).items()}   # AI texts stay as long as their stage is the same
-    f.parent.mkdir(parents=True, exist_ok=True)
-    f.write_text(json.dumps(res, ensure_ascii=False), encoding="utf-8")
+    atomic_write_json(f, res)                     # REQ-83: parallel readers never see half a file
     return res
 
 
@@ -355,8 +356,7 @@ async def summarize_stages(project: str, k: int, api_key: str | None) -> dict:
             res["stage_text"][s["key"]] = {"state": out.state.strip(), "change": out.change.strip()}
         except Exception as e:
             log.warning("Stage summary failed for %s: %s", project, e)
-    f = _cache_file(project)
-    f.write_text(json.dumps(res, ensure_ascii=False), encoding="utf-8")
+    atomic_write_json(_cache_file(project), res)
     return {"project": project, **build_stages(res, k)}
 
 

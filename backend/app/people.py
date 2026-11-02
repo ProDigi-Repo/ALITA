@@ -16,6 +16,8 @@ import threading
 import unicodedata
 from pathlib import Path
 
+from .fileio import atomic_write_text
+
 # names from file metadata that are not people (software, accounts, placeholders)
 JUNK_NAMES = {
     "author", "user", "admin", "administrator", "unknown", "owner", "me", "ich", "standard", "default", "nutzer", "benutzer",
@@ -106,10 +108,8 @@ def save_team(project: str, team: list[str]) -> list[str]:
     with _LOCK:
         teams = load_teams()
         teams[project] = team
-        f = _teams_file()
-        f.parent.mkdir(parents=True, exist_ok=True)
-        f.write_text("# REQ-19: project teams (editable in the app under Project → Team)\n"
-                     + yaml.safe_dump(teams, allow_unicode=True, sort_keys=True), encoding="utf-8")
+        atomic_write_text(_teams_file(), "# REQ-19: project teams (editable in the app under Project → Team)\n"
+                     + yaml.safe_dump(teams, allow_unicode=True, sort_keys=True))
     return team
 
 

@@ -145,7 +145,22 @@ def test_upload_goes_into_the_own_database(env, monkeypatch, tmp_path):
     login(client, "charmander", "fire-secret-1")
     r = client.post("/api/ingest", data={"doc_type": "research_paper", "databases": "VULPIX", "use_llm": "false"},
                     files={"files": ("note.txt", b"hello")})
-    assert r.status_code == 200 and seen["databases"] == ["CHARMANDER"]
+    assert r.status_code == 200
+    job = wait_job(client, r.json()["jobs"][0])          # REQ-83: the upload runs in the job queue
+    assert job["status"] == "done" and job["owner"] == "account:charmander"
+    assert seen["databases"] == ["CHARMANDER"]
+
+
+def wait_job(client, job_id: str, timeout: float = 10.0) -> dict:
+    """Poll a queued job until it is finished."""
+    import time
+    end = time.time() + timeout
+    while time.time() < end:
+        j = client.get(f"/api/jobs/{job_id}").json()
+        if j.get("status") in ("done", "error", "interrupted"):
+            return j
+        time.sleep(0.05)
+    raise AssertionError(f"job {job_id} did not finish: {j}")
 
 
 def test_all_databases_account_and_password_change(env):

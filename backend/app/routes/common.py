@@ -69,3 +69,22 @@ def markdown_docs(folder: Path, id_prefix: str = "") -> list[dict]:
         title = next((line[2:].strip() for line in text.splitlines() if line.startswith("# ")), f.stem)
         docs.append({"id": f"{id_prefix}{f.stem}", "title": title, "markdown": text})
     return docs
+
+
+JOB_WAIT_SECONDS = 240     # below nginx's proxy_read_timeout (300 s)
+
+
+async def queued(request, kind: str, name: str, factory, wait: float = JOB_WAIT_SECONDS):
+    """REQ-83: run a writing task through the job queue and answer with its result – or, when it is still waiting or
+    running after ``wait`` seconds, with 202 and the job (poll ``GET /api/jobs/{id}``)."""
+    from fastapi import HTTPException
+    from fastapi.responses import JSONResponse
+
+    from ..jobs import QUEUE, owner_of
+    job = QUEUE.submit(kind, name, owner_of(request), factory)
+    job = await QUEUE.wait(job.id, wait)
+    if job.status == "done":
+        return job.result
+    if job.status == "error":
+        raise HTTPException(500, job.error or "Job failed")
+    return JSONResponse(QUEUE.view(job.id), status_code=202)

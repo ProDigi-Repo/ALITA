@@ -17,3 +17,7 @@ python tools/golden/legal_ingest.py /tmp/base/backend old_l.json && python tools
 python tools/golden/fake_api.py /tmp/base/backend 8701 & python tools/golden/fake_api.py backend 8702 &
 node tools/golden/ui_clicks.js 8701 old > ui_old.json; node tools/golden/ui_clicks.js 8702 new > ui_new.json   # compare the "out" states
 ```
+
+## Load check (REQ-83)
+
+`python tools/golden/load_chats.py <backend dir> [users=30] [port]` starts the API with a simulated, *blocking* Qdrant and a streaming fake model, lets N people ask at once (half Document Chat, half Graph Chat) while one more calls `/api/health`, and prints the batch time and the health latency. Run it on the old and the new tree to compare.

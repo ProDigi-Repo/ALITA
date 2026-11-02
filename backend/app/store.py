@@ -6,6 +6,8 @@
 """
 from __future__ import annotations
 
+import threading
+import time
 from functools import lru_cache
 
 from qdrant_client import QdrantClient
@@ -30,11 +32,47 @@ CHUNK_PAYLOAD_FIELDS = [
 
 @lru_cache
 def client() -> QdrantClient:
-    """Qdrant client for QDRANT_URL (server URL or local folder)."""
+    """Qdrant client for QDRANT_URL (server URL or local folder); every write through it clears the document cache."""
     s = get_settings()
     if s.qdrant_url.startswith(("http://", "https://")):
-        return QdrantClient(url=s.qdrant_url, api_key=s.qdrant_api_key or None)
-    return QdrantClient(path=s.qdrant_url)  # local file mode, e.g. QDRANT_URL=./data/qdrant
+        c = QdrantClient(url=s.qdrant_url, api_key=s.qdrant_api_key or None)
+    else:
+        c = QdrantClient(path=s.qdrant_url)  # local file mode, e.g. QDRANT_URL=./data/qdrant
+    return _invalidating(c)
+
+
+# ----------------------------------------------------------------- document cache (REQ-83)
+# Both chats read the whole visible document list for every question. With many users this list is cached for a few
+# seconds per visibility and collection. Any write through client() clears it (generation counter), so changes made in
+# this process are visible at once; writes by other processes (CLI, seed) show up after DOC_CACHE_SECONDS at the latest.
+_WRITES = ("upsert", "delete", "set_payload", "overwrite_payload", "delete_payload", "clear_payload", "update_vectors",
+           "delete_vectors", "batch_update_points", "upload_points", "upload_collection", "create_collection",
+           "delete_collection", "recreate_collection")
+_CACHE: dict[tuple, tuple[int, float, list[dict]]] = {}
+_CACHE_LOCK = threading.Lock()
+_GEN = [0]
+
+
+def invalidate_cache() -> None:
+    """Forget cached document lists (called after every write through client())."""
+    with _CACHE_LOCK:
+        _GEN[0] += 1
+        _CACHE.clear()
+
+
+def _invalidating(c: QdrantClient) -> QdrantClient:
+    for name in _WRITES:
+        orig = getattr(c, name, None)
+        if orig is None:
+            continue
+
+        def wrapped(*a, _orig=orig, **kw):
+            try:
+                return _orig(*a, **kw)
+            finally:
+                invalidate_cache()
+        setattr(c, name, wrapped)
+    return c
 
 
 def _indexes(name: str, text_fields: list[str] = ()) -> None:
@@ -224,7 +262,25 @@ def chunk_vectors(ids: list) -> dict[str, list[float]]:
 
 
 def scroll_documents(flt: qm.Filter | None = None, limit: int = 10_000) -> list[dict]:
-    """Payloads of all visible documents matching the filter (at most `limit`)."""
+    """Payloads of all visible documents matching the filter (at most `limit`); unfiltered lists come from a short cache."""
+    s = get_settings()
+    if flt is not None or s.doc_cache_seconds <= 0:
+        return _scroll_documents(flt, limit)
+    allowed = visibility.allowed()
+    key = (s.qdrant_url, s.col_documents, None if allowed is None else tuple(sorted(allowed)), limit)
+    with _CACHE_LOCK:
+        gen = _GEN[0]
+        hit = _CACHE.get(key)
+    if hit and hit[0] == gen and time.monotonic() - hit[1] < s.doc_cache_seconds:
+        return [dict(d) for d in hit[2]]          # copies: callers may add keys to the dicts
+    rows = _scroll_documents(None, limit)
+    with _CACHE_LOCK:
+        if _GEN[0] == gen:                         # no write happened while reading
+            _CACHE[key] = (gen, time.monotonic(), rows)
+    return [dict(d) for d in rows]
+
+
+def _scroll_documents(flt: qm.Filter | None, limit: int) -> list[dict]:
     s, c = get_settings(), client()
     out, offset = [], None
     while True:

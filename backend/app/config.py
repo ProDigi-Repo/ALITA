@@ -63,6 +63,11 @@ class Settings(BaseSettings):
     accounts_file: Path | None = None
     account_session_secret: SecretStr = SecretStr("")   # empty = generated once into <DATA_DIR>/.account_session_secret
     account_session_hours: int = 12
+    # --- Concurrency (REQ-83) -----------------------------------------------
+    chat_threads: int = 32          # chat questions answered at the same time; further ones wait in line
+    job_history: int = 200          # finished upload/maintenance jobs kept in <DATA_DIR>/jobs
+    job_history_days: int = 14      # … and for at most this many days
+    doc_cache_seconds: float = 20.0 # document list cached per visibility; 0 = off (writes in this process clear it)
 
     @model_validator(mode="after")
     def _account_databases(self):

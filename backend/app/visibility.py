@@ -6,6 +6,7 @@ visible. ``None`` = no restriction (admin, or accounts not configured).
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
 from contextvars import ContextVar, Token
 
 _ALLOWED: ContextVar[frozenset[str] | None] = ContextVar("alita_allowed_databases", default=None)
@@ -62,3 +63,13 @@ def check_databases(requested: list[str]) -> list[str]:
     if bad:
         raise PermissionError(f"No access to database(s): {', '.join(bad)}")
     return requested or sorted(a)
+
+
+@contextmanager
+def unrestricted():
+    """Lift the restriction for a block (server-side checks that must see every database, e.g. name clashes)."""
+    token = _ALLOWED.set(None)
+    try:
+        yield
+    finally:
+        _ALLOWED.reset(token)

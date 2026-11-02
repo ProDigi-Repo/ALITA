@@ -93,9 +93,11 @@ async def project_progress_llm(name: str, body: ProgressRequest, x_key: KeyHeade
     from ..progress import summarize_stages
     _project_or_404(name)
     if not body.use_llm:
-        return pp(name, body.stages, True)
+        from starlette.concurrency import run_in_threadpool
+        return await run_in_threadpool(pp, name, body.stages, True)
     try:
-        return await summarize_stages(name, body.stages, x_key)
+        from ..concurrency import run_in_thread
+        return await run_in_thread(lambda: summarize_stages(name, body.stages, x_key))   # REQ-83: off the server loop
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
 

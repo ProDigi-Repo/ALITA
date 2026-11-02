@@ -39,6 +39,7 @@
 | `graph.py` | Neo4j: statements for documents, DEO roles, clusters, citations, provisions, legal models; path queries for the Graph Chat |
 | `llm.py` | OpenRouter chat models and embeddings via pydantic-ai; the key always comes from the request |
 | `usage.py` | Token meter per question or job |
+| `concurrency.py`, `jobs.py`, `fileio.py` | Several users at once (REQ-83): chats on worker threads, the job queue for everything that writes, atomic files |
 
 **Ingestion** (`app/ingestion/`, see below) uses `extract.py` (text per file type), `chunking.py`, `project_meta.py` (file roles, versions, language), `enrich.py` (LLM structured summary), `glossary.py`, `deo.py`/`deo_classify.py` (rhetorical roles), `people.py`/`project_teams.py` (teams), `clustering.py`, `citations.py`, `provisions.py`, `purge.py`, `migrate.py`.
 
@@ -75,6 +76,22 @@ question ─► filters (UI + @key:value) ─► memory / follow-up query ─►
 
 `chat_common.StreamedAnswer` streams the model output and records usage; sources are numbered `[1]`, `[2]` … and the answer keeps only the cited ones.
 
+## Several users at once (REQ-83)
+
+The backend is **one process with one worker** (`--workers 1`); concurrency is built in at three places.
+
+| What | How | Where |
+|---|---|---|
+| Chats | Each question runs on its own event loop in a worker thread (`CHAT_THREADS`, default 32; more wait in line). The server loop only relays the events, so blocking Qdrant/Neo4j calls and CPU work of one chat never hold up another request. `contextvars` (visible databases, token meter) go along. | `concurrency.stream_in_thread` / `run_in_thread`, used in `routes/chat.py` and the progress route |
+| Writes | Uploads, cluster recomputation and the graph/citation/provision rebuilds are jobs in **one queue**, run one after the other by a worker thread with its own loop. While a job runs it holds `<DATA_DIR>/.write.lock` (`flock`); the CLI (`python -m app.ingestion`, `seed`) and `migrate import` take the same lock. | `jobs.QUEUE`, `routes/ingest.py`, `routes/common.queued` |
+| Shared files | Progress caches, legal models, teams, the session secret and job records are written to a temporary file and renamed. | `fileio.atomic_write_text/json` |
+
+Jobs: `queued` (with `position`; `waiting_for_lock` while another process writes) → `running` → `done` | `error`; after a restart unfinished ones become `interrupted`. Each job is a JSON file in `<DATA_DIR>/jobs`, belongs to its starter (`account:…`, `email:…`, `local`) and is visible to them and to admins. Uploads are staged in `<DATA_DIR>/incoming/<id>` and extracted inside the job; an account upload whose project or file name belongs to another database is renamed to "name (DATABASE)".
+
+Reads stay parallel. The unfiltered document list (read by both chats for every question) is cached per visibility for `DOC_CACHE_SECONDS`; every write through `store.client()` clears it.
+
+**Rules for new code:** write to Qdrant/Neo4j/the data folder only inside a job (`QUEUE.submit` or `routes.common.queued`) or the CLI; write shared files with `fileio`; give async chat code no global mutable state – several chats run at the same time on different threads.
+
 ## Ingestion flow
 
 ```
@@ -84,7 +101,7 @@ folder / file ─► scan (records, roles, versions, duplicates, dates, database
              ─► followups (re-cluster touched databases, citations, provisions)
 ```
 
-Entry points: `python -m app.ingestion <kind> [path]` (`cli.py`), the upload route `POST /api/ingest` (background job in `routes/ingest.py`) and the `seed` compose service. Legal folders (`_legal.yaml`) go through `legal_ingest.ingest_legal` instead.
+Entry points: `python -m app.ingestion <kind> [path]` (`cli.py`), the upload route `POST /api/ingest` (a job in the queue, `routes/ingest.py`) and the `seed` compose service. Legal folders (`_legal.yaml`) go through `legal_ingest.ingest_legal` instead.
 
 ## Front end
 
@@ -104,6 +121,7 @@ Views do not call each other. They subscribe to topics with `Store.on(topic, fn,
 
 ## How to …
 
+- **Add something that writes:** run it through the job queue (`await queued(request, kind, name, factory)` in a route) so it never overlaps an upload; see the section above.
 - **Add an API route:** add it to the matching router in `backend/app/routes/`; writes are admin-only unless listed in `access.py` (`CHAT_ROUTES`, session paths). Read data through `store`/`graph` so visibility applies. `test_access.py` walks `routes.route_table()`.
 - **Add a database:** one entry in `registry.py` (or `DATABASES`/`DATABASE_NAMES`/`PUBLIC_DATABASES` in `.env`), then `python tools/build_frontend.py data`; for a login, add an account with `python -m app.accounts`.
 - **Support a new file type:** add an extractor in `extract.py` and register it in `EXTRACTORS`; roles by name/extension live in `project_meta.py`.

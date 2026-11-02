@@ -4,6 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from .. import graphrag, rag
+from ..concurrency import run_in_thread, stream_in_thread
 from ..graphrag import GraphRequest
 from ..llm import MissingApiKey
 from ..schemas import ChatRequest, ChatResponse
@@ -16,7 +17,7 @@ router = APIRouter(prefix="/api", tags=["chat"])
 async def chat(req: ChatRequest, x_key: KeyHeader = None) -> ChatResponse:
     """RAG chat answer in one piece (the front end uses the streaming variant)."""
     try:
-        return await rag.answer(req, x_key)
+        return await run_in_thread(lambda: rag.answer(req, x_key))   # REQ-83: off the server loop
     except MissingApiKey as e:
         raise HTTPException(401, str(e)) from e
 
@@ -25,11 +26,11 @@ async def chat(req: ChatRequest, x_key: KeyHeader = None) -> ChatResponse:
 async def chat_stream(req: ChatRequest, x_key: KeyHeader = None):
     """Answer as Server-Sent Events: event meta | delta | done | error, data = JSON."""
     require_key(x_key)
-    return sse(rag.answer_stream(req, x_key), "chat")
+    return sse(stream_in_thread(lambda: rag.answer_stream(req, x_key)), "chat")   # REQ-83
 
 
 @router.post("/graph/stream")
 async def graph_stream(req: GraphRequest, x_key: KeyHeader = None):
     """Graph RAG as Server-Sent Events: meta (plan, graph path, sources) | delta | done | error."""
     require_key(x_key)
-    return sse(graphrag.answer_stream(req, x_key), "graph")
+    return sse(stream_in_thread(lambda: graphrag.answer_stream(req, x_key)), "graph")   # REQ-83

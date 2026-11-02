@@ -43,7 +43,7 @@ def test_hetzner_compose_has_no_origin_bypass(small_vm):
             assert int(services[name]["memswap_limit"]) == swap * mib
         assert services["qdrant"]["ulimits"]["nofile"] == {"soft": 65536, "hard": 65536}
         assert services["qdrant"]["environment"]["QDRANT__STORAGE__PERFORMANCE__MAX_SEARCH_THREADS"] == "1"
-        assert services["backend"]["command"][-4:] == ["--workers", "1", "--limit-concurrency", "8"]
+        assert services["backend"]["command"][-4:] == ["--workers", "1", "--limit-concurrency", "40"]
         for name in ("backend", "ingest"):
             assert services[name]["environment"]["OPENBLAS_NUM_THREADS"] == "1"
         neo4j = services["neo4j"]["environment"]

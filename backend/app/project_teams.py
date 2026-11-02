@@ -6,6 +6,7 @@ from pathlib import Path
 
 from . import store
 from .config import get_settings
+from .fileio import atomic_write_text
 from .people import team_for
 
 log = logging.getLogger("alita.teams")
@@ -45,7 +46,7 @@ def migrate_people_once() -> None:
         if get_settings().graph_enabled:
             from . import graph
             log.info("REQ-19 people in the graph: %s", graph.clean_persons())
-        flag.write_text("done", encoding="utf-8")
+        atomic_write_text(flag, "done")
         log.info("REQ-19: project teams applied, %d papers/notes cleaned", n)
     except Exception as e:  # Qdrant/Neo4j not ready yet: try again at the next start
         log.warning("REQ-19 migration skipped: %s", e)

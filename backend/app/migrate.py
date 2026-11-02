@@ -95,7 +95,9 @@ def main() -> None:
         export(a.dir)
         print("Done. Copy the ./migrate folder to the server and run there: docker compose run --rm migrate import")
     else:
-        import_(a.dir, graph=not a.no_graph)
+        from .jobs import write_lock
+        with write_lock(on_wait=lambda: print("Waiting for an upload or import to finish …")):   # REQ-83
+            import_(a.dir, graph=not a.no_graph)
         print("Done.")
 
 

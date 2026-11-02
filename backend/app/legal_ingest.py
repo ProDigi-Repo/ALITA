@@ -44,6 +44,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .config import get_settings
+from .fileio import atomic_write_json
 from .legal import (
     DRAFT_STAGES,
     KIND_OF_TYPE,
@@ -444,9 +445,7 @@ def _model_file(norm_id: str) -> Path:
 
 def save_model(model: dict) -> None:
     """Store the legal model of a norm as JSON in <DATA_DIR>/legal."""
-    f = _model_file(model["norm"]["norm_id"])
-    f.parent.mkdir(parents=True, exist_ok=True)
-    f.write_text(json.dumps(model, ensure_ascii=False), encoding="utf-8")
+    atomic_write_json(_model_file(model["norm"]["norm_id"]), model)   # REQ-83: readers never see half a model
 
 
 def load_model(norm_id: str) -> dict | None:

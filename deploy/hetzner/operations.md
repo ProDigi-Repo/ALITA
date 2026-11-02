@@ -6,7 +6,7 @@ No automatic Actions deploy. Secrets, invitations, private keys and backups stay
 ## Optional 4 GB pilot profile
 
 `docker-compose.4gb.yml` contains the limits tested on the small VM:
-backend 1280 MiB (one worker, at most eight concurrent requests), Neo4j 1152 MiB
+backend 1280 MiB (one worker, at most 40 open connections, six chat answers computed at once – further questions wait in line), Neo4j 1152 MiB
 (heap 256–512 MiB, page cache 256 MiB), Qdrant 1024 MiB (one search/optimizer thread,
 `nofile=65536`). Plus small limits for nginx, cloudflared and the CLI jobs.
 Imported Qdrant snapshots may bring their own collection optimizer values; check these separately.

@@ -146,13 +146,18 @@ def _secret(settings) -> bytes:
     if settings.account_session_secret.get_secret_value():
         return settings.account_session_secret.get_secret_value().encode()
     f = settings.data_dir / ".account_session_secret"
-    if not f.is_file():
-        f.parent.mkdir(parents=True, exist_ok=True)
-        f.write_text(secrets.token_hex(32), encoding="utf-8")
+    if not f.is_file():                          # REQ-83: create once, even with several processes starting together
+        from .fileio import atomic_write_text
+        tmp = atomic_write_text(f.with_name(f"{f.name}.{secrets.token_hex(4)}.new"), secrets.token_hex(32), mode=0o600)
         try:
-            os.chmod(f, 0o600)
-        except OSError:
+            os.link(tmp, f)                          # fails if another process was first; then its secret is used
+        except FileExistsError:
             pass
+        except OSError:                              # file systems without hard links
+            if not f.is_file():
+                os.replace(tmp, f)
+        finally:
+            tmp.unlink(missing_ok=True)
     return f.read_text(encoding="utf-8").strip().encode()
 
 
