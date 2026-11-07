@@ -77,7 +77,10 @@ async def protect_request(request: Request, call_next: Callable[[Request], Await
         if (((origin is not None or review_host) and expected is not None and origin != expected)
                 or request.headers.get("sec-fetch-site") == "cross-site"):
             return denied(403, "Cross-site requests are not allowed")
-        account_upload = (request.method, request.url.path) == ("POST", "/api/ingest") and request.state.account is not None
+        # REQ-84/90: accounts upload and delete in their own database (the routes check the database)
+        account_upload = request.state.account is not None and (
+            (request.method, request.url.path) == ("POST", "/api/ingest")
+            or (request.method == "DELETE" and request.url.path.startswith(("/api/documents/", "/api/projects/"))))
         if ((request.method, request.url.path) not in CHAT_ROUTES and not review_session_endpoint and not account_endpoint
                 and not account_upload and not request.state.is_admin):
             return denied(403, "Admin access required")

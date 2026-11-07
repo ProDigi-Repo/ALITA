@@ -93,6 +93,8 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 | REQ-87 | Activity tile between Databases and Upload: progress bars of own uploads/chats and the other users' | ✅ done | 3.13.0 | `GET /api/activity`, others anonymous; load badge quiet/busy/very busy; `js/activity.js`. |
 | REQ-88 | Knowledge-map and chat headers identical (same blue, same height) | ✅ done | 3.13.0 | `.cv-head` of A and B styled like `.tile-head`: solid `--acc`, white, 54 px, one line. |
 | REQ-89 | Refactor the code base again | ✅ done – no change in behaviour | 3.13.0 | `app/clustering/` package (numeric, naming, recompute); `app/uploads.py` + thin `routes/ingest.py`; `routes/jobs.py` + `app/activity.py`; `js/upload.js`, `css/uploads.css`; chat helpers into `chat.js`. Verified by AST identity, golden runs, UI comparisons, 234 tests. |
+| REQ-90 | Delete data in the Documents tab | ✅ done | 3.13.0 | Bin per row, Delete in details, Delete project; accounts own database only (shared → only untag), admins fully, legal texts with their whole law; job queue + recompute. `app/deletion.py`, `js/delete.js`. |
+| REQ-91 | Ocean party animation over the whole screen after every upload | ✅ done | 3.13.0 | `js/party.js`, `css/party.css`; own characters (no TV characters); Escape ends it; reduce-motion → calm banner. |
 
 ## Open points for the requirement owners
 - REQ-10, REQ-15 – REQ-18: main document chain per project, inferred links between versions and analyses, threshold for "substantive", AI stage texts automatic or on demand, versions without full text.

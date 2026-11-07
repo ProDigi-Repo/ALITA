@@ -5,13 +5,13 @@ from collections import Counter
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from .. import store
 from ..schemas import DocType, SearchFilters
-from .common import databases_param, settings
+from .common import KeyHeader, databases_param, delete_queued, own_database, settings
 
 router = APIRouter(tags=["documents"])
 
@@ -70,6 +70,21 @@ def document_detail(doc_id: str):
         raise HTTPException(404, "Document not found")
     d.pop("source_path", None)
     return d
+
+
+@router.get("/api/documents/{doc_id}/deletion")
+def document_deletion(doc_id: str, request: Request):
+    """REQ-90: what deleting this document would do for the caller (delete / only take their database off / whole law)."""
+    from ..deletion import plan_document
+    return plan_document(doc_id, own_database(request))
+
+
+@router.delete("/api/documents/{doc_id}")
+async def delete_document(doc_id: str, request: Request, x_key: KeyHeader = None):
+    """REQ-90: delete a document (accounts: only in their own database; legal texts with their whole law). Runs in the
+    job queue; clusters, citation network and provision links are updated afterwards."""
+    from ..deletion import plan_document
+    return await delete_queued(request, plan_document(doc_id, own_database(request)), x_key)
 
 
 @router.put("/api/documents/{doc_id}/databases")

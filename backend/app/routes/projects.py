@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from .. import store
-from .common import KeyHeader, databases_param, settings
+from .common import KeyHeader, databases_param, delete_queued, own_database, settings
 from .documents import DatabaseAssignment
 
 log = logging.getLogger("alita.api")
@@ -65,6 +65,20 @@ def projects():
 def project_detail(name: str):
     """One project with its excluded files."""
     return _with_excluded(_project_or_404(name))
+
+
+@router.get("/projects/{name}/deletion")
+def project_deletion(name: str, request: Request):
+    """REQ-90: what deleting this project would do for the caller."""
+    from ..deletion import plan_project
+    return plan_project(name, own_database(request))
+
+
+@router.delete("/projects/{name}")
+async def delete_project(name: str, request: Request, x_key: KeyHeader = None):
+    """REQ-90: delete a project with all its files (accounts: only in their own database). Runs in the job queue."""
+    from ..deletion import plan_project
+    return await delete_queued(request, plan_project(name, own_database(request)), x_key)
 
 
 @router.put("/projects/{name}/databases")

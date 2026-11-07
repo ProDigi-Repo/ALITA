@@ -92,7 +92,8 @@ function renderDocs(){
       <td class="num">${esc(d.d||'–')}${d.ds==='file_mtime'?'<span class="unsure" title="Date comes from the file system and may be skewed by copying or unzipping">≈</span>':''}</td>
       <td class="vers">${d.v?'v'+esc(d.v):'–'}${d.la&&d.v?'<span class="latest">latest</span>':''}</td>
       <td><div class="mchips">${(d.me||[]).slice(0,3).map(m=>`<span class="tagl">${esc(METHOD_LABEL[m]||m)}</span>`).join('')}${(d.me||[]).length>3?`<span class="tagl">+${d.me.length-3}</span>`:''}</div></td>
-      <td><span class="st ${sc}">${sl}</span></td></tr>`}).join('');
+      <td><span class="st ${sc}">${sl}</span></td>
+      <td class="dact">${typeof canDelete==='function'&&canDelete(d)?`<button type="button" class="dbin" data-del="${esc(d.id)}" title="Delete ${esc(d.ti)}" aria-label="Delete ${esc(d.ti)}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6"/></svg></button>`:''}</td></tr>`}).join('');
   $('#dMore').hidden=rows.length<=D.shown;
   $('#dMoreBtn').textContent=`Show more (${rows.length-D.shown} of ${rows.length})`;
   const empty=$('#dEmpty');
@@ -122,8 +123,10 @@ function renderProjectCard(f){
       <div class="mchips">${(p.methods||[]).map(m=>`<span class="mchip">${esc(METHOD_LABEL[m[0]]||m[1])}<i>${Math.round(m[2]*100)}%</i></span>`).join('')||'<span class="srcnote">none yet</span>'}</div>
       ${(p.keywords||[]).length?`<div class="mchips">${p.keywords.map(k=>`<span class="tagl">${esc(k)}</span>`).join('')}</div>`:''}
     </div>
-    <div>${sumHtml(s)}${prov?`<div class="srcnote" style="margin-top:8px">Summary ${prov}.</div>`:''}</div>`;
+    <div>${sumHtml(s)}${prov?`<div class="srcnote" style="margin-top:8px">Summary ${prov}.</div>`:''}
+      ${typeof canDeleteProject==='function'&&canDeleteProject(p)?`<div class="pc-del"><button class="btn danger" type="button" id="pcDel"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6"/></svg> Delete project</button></div>`:''}</div>`;
   wireDbPicker('pcDb',dbs=>assignDbs({project:p.name},dbs));
+  const pdel=$('#pcDel');if(pdel)pdel.addEventListener('click',()=>askDelete({kind:'project',name:p.name}));   // REQ-90
 }
 function sumHtml(s,emptyNote){
   s=s||{};
@@ -141,7 +144,9 @@ $('#cClustersBtn').addEventListener('click',()=>openDbInfo(null,true));
 $('#dReset').addEventListener('click',resetDocFilters);
 $('#dMoreBtn').addEventListener('click',()=>{D.shown+=200;renderDocs()});
 $$('.dt th[data-sort]').forEach(th=>th.addEventListener('click',()=>{const k=th.dataset.sort;D.dir=D.sort===k?-D.dir:(k==='d'||k==='v'?-1:1);D.sort=k;renderDocs()}));
-$('#dbody').addEventListener('click',e=>{const tr=e.target.closest('tr');if(tr)openDoc(tr.dataset.id)});
+$('#dbody').addEventListener('click',e=>{
+  const bin=e.target.closest('[data-del]');if(bin){e.stopPropagation();askDelete({kind:'doc',id:bin.dataset.del});return}   // REQ-90
+  const tr=e.target.closest('tr');if(tr)openDoc(tr.dataset.id)});
 
 /* ---------- Detail drawer ---------- */
 async function openDoc(id){
@@ -159,6 +164,7 @@ async function openDoc(id){
     <div class="actions">
       ${LIVE?`<a class="btn" href="files/${encodeURIComponent(id)}" target="_blank" rel="noopener">Open file</a>`:`<button class="btn" type="button" onclick="toast('Opening files requires the running backend')">Open file</button>`}
       <button class="btn" type="button" id="drAsk">Ask in chat</button>
+      ${typeof canDelete==='function'&&canDelete(d)?`<button class="btn danger" type="button" id="drDel"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6"/></svg> Delete</button>`:''}
     </div>
     <section><h4>Databases</h4>${dbPicker('drDb',d.db)}
       <div class="srcnote" style="margin-top:6px">${d.pn?`<label class="check"><input type="checkbox" id="drDbAll" checked> apply to the whole project ${esc(d.pn)}</label>`:''}</div>
@@ -198,6 +204,7 @@ async function openDoc(id){
   `;
   wireDbPicker('drDb',async dbs=>{const all=d.pn&&$('#drDbAll')&&$('#drDbAll').checked;await assignDbs(all?{project:d.pn}:{doc:id},dbs);openDoc(id)});
   $('#drBody').querySelectorAll('.vlist button').forEach(b=>b.addEventListener('click',()=>openDoc(b.dataset.id)));
+  const del=$('#drDel');if(del)del.addEventListener('click',()=>askDelete({kind:'doc',id}));   // REQ-90
   if(typeof wireLegalDoc==='function')wireLegalDoc($('#drBody'));
   $('#drBody').querySelectorAll('.ci-list [data-open]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();openDoc(b.dataset.open)}));   // REQ-35
   const inB=!$('#page-graph').hidden&&$('#cgDocSlot');

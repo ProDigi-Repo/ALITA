@@ -240,3 +240,125 @@ def test_chats_are_counted_while_they_run(live):
         return seen, concurrency.active_chats()
     seen, after = asyncio.run(main())
     assert all(s == [("graph", "answering")] for s in seen) and after == []
+
+
+def _upload(client, *files):
+    r = client.post("/api/ingest", headers=KEY, data={"doc_type": "research_paper"},
+                    files=[("files", (n, body.encode(), "text/plain")) for n, body in files])
+    assert r.status_code == 200, r.text
+    return [_wait(client, j) for j in r.json()["jobs"]]
+
+
+def _docs_by_name():
+    from app import store
+    with visibility.unrestricted():
+        return {d["filename"]: d for d in store.scroll_documents()}
+
+
+def test_users_delete_their_own_documents(live):
+    """REQ-90: delete in the Documents tab – own database only; the document, its passages and its upload are gone."""
+    from pathlib import Path
+
+    from app import store
+    s, client, _ = live
+    _login(client, "charmander", "fire-secret-1")
+    _upload(client, ("fire.txt", FIRE), ("smoke.txt", SMOKE))
+    fire = _docs_by_name()["fire.txt"]
+    assert Path(fire["source_path"]).is_file()
+
+    _login(client, "vulpix", "fox-secret-22")
+    assert client.get(f"/api/documents/{fire['doc_id']}/deletion").status_code == 404      # not visible to vulpix
+    assert client.delete(f"/api/documents/{fire['doc_id']}", headers=KEY).status_code == 404
+
+    _login(client, "charmander", "fire-secret-1")
+    plan = client.get(f"/api/documents/{fire['doc_id']}/deletion").json()
+    assert plan["action"] == "delete" and plan["kind"] == "document"
+    r = client.delete(f"/api/documents/{fire['doc_id']}", headers=KEY)
+    assert r.status_code == 200, r.text
+    assert r.json()["documents_deleted"] == 1 and r.json()["uploads_deleted"] == 1
+    docs = _docs_by_name()
+    assert "fire.txt" not in docs and "smoke.txt" in docs
+    assert not Path(fire["source_path"]).exists()
+    chunks = store.client().scroll(s.col_chunks, limit=200, with_payload=True)[0]
+    assert chunks and not [c for c in chunks if c.payload["doc_id"] == fire["doc_id"]]
+    job = client.get("/api/jobs?mine=true").json()["jobs"][0]
+    assert job["kind"] == "delete" and job["status"] == "done" and "Removing the data" in job["steps"]
+
+
+def test_shared_documents_only_lose_the_own_database(live):
+    from app import store
+    s, client, _ = live
+    _login(client, "charmander", "fire-secret-1")
+    _upload(client, ("fire.txt", FIRE))
+    fire = _docs_by_name()["fire.txt"]
+    store.client().set_payload(s.col_documents, {"databases": ["CHARMANDER", "VULPIX"]}, points=[fire["doc_id"]])
+    assert client.get(f"/api/documents/{fire['doc_id']}/deletion").json()["action"] == "untag"
+    assert client.delete(f"/api/documents/{fire['doc_id']}", headers=KEY).json()["documents_untagged"] == 1
+    assert _docs_by_name()["fire.txt"]["databases"] == ["VULPIX"]                       # still there for vulpix
+
+
+def test_admins_delete_anything_and_anonymous_nothing(live):
+    _, client, _ = live
+    _login(client, "charmander", "fire-secret-1")
+    _upload(client, ("fire.txt", FIRE))
+    fire = _docs_by_name()["fire.txt"]
+    client.post("/api/logout")
+    client.cookies.clear()
+    assert client.delete(f"/api/documents/{fire['doc_id']}").status_code == 403
+    _login(client, "admin", "master-password")
+    plan = client.get(f"/api/documents/{fire['doc_id']}/deletion").json()
+    assert plan["action"] == "delete"
+    assert client.delete(f"/api/documents/{fire['doc_id']}", headers=KEY).json()["documents_deleted"] == 1
+    assert "fire.txt" not in _docs_by_name()
+
+
+def test_legal_documents_go_with_their_whole_law(monkeypatch):
+    from app import deletion, store
+    docs = [{"doc_id": "v1", "title": "Act v1", "databases": ["CHARMANDER"], "legal": {"norm_id": "act"}},
+            {"doc_id": "v2", "title": "Act v2", "databases": ["CHARMANDER"], "legal": {"norm_id": "act"}},
+            {"doc_id": "w1", "title": "Shared law", "databases": ["CHARMANDER", "VULPIX"], "legal": {"norm_id": "shared"}}]
+    monkeypatch.setattr(store, "get_document", lambda i: next((d for d in docs if d["doc_id"] == i), None))
+    monkeypatch.setattr(store, "scroll_documents", lambda *a, **k: docs)
+    plan = deletion.plan_document("v1", "CHARMANDER")
+    assert plan["kind"] == "norm" and plan["norm_id"] == "act" and plan["documents"] == 2
+    with pytest.raises(Exception) as e:
+        deletion.plan_document("w1", "CHARMANDER")
+    assert getattr(e.value, "status_code", None) == 403
+    assert deletion.plan_document("w1", None)["kind"] == "norm"                             # admins may
+
+
+def test_projects_are_deleted_with_their_files(monkeypatch):
+    from app import deletion, store
+    proj = {"name": "Thesis", "title": "My thesis", "databases": ["CHARMANDER"]}
+    files = [{"doc_id": f"f{i}", "databases": ["CHARMANDER"], "project": {"project_name": "Thesis"}} for i in range(3)]
+    monkeypatch.setattr(store, "get_project", lambda n: proj if n == "Thesis" else None)
+    monkeypatch.setattr(store, "scroll_documents", lambda *a, **k: files + [{"doc_id": "x", "databases": ["CHARMANDER"]}])
+    plan = deletion.plan_project("Thesis", "CHARMANDER")
+    assert plan == {"kind": "project", "project": "Thesis", "title": "My thesis", "documents": 3, "action": "delete",
+                    "database": "CHARMANDER", "databases": ["CHARMANDER"]}
+    with pytest.raises(Exception) as e:
+        deletion.plan_project("Thesis", "VULPIX")
+    assert getattr(e.value, "status_code", None) == 403
+
+
+def test_a_whole_project_is_deleted_end_to_end(live):
+    import io
+    import zipfile
+    from pathlib import Path
+    s, client, _ = live
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("Thesis/manuscript.txt", FIRE)
+        z.writestr("Thesis/notes.txt", SMOKE)
+    _login(client, "charmander", "fire-secret-1")
+    r = client.post("/api/ingest", headers=KEY, data={"doc_type": "research_project"},
+                    files=[("files", ("Thesis.zip", buf.getvalue(), "application/zip"))])
+    assert _wait(client, r.json()["jobs"][0])["status"] == "done"
+    assert client.get("/api/projects/Thesis").status_code == 200
+    plan = client.get("/api/projects/Thesis/deletion").json()
+    assert plan["action"] == "delete" and plan["documents"] == 2
+    res = client.delete("/api/projects/Thesis", headers=KEY).json()
+    assert res["documents_deleted"] == 2 and res["project_deleted"] is True
+    assert client.get("/api/projects/Thesis").status_code == 404
+    assert not {"manuscript.txt", "notes.txt"} & set(_docs_by_name())
+    assert not (Path(s.data_dir) / "projects" / "Thesis").exists()

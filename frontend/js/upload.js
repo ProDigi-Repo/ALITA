@@ -108,6 +108,7 @@ $('#adcGo').addEventListener('click',async()=>{
     if(!r.ok)throw new Error((await r.json().catch(()=>({}))).detail||r.status);
     const {jobs}=await r.json();$('#addData').hidden=true;toast(`${dbName(AD.db)}: upload received – processing ${jobs.length} job${jobs.length===1?'':'s'}`);
     pollJobs(jobs);upTrack();
+    if(typeof oceanParty==='function')oceanParty(`${jobs.length===1?'Upload':jobs.length+' uploads'} received!`);   // REQ-91
   }catch(err){toast('Upload failed: '+err.message);adSync()}
 });
 /* ---------- The "Upload new data" tile: who may upload where (progress: activity tile, js/activity.js) ---------- */

@@ -18,7 +18,7 @@ from ..uploads import (
     stage_all,
     target_databases,
 )
-from .common import KeyHeader, databases_param, settings
+from .common import KeyHeader, databases_param, own_database, settings
 
 router = APIRouter(prefix="/api", tags=["ingest"])
 
@@ -44,8 +44,7 @@ async def ingest(
             when = datetime.fromisoformat(date[:10]).replace(tzinfo=timezone.utc)
         except ValueError as e:
             raise HTTPException(400, "date must be YYYY-MM-DD") from e
-    acc = getattr(request.state, "account", None)
-    own_db = acc.database if acc is not None and not acc.all_databases else None
+    own_db = own_database(request)
     asked = [d.strip().upper() for d in (databases or "").split(",") if d.strip()]
     target_dbs = target_databases(own_db, asked, project_name, doc_type) if own_db else databases_param(databases)
     opts = IngestOptions(use_llm=use_llm, api_key=x_key, databases=target_dbs, date=when)

@@ -25,16 +25,16 @@ def _doc_filter(doc_id: str) -> qm.Filter:
     return qm.Filter(must=[qm.FieldCondition(key="doc_id", match=qm.MatchValue(value=doc_id))])
 
 
-def delete_database(name: str, dry_run: bool = False) -> dict:
-    """Remove database `name` from the index: documents only in this database are deleted (with chunks, graph nodes and uploaded files), others just lose the tag. dry_run only reports."""
+def remove_documents(docs: list[dict], database: str | None, dry_run: bool = False) -> tuple[list[str], list[str], list[str]]:
+    """Delete documents, or – when ``database`` is given and a document also belongs to other databases – only take
+    ``database`` off it. Deleting covers the document, its passages and its uploaded original under DATA_DIR (files in
+    /research stay). Returns (deleted ids, untagged ids, deleted files)."""
     s, c = get_settings(), store.client()
     data_dir = Path(s.data_dir).resolve()
     removed, untagged, files = [], [], []
-    for d in store.scroll_documents():
+    for d in docs:
         dbs = d.get("databases") or []
-        if name not in dbs:
-            continue
-        rest = [x for x in dbs if x != name]
+        rest = [x for x in dbs if x != database] if database else []
         if rest:
             untagged.append(d["doc_id"])
             if not dry_run:
@@ -47,6 +47,20 @@ def delete_database(name: str, dry_run: bool = False) -> dict:
             files.append(str(src))
         if not dry_run:
             store.delete_document(d["doc_id"])
+    if not dry_run:
+        for f in files:
+            try:
+                Path(f).unlink()
+            except OSError as e:
+                log.warning("Upload not deleted: %s (%s)", f, e)
+    return removed, untagged, files
+
+
+def delete_database(name: str, dry_run: bool = False) -> dict:
+    """Remove database `name` from the index: documents only in this database are deleted (with chunks, graph nodes and uploaded files), others just lose the tag. dry_run only reports."""
+    s, c = get_settings(), store.client()
+    removed, untagged, files = remove_documents([d for d in store.scroll_documents() if name in (d.get("databases") or [])],
+                                                name, dry_run)
     projects_removed, projects_untagged = [], []
     for p in store.list_projects():
         dbs = p.get("databases") or []
@@ -61,29 +75,26 @@ def delete_database(name: str, dry_run: bool = False) -> dict:
             c.set_payload(s.col_projects, {"databases": rest}, points=[pid])
         else:
             c.delete(s.col_projects, qm.PointIdsList(points=[pid]))
-    if not dry_run:
-        for f in files:
-            try:
-                Path(f).unlink()
-            except OSError as e:
-                log.warning("Upload not deleted: %s (%s)", f, e)
     graph = None
     if not dry_run and s.graph_enabled:
-        graph = _purge_graph(name, removed, untagged)
+        graph = purge_graph(name, removed, untagged)
     return {"database": name, "dry_run": dry_run, "documents_deleted": len(removed), "documents_untagged": len(untagged),
             "projects_deleted": projects_removed, "projects_untagged": projects_untagged, "uploads_deleted": len(files),
             "graph": graph}
 
 
-def _purge_graph(name: str, removed: list[str], untagged: list[str]) -> dict | str:
+def purge_graph(name: str | None, removed: list[str], untagged: list[str]) -> dict | str:
+    """Remove deleted documents from the knowledge graph and the IN_DATABASE edge of ``name`` from untagged ones;
+    then drop people, methods, works and projects that no document points to any more."""
     try:
         from . import graph as g
         g.run("UNWIND $ids AS id MATCH (d:Document {doc_id: id}) "
               "OPTIONAL MATCH (d)-[:CONTAINS]->(s:Section) OPTIONAL MATCH (s)-[:CONTAINS]->(k:Chunk) "
               "OPTIONAL MATCH (d)-[:HAS_SUMMARY]->(e:SummaryElement) DETACH DELETE k, s, e, d", ids=removed)
-        g.run("UNWIND $ids AS id MATCH (:Document {doc_id: id})-[r:IN_DATABASE]->(:Database {name: $db}) DELETE r",
-              ids=untagged, db=name)
-        g.run("MATCH (b:Database {name: $db}) WHERE NOT (b)--() DELETE b", db=name)
+        if name:
+            g.run("UNWIND $ids AS id MATCH (:Document {doc_id: id})-[r:IN_DATABASE]->(:Database {name: $db}) DELETE r",
+                  ids=untagged, db=name)
+            g.run("MATCH (b:Database {name: $db}) WHERE NOT (b)--() DELETE b", db=name)
         # people, methods, works, projects without remaining documents
         for label in ("Person", "Method", "Work", "Project"):
             g.run(f"MATCH (x:{label}) WHERE NOT (x)--(:Document) DETACH DELETE x")

@@ -451,7 +451,7 @@ def test_graph_plan_and_path():
     assert p[0] == ["Leyer", "Person"] and p[1] == "authored" and ["2 Method", "deo:Methods"] in p and p[-1] == ["Trust", "Cluster"]
 
 
-def test_delete_database(tmp_path):
+def test_delete_database(tmp_path, monkeypatch):
     """ingest delete --db JSW: JSW-only documents gone, mixed ones only lose the assignment."""
     import sys
     import types
@@ -483,10 +483,10 @@ def test_delete_database(tmp_path):
         col_documents, col_chunks, col_projects = "d", "c", "p"
 
     deleted = []
-    purge.get_settings = lambda: S
-    purge.store = types.SimpleNamespace(client=lambda: FakeClient(), scroll_documents=lambda: docs,
+    monkeypatch.setattr(purge, "get_settings", lambda: S)        # restored afterwards (REQ-90 tests use the real purge)
+    monkeypatch.setattr(purge, "store", types.SimpleNamespace(client=lambda: FakeClient(), scroll_documents=lambda: docs,
                                         delete_document=deleted.append, make_project_id=lambda n: n,
-                                        list_projects=lambda: [{"name": "P1", "databases": ["JSW"]}])
+                                        list_projects=lambda: [{"name": "P1", "databases": ["JSW"]}]))
     res = purge.delete_database("JSW")
     assert deleted == ["a"] and res["documents_untagged"] == 1 and res["projects_deleted"] == ["P1"]
     assert ("set", "d", {"databases": ["LDK"]}) in calls and not up.exists()

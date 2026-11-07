@@ -45,6 +45,7 @@ PIPELINES = {
     "project": ["Reading the files", "Summaries, methods and keywords (LLM)",
                 "Chunks, embeddings, rhetorical roles and knowledge graph", *_FOLLOW],
     "legal": ["Reading and parsing the legal text", "Summaries (LLM)", "Text units and embeddings", "Knowledge graph"],
+    "delete": ["Removing the data", *_FOLLOW],          # REQ-90
 }
 
 
@@ -56,6 +57,8 @@ def pipeline_of(kind: str) -> list[str]:
         return PIPELINES["legal"]
     if kind in ("research_paper", "research_notes"):
         return PIPELINES["file"]
+    if kind == "delete":
+        return PIPELINES["delete"]
     return []
 INTERRUPTED = "The server restarted before this job finished – please start it again."
 
@@ -101,8 +104,9 @@ class Job:
         return round(min(0.97, (idx + 0.5) / len(steps)), 3)
 
 
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+def _now(precise: bool = False) -> str:
+    """UTC time stamp; ``precise`` keeps microseconds (creation order of jobs submitted in the same second)."""
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds" if precise else "seconds")
 
 
 def _dir() -> Path:
@@ -208,7 +212,7 @@ class JobQueue:
     def submit(self, kind: str, name: str, owner: str, factory: Callable[[], Awaitable[Any]], **extra) -> Job:
         """Queue ``factory()`` (an async function returning the result) and return the job at once."""
         self.load()
-        job = Job(id=str(uuid.uuid4()), kind=kind, name=name, owner=owner, created=_now(), extra=extra)
+        job = Job(id=str(uuid.uuid4()), kind=kind, name=name, owner=owner, created=_now(precise=True), extra=extra)
         with self._lock:
             self.jobs[job.id] = job
             self._work[job.id] = (contextvars.copy_context(), factory)

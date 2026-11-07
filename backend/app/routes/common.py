@@ -88,3 +88,17 @@ async def queued(request, kind: str, name: str, factory, wait: float = JOB_WAIT_
     if job.status == "error":
         raise HTTPException(500, job.error or "Job failed")
     return JSONResponse(QUEUE.view(job.id), status_code=202)
+
+
+def own_database(request) -> str | None:
+    """The database of a logged-in account that is limited to one database; None for admins and without accounts."""
+    acc = getattr(request.state, "account", None)
+    return acc.database if acc is not None and not acc.all_databases else None
+
+
+async def delete_queued(request, plan: dict, x_key: str | None):
+    """REQ-90: carry out a deletion plan as a job of the queue (result, or 202 with the job when it waits long)."""
+    from ..deletion import run_plan
+    own = own_database(request)
+    return await queued(request, "delete", plan.get("title") or plan.get("project") or plan.get("doc_id") or "data",
+                        lambda: run_plan(plan, own, x_key))

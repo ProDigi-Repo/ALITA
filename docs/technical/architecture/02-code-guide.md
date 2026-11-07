@@ -31,6 +31,7 @@
 | `routes/` | API routers by domain: `system`, `accounts`, `documents`, `projects`, `clusters`, `chat`, `graph`, `legal`, `ingest` (uploads), `jobs` (job status, activity); shared helpers in `routes/common.py` |
 | `uploads.py` | Uploads (REQ-84/86): which database an upload may go to, ZIP checks, staging in `<DATA_DIR>/incoming`, name clashes between databases, the job of each file |
 | `activity.py` | What runs on the server for the activity tile (REQ-87): own work in full, other users' anonymously |
+| `deletion.py` | Deleting from the Documents tab (REQ-90): who may delete what (plan), carrying it out in a job, recomputing afterwards |
 
 **Storage and models**
 
@@ -115,7 +116,7 @@ Every logged-in account uploads into its own database (`access.py` lets `POST /a
 
 ## Front end
 
-Scripts are plain globals loaded in this order (see `index.html`): `data.js` (generated) → `core.js` (helpers, API calls) → `state.js` (`Store`) → `databases.js` → `header-access.js` → feature views (`cluster-*`, `documents.js`, `upload.js` (wizard, upload tile, job polling), `chat.js`, `people.js`, `progress.js`, `citations.js`, `legal.js`, `space3d*.js` …) → `tour.js` → `activity.js` → `start.js` (boot).
+Scripts are plain globals loaded in this order (see `index.html`): `data.js` (generated) → `core.js` (helpers, API calls) → `state.js` (`Store`) → `databases.js` → `header-access.js` → feature views (`cluster-*`, `documents.js`, `upload.js` (wizard, upload tile, job polling), `delete.js` (deleting, REQ-90), `party.js` (upload party, REQ-91), `chat.js`, `people.js`, `progress.js`, `citations.js`, `legal.js`, `space3d*.js` …) → `tour.js` → `activity.js` → `start.js` (boot).
 
 Views do not call each other. They subscribe to topics with `Store.on(topic, fn, order)`; whoever changes the data calls `Store.emit(topic)`. Lower `order` runs first, and one failing view does not stop the others.
 
