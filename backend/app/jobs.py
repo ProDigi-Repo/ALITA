@@ -198,7 +198,7 @@ class JobQueue:
         cutoff = datetime.now(timezone.utc).timestamp() - s.job_history_days * 86400
         with self._lock:
             done = sorted((j for j in self.jobs.values() if j.status in FINISHED), key=lambda j: j.created, reverse=True)
-            drop = done[s.job_history:] + [j for j in done[: s.job_history] if _ts(j.created) < cutoff]
+            drop = done[s.job_history:] + [j for j in done[: s.job_history] if parse_ts(j.created) < cutoff]
             for j in drop:
                 self.jobs.pop(j.id, None)
                 with contextlib.suppress(OSError):
@@ -306,9 +306,10 @@ class JobQueue:
             log.warning("Usage of job %s not computed: %s", job.id, e)
 
 
-def _ts(iso: str) -> float:
+def parse_ts(iso: str | None) -> float:
+    """Epoch seconds of an ISO time stamp of a job record; 0 when missing or malformed."""
     try:
-        return datetime.fromisoformat(iso).timestamp()
+        return datetime.fromisoformat(iso).timestamp() if iso else 0.0
     except (TypeError, ValueError):
         return 0.0
 

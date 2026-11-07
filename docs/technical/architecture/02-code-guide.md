@@ -28,7 +28,9 @@
 | `reviewers.py` | Anonymous reviewer invitations with expiring codes |
 | `visibility.py` | Context variable with the databases the current request may see; `qdrant_filter()` and `visible()` apply it where data is read |
 | `registry.py` | Database registry: id, display name, colours, public flag, description |
-| `routes/` | API routers by domain: `system`, `accounts`, `documents`, `projects`, `clusters`, `chat`, `graph`, `legal`, `ingest`; shared helpers in `routes/common.py` |
+| `routes/` | API routers by domain: `system`, `accounts`, `documents`, `projects`, `clusters`, `chat`, `graph`, `legal`, `ingest` (uploads), `jobs` (job status, activity); shared helpers in `routes/common.py` |
+| `uploads.py` | Uploads (REQ-84/86): which database an upload may go to, ZIP checks, staging in `<DATA_DIR>/incoming`, name clashes between databases, the job of each file |
+| `activity.py` | What runs on the server for the activity tile (REQ-87): own work in full, other users' anonymously |
 
 **Storage and models**
 
@@ -41,7 +43,7 @@
 | `usage.py` | Token meter per question or job |
 | `concurrency.py`, `jobs.py`, `fileio.py` | Several users at once (REQ-83): chats on worker threads, the job queue for everything that writes, atomic files |
 
-**Ingestion** (`app/ingestion/`, see below) uses `extract.py` (text per file type), `chunking.py`, `project_meta.py` (file roles, versions, language), `enrich.py` (LLM structured summary), `glossary.py`, `deo.py`/`deo_classify.py` (rhetorical roles), `people.py`/`project_teams.py` (teams), `clustering.py`, `citations.py`, `provisions.py`, `purge.py`, `migrate.py`.
+**Ingestion** (`app/ingestion/`, see below) uses `extract.py` (text per file type), `chunking.py`, `project_meta.py` (file roles, versions, language), `enrich.py` (LLM structured summary), `glossary.py`, `deo.py`/`deo_classify.py` (rhetorical roles), `people.py`/`project_teams.py` (teams), `clustering/` (package: `__init__` = units, vectors, `recompute`, LLM descriptions; `numeric.py` = k-means, silhouette, terms, 2D layout; `naming.py` = person-name pseudonyms and cluster titles), `citations.py`, `provisions.py`, `purge.py`, `migrate.py`.
 
 **Chats and retrieval**
 
@@ -83,7 +85,7 @@ The backend is **one process with one worker** (`--workers 1`); concurrency is b
 | What | How | Where |
 |---|---|---|
 | Chats | Each question runs on its own event loop in a worker thread (`CHAT_THREADS`, default 32; more wait in line). The server loop only relays the events, so blocking Qdrant/Neo4j calls and CPU work of one chat never hold up another request. `contextvars` (visible databases, token meter) go along. | `concurrency.stream_in_thread` / `run_in_thread`, used in `routes/chat.py` and the progress route |
-| Writes | Uploads, cluster recomputation and the graph/citation/provision rebuilds are jobs in **one queue**, run one after the other by a worker thread with its own loop. While a job runs it holds `<DATA_DIR>/.write.lock` (`flock`); the CLI (`python -m app.ingestion`, `seed`) and `migrate import` take the same lock. | `jobs.QUEUE`, `routes/ingest.py`, `routes/common.queued` |
+| Writes | Uploads, cluster recomputation and the graph/citation/provision rebuilds are jobs in **one queue**, run one after the other by a worker thread with its own loop. While a job runs it holds `<DATA_DIR>/.write.lock` (`flock`); the CLI (`python -m app.ingestion`, `seed`) and `migrate import` take the same lock. | `jobs.QUEUE`, `uploads.py`, `routes/common.queued` |
 | Shared files | Progress caches, legal models, teams, the session secret and job records are written to a temporary file and renamed. | `fileio.atomic_write_text/json` |
 
 Jobs: `queued` (with `position`; `waiting_for_lock` while another process writes) → `running` → `done` | `error`; after a restart unfinished ones become `interrupted`. Each job is a JSON file in `<DATA_DIR>/jobs`, belongs to its starter (`account:…`, `email:…`, `local`) and is visible to them and to admins. Uploads are staged in `<DATA_DIR>/incoming/<id>` and extracted inside the job; an account upload whose project or file name belongs to another database is renamed to "name (DATABASE)".
@@ -105,15 +107,15 @@ Entry points: `python -m app.ingestion <kind> [path]` (`cli.py`), the upload rou
 
 ### Uploads by users (REQ-84)
 
-Every logged-in account uploads into its own database (`access.py` lets `POST /api/ingest` through for accounts, the route forces the account's database); admins choose one. The job reports its pipeline step with `jobs.step("…")` (reading, LLM summary, chunks/embeddings/graph, clustering, citation network, provision links), which the tile shows. The follow-ups in `ingestion/followups.py` run under `visibility.unrestricted()`: they rebuild data of the whole index and must not see only the uploader's database.
+Every logged-in account uploads into its own database (`access.py` lets `POST /api/ingest` through for accounts; `uploads.target_databases` refuses any other database and any other database's project with 403); admins choose one. The job reports its pipeline step with `jobs.step("…")` (reading, LLM summary, chunks/embeddings/graph, clustering, citation network, provision links), which the tile shows. The follow-ups in `ingestion/followups.py` run under `visibility.unrestricted()`: they rebuild data of the whole index and must not see only the uploader's database.
 
 ### Activity (REQ-87)
 
-`GET /api/activity` combines `jobs.QUEUE` (uploads and recalculations with `step` and `progress`) and `concurrency.active_chats()` (every chat registers while it waits for a worker and while it is answered). The caller's own entries come in full; the other users' are reduced to kind, status, step and progress – no owner, file name or database. `js/activity.js` renders the tile and polls every 3 s while something runs, every 15 s otherwise, and not while the tab is hidden.
+`GET /api/activity` combines `jobs.QUEUE` (uploads and recalculations with `step` and `progress`) and `concurrency.active_chats()` (every chat registers while it waits for a worker and while it is answered). The caller's own entries come in full; the other users' are reduced to kind, status, step and progress – no owner, file name or database. `js/activity.js` renders the tile (styles of both tiles: `css/uploads.css`) and polls every 3 s while something runs, every 15 s otherwise, and not while the tab is hidden.
 
 ## Front end
 
-Scripts are plain globals loaded in this order (see `index.html`): `data.js` (generated) → `core.js` (helpers, API calls) → `state.js` (`Store`) → `databases.js` → `header-access.js` → feature views (`cluster-*`, `documents.js`, `chat.js`, `people.js`, `progress.js`, `citations.js`, `legal.js`, `space3d*.js` …) → `tour.js` → `activity.js` → `start.js` (boot).
+Scripts are plain globals loaded in this order (see `index.html`): `data.js` (generated) → `core.js` (helpers, API calls) → `state.js` (`Store`) → `databases.js` → `header-access.js` → feature views (`cluster-*`, `documents.js`, `upload.js` (wizard, upload tile, job polling), `chat.js`, `people.js`, `progress.js`, `citations.js`, `legal.js`, `space3d*.js` …) → `tour.js` → `activity.js` → `start.js` (boot).
 
 Views do not call each other. They subscribe to topics with `Store.on(topic, fn, order)`; whoever changes the data calls `Store.emit(topic)`. Lower `order` runs first, and one failing view does not stop the others.
 

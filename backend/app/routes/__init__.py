@@ -6,10 +6,10 @@ everything else that writes is admin-only, including routes added later).
 from fastapi import APIRouter
 
 from .. import reviewers
-from . import accounts, chat, clusters, documents, graph, ingest, legal, projects, system
+from . import accounts, chat, clusters, documents, graph, ingest, jobs, legal, projects, system
 
 ROUTERS: list[APIRouter] = [reviewers.router, accounts.router, system.router, chat.router, documents.router, clusters.router, projects.router,
-                            legal.router, graph.router, ingest.router]
+                            legal.router, graph.router, ingest.router, jobs.router]
 
 
 def route_table() -> list[tuple[str, str]]:

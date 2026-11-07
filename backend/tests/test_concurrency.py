@@ -252,7 +252,7 @@ def test_job_visibility_per_owner():
 
 # ----------------------------------------------------------------- uploads of different accounts never collide
 def test_free_name_adds_the_database_when_another_one_owns_the_name(monkeypatch):
-    from app.routes import ingest as r
+    from app import uploads as r
     from app.schemas import DocType, make_doc_id
 
     paper_id = make_doc_id("research_paper", "research_paper", "research_paper/paper.pdf")

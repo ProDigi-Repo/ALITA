@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from app import access, accounts, config, main, rag, store
 from app.config import Settings
 from app.routes import route_table
-from app.routes.ingest import checked_zip_members
+from app.uploads import checked_zip_members
 
 ISSUER = "https://alita-test.cloudflareaccess.com"
 ORIGIN = "https://alita.example.org"
