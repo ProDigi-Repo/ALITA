@@ -38,7 +38,7 @@ log = logging.getLogger(__name__)
 FINISHED = ("done", "error", "interrupted")
 
 # REQ-87: the steps a job of each kind goes through, in order (from jobs.step() calls) – for its progress bar
-_FOLLOW = ["Clustering", "Citation network", "Links to legal provisions"]
+_FOLLOW = ["Classification into clusters", "Citation network", "Links to legal provisions"]
 PIPELINES = {
     "file": ["Reading the file", "Summary, methods and keywords (LLM)",
              "Chunks, embeddings, rhetorical roles and knowledge graph", *_FOLLOW],

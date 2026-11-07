@@ -163,6 +163,7 @@
     <div class="up-head"><span class="up-ic" aria-hidden="true">⇪</span><b>Upload new data</b></div>
     <p class="up-target" id="upTarget"></p>
     <button type="button" class="up-btn" id="upOpen">+ Upload new data</button>
+    <button type="button" class="up-btn2" id="upRecluster" title="Compute the clusters completely anew – uploads only sort new documents into the existing clusters">↻ Recompute clusters</button>
     <p class="up-hint">Progress of your uploads: see Activity</p>
   </section>
   </div>
@@ -475,6 +476,14 @@
       <div id="adcBody"></div>
       <div class="row"><button type="button" class="btn" id="adcBack">Back</button><button type="button" class="btn primary" id="adcGo">Upload</button></div>
     </div>
+  </div>
+</div>
+<!-- REQ-92: confirm a complete new clustering -->
+<div class="ad-confirm" id="rcConfirm" hidden role="alertdialog" aria-modal="true" aria-labelledby="rcTitle">
+  <div class="box">
+    <h3 id="rcTitle">Recompute clusters</h3>
+    <div id="rcBody"></div>
+    <div class="row"><button type="button" class="btn" id="rcBack">Cancel</button><button type="button" class="btn primary" id="rcGo">Recompute</button></div>
   </div>
 </div>
 <!-- REQ-90: confirm a deletion in the Documents tab -->

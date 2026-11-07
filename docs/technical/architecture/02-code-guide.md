@@ -44,7 +44,7 @@
 | `usage.py` | Token meter per question or job |
 | `concurrency.py`, `jobs.py`, `fileio.py` | Several users at once (REQ-83): chats on worker threads, the job queue for everything that writes, atomic files |
 
-**Ingestion** (`app/ingestion/`, see below) uses `extract.py` (text per file type), `chunking.py`, `project_meta.py` (file roles, versions, language), `enrich.py` (LLM structured summary), `glossary.py`, `deo.py`/`deo_classify.py` (rhetorical roles), `people.py`/`project_teams.py` (teams), `clustering/` (package: `__init__` = units, vectors, `recompute`, LLM descriptions; `numeric.py` = k-means, silhouette, terms, 2D layout; `naming.py` = person-name pseudonyms and cluster titles), `citations.py`, `provisions.py`, `purge.py`, `migrate.py`.
+**Ingestion** (`app/ingestion/`, see below) uses `extract.py` (text per file type), `chunking.py`, `project_meta.py` (file roles, versions, language), `enrich.py` (LLM structured summary), `glossary.py`, `deo.py`/`deo_classify.py` (rhetorical roles), `people.py`/`project_teams.py` (teams), `clustering/` (package: `__init__` = units, vectors, `recompute`, LLM descriptions; `numeric.py` = k-means, silhouette, terms, 2D layout; `naming.py` = person-name pseudonyms and cluster titles; `classify.py` = sorting new uploads into the existing clusters, REQ-92), `citations.py`, `provisions.py`, `purge.py`, `migrate.py`.
 
 **Chats and retrieval**
 
@@ -101,7 +101,7 @@ Reads stay parallel. The unfiltered document list (read by both chats for every 
 folder / file ─► scan (records, roles, versions, duplicates, dates, databases)
              ─► summaries (LLM: structured summary, method tags, title) – only files that are worth it
              ─► index (chunks, DEO labels, embeddings ─► Qdrant; document ─► Neo4j)
-             ─► followups (re-cluster touched databases, citations, provisions)
+             ─► followups (sort new units into the existing clusters – small databases are re-clustered –, citations, provisions)
 ```
 
 Entry points: `python -m app.ingestion <kind> [path]` (`cli.py`), the upload route `POST /api/ingest` (a job in the queue, `routes/ingest.py`; in the interface the tile "Upload new data" next to the database bar, REQ-84) and the `seed` compose service. Legal folders (`_legal.yaml`) go through `legal_ingest.ingest_legal` instead.

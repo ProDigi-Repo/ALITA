@@ -68,6 +68,8 @@ class Settings(BaseSettings):
     job_history: int = 200          # finished upload/maintenance jobs kept in <DATA_DIR>/jobs
     job_history_days: int = 14      # … and for at most this many days
     doc_cache_seconds: float = 20.0 # document list cached per visibility; 0 = off (writes in this process clear it)
+    cluster_on_upload: str = "classify"   # REQ-92: classify | recompute (re-cluster the database after every upload)
+    cluster_min_units: int = 12           # REQ-92: below this many clustered documents a database is still re-clustered
 
     @model_validator(mode="after")
     def _account_databases(self):

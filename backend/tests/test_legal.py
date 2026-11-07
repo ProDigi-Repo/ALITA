@@ -332,9 +332,35 @@ def test_auto_recluster_only_touches_ingested_databases(monkeypatch):
         return {"k": 1, "documents": 1, "units": 1}
     monkeypatch.setattr(clustering, "recompute", fake)
     monkeypatch.setattr(followups, "uses_project_files", lambda db: db == "ML")
+    from app.clustering import classify as cl
+    monkeypatch.setattr(cl, "needs_clustering", lambda dbs: True)    # REQ-92: small databases are still clustered
     opts = IngestOptions(use_llm=False, embed=True)
     res = asyncio.run(followups.maybe_recluster(opts, ["EUAIA", "ML"]))
-    assert calls == [(["EUAIA"], False), (["ML"], True)] and res["k"] == 2
+    assert calls == [(["EUAIA"], False), (["ML"], True)] and res["clustered"] == ["EUAIA", "ML"]
+
+
+def test_larger_databases_are_classified_not_reclustered(monkeypatch):
+    """REQ-92: once a database has enough clusters, an upload only classifies – recompute is not called."""
+    import asyncio
+
+    from app import clustering
+    from app.clustering import classify as cl
+    from app.ingestion import IngestOptions, followups
+    calls, classified = [], []
+
+    async def fake_recompute(*a, **k):
+        calls.append(k.get("databases"))
+        return {}
+
+    async def fake_classify(api_key, databases=None, project_files=False):
+        classified.append((databases, project_files))
+        return {"classified": 2}
+    monkeypatch.setattr(clustering, "recompute", fake_recompute)
+    monkeypatch.setattr(cl, "classify", fake_classify)
+    monkeypatch.setattr(cl, "needs_clustering", lambda dbs: False)
+    monkeypatch.setattr(followups, "uses_project_files", lambda db: db == "ML")
+    res = asyncio.run(followups.maybe_recluster(IngestOptions(use_llm=False, embed=True), ["EUAIA", "ML"]))
+    assert calls == [] and classified == [(["EUAIA"], False), (["ML"], True)] and res["classified"] == 4
 
 
 EP_CA = """Committee on the Internal Market and Consumer Protection

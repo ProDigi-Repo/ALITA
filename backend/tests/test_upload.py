@@ -104,7 +104,7 @@ def test_an_account_uploads_files_that_run_through_the_whole_pipeline(live):
     assert [j["status"] for j in jobs] == ["done", "done"], jobs
     steps = jobs[0]["steps"]
     for st in ("Reading the file", "Summary, methods and keywords (LLM)",
-               "Chunks, embeddings, rhetorical roles and knowledge graph", "Clustering", "Citation network"):
+               "Chunks, embeddings, rhetorical roles and knowledge graph", "Classification into clusters", "Citation network"):
         assert st in steps, steps
     assert jobs[0]["step"] is None and jobs[0]["owner"] == "account:charmander"
     assert sorted(f for f, _ in calls) == ["fire.txt", "smoke.txt"] and {k for _, k in calls} == {"sk-or-test"}
@@ -150,6 +150,8 @@ def test_followups_see_every_database_whoever_uploaded(monkeypatch):
         return {"k": 1, "documents": 1}
     monkeypatch.setattr(clustering, "recompute", recompute)
     monkeypatch.setattr(followups, "uses_project_files", lambda db: False)
+    from app.clustering import classify as cl
+    monkeypatch.setattr(cl, "needs_clustering", lambda dbs: True)          # first upload of the database: clustered
     import asyncio
     token = visibility.restrict(["CHARMANDER"])
     try:
@@ -362,3 +364,80 @@ def test_a_whole_project_is_deleted_end_to_end(live):
     assert client.get("/api/projects/Thesis").status_code == 404
     assert not {"manuscript.txt", "notes.txt"} & set(_docs_by_name())
     assert not (Path(s.data_dir) / "projects" / "Thesis").exists()
+
+
+
+def test_new_uploads_are_classified_into_the_existing_clusters(live):
+    """REQ-92: the first upload of a database clusters it; later uploads are only classified – the existing clusters,
+    their numbers, names and map positions stay as they are – until "Recompute clusters"."""
+    s, client, _ = live
+    s.cluster_min_units = 2                          # small databases are re-clustered: here up to two documents
+    _login(client, "charmander", "fire-secret-1")
+    _upload(client, ("fire.txt", FIRE), ("smoke.txt", SMOKE))
+    before = {n: {k: d.get(k) for k in ("cluster_id", "cluster_run", "cluster_x", "cluster_label")}
+              for n, d in _docs_by_name().items()}
+    assert all(v["cluster_id"] is not None for v in before.values())
+    assert not any(d.get("cluster_classified") for d in _docs_by_name().values())
+
+    jobs = _upload(client, ("embers.txt", FIRE.replace("Fire safety", "Embers and fire safety")))
+    assert "Classification into clusters" in jobs[0]["steps"]
+    after = _docs_by_name()
+    for n, v in before.items():                                  # nothing moved
+        assert {k: after[n].get(k) for k in v} == v
+    new = after["embers.txt"]
+    assert new["cluster_classified"] is True and new["cluster_id"] in {v["cluster_id"] for v in before.values()}
+    assert new["cluster_run"] == before["fire.txt"]["cluster_run"] and new["cluster_label"]
+    assert 0 < new["cluster_score"] <= 1 and new["cluster_x"] is not None
+
+    _login(client, "vulpix", "fox-secret-22")
+    assert client.post("/api/clusters/rebuild?database=CHARMANDER", headers=KEY).status_code == 403
+    _login(client, "charmander", "fire-secret-1")
+    time.sleep(1.1)                                   # cluster runs are stamped to the second
+    r = client.post("/api/clusters/rebuild", headers=KEY)
+    assert r.status_code == 200, r.text
+    assert r.json()["databases"] == ["CHARMANDER"] and r.json()["documents"] == 3
+    docs = _docs_by_name()
+    assert not any(d.get("cluster_classified") for d in docs.values())
+    assert len({d["cluster_run"] for d in docs.values()}) == 1 and docs["fire.txt"]["cluster_run"] != before["fire.txt"]["cluster_run"]
+    client.post("/api/logout")
+    client.cookies.clear()
+    assert client.post("/api/clusters/rebuild").status_code == 403
+
+
+def test_classify_takes_the_nearest_cluster_and_touches_nothing_else(monkeypatch):
+    import asyncio
+
+    from app import store
+    from app.clustering import classify as cl
+    docs = [{"doc_id": "a", "doc_type": "research_paper", "databases": ["X"], "summary": {"purpose": "fire"},
+             "title": "A", "cluster_id": 1, "cluster_basis": "summary", "cluster_label": "fire", "cluster_run": "r1",
+             "cluster_k": 2, "cluster_title": "Fire", "cluster_description": "about fire", "cluster_x": 0.0, "cluster_y": 0.0},
+            {"doc_id": "b", "doc_type": "research_paper", "databases": ["X"], "summary": {"purpose": "water"},
+             "title": "B", "cluster_id": 2, "cluster_basis": "summary", "cluster_label": "water", "cluster_run": "r1",
+             "cluster_k": 2, "cluster_title": "Water", "cluster_x": 1.0, "cluster_y": 1.0},
+            {"doc_id": "n", "doc_type": "research_paper", "databases": ["X"], "summary": {"purpose": "rain"}, "title": "N"},
+            {"doc_id": "dup", "doc_type": "research_paper", "databases": ["X"], "duplicate_of": "n", "title": "N copy"}]
+    vec = {"a": [1.0, 0.0], "b": [0.0, 1.0], "n": [0.2, 0.9]}
+    monkeypatch.setattr(store, "scroll_documents", lambda *a, **k: docs)
+    monkeypatch.setattr(store, "list_projects", lambda *a, **k: [])
+    monkeypatch.setattr(store, "summary_vectors", lambda kind: {})
+    from app import config
+    from app.config import Settings
+    quiet = Settings(_env_file=None, graph_enabled=False)
+    monkeypatch.setattr(config, "get_settings", lambda: quiet)
+
+    async def fill(units, key):
+        for u in units:
+            u["vec"] = vec[u["id"]]
+        return []
+    import app.clustering as C
+    monkeypatch.setattr(C, "_fill_vectors", fill)
+    written = {}
+    monkeypatch.setattr(store, "set_cluster_payload", lambda m, run, projects=None, scope=None: written.update(m=m, run=run, scope=scope))
+    res = asyncio.run(cl.classify("k", ["X"]))
+    assert res["classified"] == 1 and res["into"] == [{"cluster_id": 2, "label": "water", "new": 1}]
+    m = written["m"]
+    assert set(m) == {"n", "dup"} and written["run"] == "r1" and written["scope"] == ({"n", "dup"}, set())
+    assert m["n"]["cluster_id"] == 2 and m["n"]["cluster_title"] == "Water" and m["n"]["cluster_alt_id"] == 1
+    assert m["n"]["cluster_classified"] is True and m["dup"]["cluster_id"] == 2 and m["dup"]["cluster_score"] is None
+    assert m["n"]["cluster_x"] == 1.0 and m["n"]["cluster_y"] == 1.0

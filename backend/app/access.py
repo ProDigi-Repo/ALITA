@@ -80,7 +80,8 @@ async def protect_request(request: Request, call_next: Callable[[Request], Await
         # REQ-84/90: accounts upload and delete in their own database (the routes check the database)
         account_upload = request.state.account is not None and (
             (request.method, request.url.path) == ("POST", "/api/ingest")
-            or (request.method == "DELETE" and request.url.path.startswith(("/api/documents/", "/api/projects/"))))
+            or (request.method == "DELETE" and request.url.path.startswith(("/api/documents/", "/api/projects/")))
+            or (request.method, request.url.path) == ("POST", "/api/clusters/rebuild"))   # REQ-92: own database only
         if ((request.method, request.url.path) not in CHAT_ROUTES and not review_session_endpoint and not account_endpoint
                 and not account_upload and not request.state.is_admin):
             return denied(403, "Admin access required")

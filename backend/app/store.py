@@ -430,7 +430,8 @@ def set_summary_vector(kind: str, point_id: str, vector: list[float], key: str) 
 
 CLUSTER_FIELDS = ["cluster_id", "cluster_label", "cluster_score", "cluster_k", "cluster_run", "cluster_basis",
                   "cluster_x", "cluster_y", "cluster_alt_id", "cluster_alt_score", "cluster_title", "cluster_title_source", "cluster_description",
-                  "cluster_insights", "cluster_analyses", "cluster_theories", "cluster_contribution", "cluster_anchor"]
+                  "cluster_insights", "cluster_analyses", "cluster_theories", "cluster_contribution", "cluster_anchor",
+                  "cluster_classified"]   # REQ-92: True = assigned to an existing cluster after an upload
 
 
 def set_cluster_payload(assigned: dict[str, dict], run: str, projects: dict[str, dict] | None = None,

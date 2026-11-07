@@ -18,7 +18,7 @@ router = APIRouter(tags=["documents"])
 # Fields of the document list (the details endpoint returns the whole payload except the source path).
 LIST_FIELDS = ["doc_id", "databases", "cluster_id", "cluster_label", "cluster_score", "cluster_basis",
                "cluster_x", "cluster_y", "cluster_alt_id", "cluster_alt_score", "cluster_title", "cluster_description",
-               "cluster_contribution", "cluster_anchor", "doc_type", "title", "filename", "filetype", "date", "date_source",
+               "cluster_contribution", "cluster_anchor", "cluster_classified", "doc_type", "title", "filename", "filetype", "date", "date_source",
                "year", "size_bytes", "project_name", "role", "venue", "stage", "is_latest", "archived", "indexed", "index_note",
                "method_ids", "language", "pages", "doi", "authors", "editors", "legal"]
 

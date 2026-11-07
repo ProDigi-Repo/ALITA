@@ -15,7 +15,7 @@ const AD_TYPE_DESC={
   legal_guideline:'Formally adopted guidelines of authorities, one file each. Versions of the same guideline can be grouped with a _legal.yaml.',
   guidance:'Q&A pages, FAQs, factsheets and explanations of authorities (not binding), one file each, e.g. a web page printed as PDF. ALITA splits them into topics and questions.',
   standard:'ISO, IEC, CEN, DIN … one file per standard. Check that the licence allows storing the full text.'};
-const AD_PIPE='After the upload ALITA reads every file and runs the full pipeline: summary, methods and keywords (LLM) → chunks and embeddings → rhetorical roles → knowledge graph → clustering of the database → citation network and links to legal provisions.';
+const AD_PIPE='After the upload ALITA reads every file and runs the full pipeline: summary, methods and keywords (LLM) → chunks and embeddings → rhetorical roles → knowledge graph → sorting into the existing clusters of the database (small databases are clustered anew; “Recompute clusters” does it on request) → citation network and links to legal provisions.';
 /* who may upload: admins (any database) and logged-in accounts (their own database) */
 function canUpload(){return IS_ADMIN||!!(ACCOUNT&&!ACCOUNT.all&&ACCOUNT.database)}
 function ownDb(){return ACCOUNT&&!ACCOUNT.all?ACCOUNT.database:null}
@@ -122,7 +122,35 @@ function renderUpTile(){
     :!may?'Log in with your user name to upload your own files'
     :own?`into your database <b>${esc(dbName(own))}</b>`:'into a database of your choice';
   $('.uptile .up-hint').hidden=!(LIVE&&may);
+  $('#upRecluster').hidden=!(LIVE&&may);
 }
+/* REQ-92: "Recompute clusters" – uploads only sort new documents into the existing clusters; this computes them anew
+   (accounts: their own database; admins: the selected databases, or all). */
+function reclusterTargets(){const own=ownDb();return own?[own]:SEL_DB.length?[...SEL_DB]:[]}
+$('#upRecluster').addEventListener('click',()=>{
+  const dbs=reclusterTargets(),names=dbs.length?dbs.map(d=>`<b>${esc(dbName(d))}</b>`).join(', '):'<b>all databases</b>';
+  $('#rcBody').innerHTML=`<p class="adc-q">Compute the clusters of ${names} completely anew?</p>
+    <p>New uploads are only sorted into the existing clusters, so the clusters stay stable. Recomputing groups all documents afresh – cluster numbers, names, descriptions and positions in the map can change. Each database is clustered on its own.</p>
+    ${apiKey?'':'<p class="adc-warn">Without your OpenRouter key the clusters get only automatic titles, no written descriptions.</p>'}`;
+  $('#rcConfirm').hidden=false;$('#rcBack').focus();
+});
+$('#rcBack').addEventListener('click',()=>$('#rcConfirm').hidden=true);
+$('#rcConfirm').addEventListener('click',e=>{if(e.target===$('#rcConfirm'))$('#rcConfirm').hidden=true});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#rcConfirm').hidden)$('#rcConfirm').hidden=true});
+$('#rcGo').addEventListener('click',async()=>{
+  $('#rcConfirm').hidden=true;const dbs=reclusterTargets();
+  const q=ownDb()?'':dbs.map(d=>'database='+encodeURIComponent(d)).join('&');
+  toast('Recomputing the clusters …');if(typeof activityNow==='function')setTimeout(activityNow,300);
+  try{
+    const r=await fetch('api/clusters/rebuild'+(q?'?'+q:''),{method:'POST',headers:headers(false)});
+    let res=await r.json().catch(()=>({}));
+    if(!r.ok&&r.status!==202)throw new Error(res.detail||r.status);
+    if(r.status===202)res=await waitForJob(res);
+    toast(`Clusters recomputed: ${res.k} cluster${res.k===1?'':'s'} for ${res.documents} documents`);
+    await loadDocs();
+  }catch(e){toast('Recomputing failed: '+e.message)}
+  if(typeof activityNow==='function')activityNow();
+});
 function upTrack(){if(typeof activityNow==='function')activityNow()}   // a job changed: refresh the activity tile
 Store.on('gate',()=>renderUpTile(),45);
 /* REQ-83: uploads wait in one queue on the server (one job at a time). Finished: done | error | interrupted. */

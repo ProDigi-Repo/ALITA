@@ -264,7 +264,7 @@ def associate_project_files(docs: list[dict], doc_meta: dict[str, dict]) -> None
 
 def assign(units: list[dict], res: dict, docs: list[dict], run: str, project_files: bool = False) -> tuple[dict, dict]:
     """Cluster metadata for documents and projects; project files and duplicates inherit."""
-    base = {"cluster_k": res["k"], "cluster_run": run}
+    base = {"cluster_k": res["k"], "cluster_run": run, "cluster_classified": False}   # REQ-92: clustered, not classified
     doc_meta, proj_meta = {}, {}
     for u, c, sc, xy, ai, asc in zip(units, res["labels"], res["scores"], res["coords"], res["alt_ids"], res["alt_scores"]):
         m = {"cluster_id": c, "cluster_label": res["names"][c], "cluster_score": sc, **base, "cluster_basis": "summary",

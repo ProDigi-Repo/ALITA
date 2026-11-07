@@ -6,7 +6,7 @@ const D={t:'',sort:'d',dir:-1,shown:100,sel:null};
 
 function normLive(r){ // API row -> internal short format
   return {leg:r.legal||null,id:r.doc_id,t:r.doc_type,ti:r.title,fn:r.filename,ft:r.filetype,d:(r.date||'').slice(0,10),ds:r.date_source,y:r.year,sz:r.size_bytes,
-    pn:r.project_name,rp:r.rel_path,ro:r.role,ve:r.venue,st:r.stage,v:r.version,la:r.is_latest,ar:r.archived,ix:r.indexed,no:r.index_note,me:r.method_ids||[],lg:r.language,pg:r.pages,db:r.databases||[],doi:r.doi,au:r.authors||[],ed:r.editors||[],ci:r.cluster_id,cl:r.cluster_label,cs:r.cluster_score,cb:r.cluster_basis,cx:r.cluster_x,cy:r.cluster_y,ca:r.cluster_alt_id,cas:r.cluster_alt_score,ct:r.cluster_title,cd:r.cluster_description,cc:r.cluster_contribution,can:r.cluster_anchor};
+    pn:r.project_name,rp:r.rel_path,ro:r.role,ve:r.venue,st:r.stage,v:r.version,la:r.is_latest,ar:r.archived,ix:r.indexed,no:r.index_note,me:r.method_ids||[],lg:r.language,pg:r.pages,db:r.databases||[],doi:r.doi,au:r.authors||[],ed:r.editors||[],ci:r.cluster_id,cl:r.cluster_label,cs:r.cluster_score,cq:!!r.cluster_classified,cb:r.cluster_basis,cx:r.cluster_x,cy:r.cluster_y,ca:r.cluster_alt_id,cas:r.cluster_alt_score,ct:r.cluster_title,cd:r.cluster_description,cc:r.cluster_contribution,can:r.cluster_anchor};
 }
 async function loadDocs(){
   if(LIVE){
@@ -169,7 +169,7 @@ async function openDoc(id){
     <section><h4>Databases</h4>${dbPicker('drDb',d.db)}
       <div class="srcnote" style="margin-top:6px">${d.pn?`<label class="check"><input type="checkbox" id="drDbAll" checked> apply to the whole project ${esc(d.pn)}</label>`:''}</div>
     </section>
-    <section><h4>Cluster</h4>${d.ci!=null?`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${clusterTag(d,true)}${d.cs!=null?`<span class="srcnote">similarity to cluster center ${(+d.cs).toFixed(2)}</span>`:d.cb==='project'?'<span class="srcnote">inherited from its research project</span>':d.cb==='contribution'?`<span class="srcnote">${esc(CONTRIB_LABEL[d.cc]||d.cc||'Contribution')} to ${esc(((DOCS.find(x=>x.id===d.can)||{}).ti)||'the project content')}</span>`:d.du?'<span class="srcnote">inherited from the original file</span>':''}</div><div class="srcnote" style="margin-top:6px">${CLUSTER_NOTE()}</div>`:'<span class="srcnote">Not clustered (no text or not embedded yet).</span>'}</section>
+    <section><h4>Cluster</h4>${d.ci!=null?`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${clusterTag(d,true)}${d.cs!=null?`<span class="srcnote">similarity to cluster center ${(+d.cs).toFixed(2)}${d.cq?' · sorted into this existing cluster after its upload':''}</span>`:d.cb==='project'?'<span class="srcnote">inherited from its research project</span>':d.cb==='contribution'?`<span class="srcnote">${esc(CONTRIB_LABEL[d.cc]||d.cc||'Contribution')} to ${esc(((DOCS.find(x=>x.id===d.can)||{}).ti)||'the project content')}</span>`:d.du?'<span class="srcnote">inherited from the original file</span>':''}</div><div class="srcnote" style="margin-top:6px">${CLUSTER_NOTE()}</div>`:'<span class="srcnote">Not clustered (no text or not embedded yet).</span>'}</section>
     <section><h4>Belongs to</h4><dl class="kv">
       <dt>Data type</dt><dd><span class="tbadge" style="--c:${TYPE_COLOR[d.t]}">${TYPE_LABEL[d.t]}</span></dd>
       ${d.pn?`<dt>Research Project</dt><dd class="mono">${esc(d.pn)}</dd><dt>Path in project</dt><dd class="mono">${esc(d.rp)}</dd>`:''}

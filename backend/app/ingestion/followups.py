@@ -23,19 +23,22 @@ def uses_project_files(db: str) -> bool:
 
 
 async def maybe_recluster(opts: IngestOptions, databases: list[str] | None = None) -> dict | None:
-    """Re-clusters after an ingestion when enabled and embeddings were created – only the databases concerned,
-    each on its own and with its previous unit (projects or project files). The clusters of all other databases
-    stay unchanged. Without a known database (documents without an assignment) over everything, as before."""
+    """After an ingestion (when enabled and embeddings were created), per database concerned:
+    REQ-92 – new units are *classified* into the existing clusters; only a database without any cluster yet is
+    clustered (with its previous unit: projects or project files). With CLUSTER_ON_UPLOAD=recompute the database
+    is re-clustered as before. The clusters of all other databases stay unchanged."""
     s = get_settings()
     if not (opts.recluster and opts.embed and s.auto_cluster):
         return None
     from ..clustering import recompute
 
     dbs = sorted(set(s.normalize_databases(databases or []) or []))
-    step("Clustering")
+    step("Classification into clusters")
     try:
         with visibility.unrestricted():
-            return await _recluster(s, opts, dbs, recompute)
+            if s.cluster_on_upload == "recompute":
+                return await _recluster(s, opts, dbs, recompute)
+            return await _classify(s, opts, dbs, recompute)
     except Exception as e:  # clustering must not make the ingestion fail
         log.warning("Clustering failed: %s", e)
         return None
@@ -54,6 +57,24 @@ async def _recluster(s, opts: IngestOptions, dbs: list[str], recompute) -> dict 
     except Exception as e:  # clustering must not make the ingestion fail
         log.warning("Clustering failed: %s", e)
         return out
+
+
+async def _classify(s, opts: IngestOptions, dbs: list[str], recompute) -> dict | None:
+    """REQ-92: classify each database's new units; a small database (CLUSTER_MIN_UNITS) is still clustered."""
+    from ..clustering.classify import classify, needs_clustering
+    out: dict = {"classified": 0, "clustered": []}
+    for db in dbs or [None]:
+        files = bool(db) and uses_project_files(db)
+        scope = [db] if db else None
+        if needs_clustering(scope):
+            res = await recompute(s.cluster_k or None, opts.api_key, databases=scope, project_files=files)
+            out["clustered"].append(db or "all")
+            log.info("Clustering %s (small database): %s", db or "all", {k: res.get(k) for k in ("k", "units", "documents")})
+        else:
+            res = await classify(opts.api_key, scope, project_files=files)
+            out["classified"] += res.get("classified", 0)
+            log.info("Classification %s: %s", db or "all", {k: res.get(k) for k in ("classified", "documents", "into")})
+    return out
 
 
 def maybe_citations(opts: IngestOptions) -> dict | None:
