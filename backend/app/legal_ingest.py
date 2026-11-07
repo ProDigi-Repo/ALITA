@@ -413,22 +413,28 @@ async def ingest_legal(path: Path, doc_type: DocType, opts):
     DocumentRecord of the current version."""
     from .ingestion.followups import maybe_citations, maybe_provisions, maybe_recluster
     from .ingestion.summaries import enrich_items
+    from .jobs import step
 
     s = get_settings()
     path = path.resolve()
     folder = path if path.is_dir() else path.parent
     run = LegalRun(path, doc_type, opts, folder, read_meta(folder), KIND_OF_TYPE[doc_type.value], _files(path, s.project_exclude),
                    doc_type == DocType.legal_project and path.is_dir())
+    step("Reading and parsing the legal text")
     _collect(run, s.max_text_chars)
     _supporting_metadata(run)
     _databases(run, s)
     _build_models(run)
+    if opts.use_llm:
+        step("Summaries (LLM)")
     if opts.use_llm:          # 3. LLM summary: only the current version of each norm and the supporting documents (cost)
         await enrich_items(run.current + run.support_items, opts)
     run.key = _embedding_key(opts)
+    step("Text units and embeddings")
     await _embed_units(run, s.chunk_size)
     await _store_documents(run)
     if s.graph_enabled:
+        step("Knowledge graph")
         _sync_graph(run)
     result = _result(run, s.project_exclude)
     await maybe_recluster(opts, run.dbs)

@@ -54,6 +54,8 @@ class Job:
     error: str | None = None
     usage: dict | None = None
     waiting_for_lock: bool = False      # another process (CLI, seed) is writing
+    step: str | None = None             # REQ-84: pipeline step of a running job, e.g. "Embeddings"
+    steps: list = field(default_factory=list)   # steps done so far, in order
     extra: dict = field(default_factory=dict)
 
     def public(self, position: int | None = None) -> dict:
@@ -253,10 +255,14 @@ class JobQueue:
     async def _execute(job: Job, factory: Callable[[], Awaitable[Any]]) -> None:
         from . import usage
         meter = usage.start()                    # tokens of this job (LLM + embeddings), shown after an upload
+        _CURRENT.set(job)
         try:
             res = await factory()
             job.result = res.model_dump(mode="json", exclude={"source_path"}) if hasattr(res, "model_dump") else res
             job.status = "done"
+            if job.step:
+                job.steps.append(job.step)
+            job.step = None
         except Exception as e:  # noqa: BLE001 – the failure is shown in the job status
             log.exception("Job %s (%s %s) failed", job.id, job.kind, job.name)
             job.status, job.error = "error", str(e) or type(e).__name__
@@ -274,6 +280,18 @@ def _ts(iso: str) -> float:
 
 
 QUEUE = JobQueue()
+_CURRENT: contextvars.ContextVar[Job | None] = contextvars.ContextVar("alita_job", default=None)
+
+
+def step(text: str) -> None:
+    """REQ-84: report the pipeline step of the running job (shown in the upload tile); no-op outside a job (CLI)."""
+    job = _CURRENT.get()
+    if job is None or job.step == text:
+        return
+    if job.step:
+        job.steps.append(job.step)
+    job.step = text
+    QUEUE._save(job)
 
 
 def owner_of(request) -> str:

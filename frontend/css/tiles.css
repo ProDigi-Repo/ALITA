@@ -1,7 +1,7 @@
 /* ===== Tile identity: Document Chat = blue, Graph Chat = orange (unmistakable) ===== */
-:root{--c1:#1d5fd1;--c1-tint:#eef4ff;--c2:#d9480f;--c2-tint:#fff2e8}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--c1:#3b82f6;--c1-tint:#0f1b31;--c2:#f0712f;--c2-tint:#2a1609}}
-:root[data-theme="dark"]{--c1:#3b82f6;--c1-tint:#0f1b31;--c2:#f0712f;--c2-tint:#2a1609}
+:root{--c1:#1d5fd1;--c1-tint:#eef4ff;--c2:#1d5fd1;--c2-tint:#eef4ff}   /* REQ-85: B in the blue of A (was orange #d9480f) */
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--c1:#3b82f6;--c1-tint:#0f1b31;--c2:#3b82f6;--c2-tint:#0f1b31}}
+:root[data-theme="dark"]{--c1:#3b82f6;--c1-tint:#0f1b31;--c2:#3b82f6;--c2-tint:#0f1b31}
 .t-rag{--acc:var(--c1);--acc-soft:var(--c1-tint)}
 .t-graph{--acc:var(--c2);--acc-soft:var(--c2-tint)}
 .tile.t-rag,.tile.t-graph{border:2px solid var(--acc)}
@@ -36,6 +36,40 @@
 .bar-row{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr);gap:14px;align-items:stretch}   /* REQ-62/65: same columns as the B page below – database bar over the map, window + explainer over the other two */
 .bar-row>.dbbar{grid-column:1/-1;min-width:0}
 @media (max-width:1100px){.bar-row{display:flex;flex-wrap:wrap}.bar-row>.dbbar{flex:1 1 100%}}
+/* REQ-84: "Upload new data" as its own tile at the right of the database bar */
+.bar-row:has(>.uptile:not([hidden])){display:flex;gap:14px;align-items:stretch}
+.bar-row:has(>.uptile:not([hidden]))>.dbbar:not(.uptile){flex:1 1 auto}
+.bar-row>.uptile{flex:0 0 clamp(230px,18vw,300px);flex-direction:column;flex-wrap:nowrap;align-items:stretch;justify-content:center;gap:8px;padding:12px 14px}
+.uptile .up-head{display:flex;align-items:center;gap:8px}
+.uptile .up-head b{font-size:calc(11px * var(--fs-scale,1));color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:600}
+.uptile .up-ic{display:grid;place-items:center;width:24px;height:24px;border-radius:7px;background:rgb(95 216 255 / .16);color:#bff9ff;font-size:calc(14px * var(--fs-scale,1))}
+.uptile .up-target{margin:0;font-size:calc(12px * var(--fs-scale,1));color:var(--fg);line-height:1.35}
+.uptile .up-target b{color:#bff9ff}
+.uptile .up-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid #3df2ff;background:rgb(61 242 255 / .12);color:#e9fdff;border-radius:999px;font:inherit;font-size:calc(13px * var(--fs-scale,1));font-weight:600;padding:7px 14px;cursor:pointer;white-space:nowrap;transition:background .15s,box-shadow .15s}
+.uptile .up-btn:hover:not(:disabled){background:rgb(61 242 255 / .24);box-shadow:0 0 12px rgb(61 242 255 / .35);color:#fff}
+.uptile .up-btn:focus-visible{outline:2px solid #3df2ff;outline-offset:2px}
+.uptile .up-btn:disabled{opacity:.45;cursor:not-allowed}
+.uptile .up-jobs{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.uptile .up-jobs:empty{display:none}
+.uptile .up-j{display:grid;grid-template-columns:8px minmax(0,1fr) auto;column-gap:6px;align-items:center;font-size:calc(11.5px * var(--fs-scale,1));color:var(--fg)}
+.uptile .up-n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.uptile .up-s{color:var(--muted);white-space:nowrap}
+.uptile .up-d{grid-column:2/-1;color:var(--muted);font-size:calc(10.5px * var(--fs-scale,1));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.uptile .up-dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.uptile .s-running .up-dot{background:#3df2ff;box-shadow:0 0 6px #3df2ff;animation:upPulse 1.2s ease-in-out infinite alternate}
+.uptile .s-queued .up-dot{background:#e3bb55}.uptile .s-done .up-dot{background:#6cc690}
+.uptile .s-error .up-dot,.uptile .s-interrupted .up-dot{background:#ef6b5c}.uptile .s-error .up-s,.uptile .s-interrupted .up-s{color:#ff9d92}
+@keyframes upPulse{from{opacity:.45}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){.uptile .s-running .up-dot{animation:none}}
+@media (max-width:1100px){.bar-row>.uptile{flex:1 1 100%}}
+/* the upload wizard: data type as a dropdown with its description */
+.ad-typesel{display:flex;flex-direction:column;gap:6px}
+.ad-typesel select{font:inherit;font-size:calc(14px * var(--fs-scale,1));padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:#1d5fd1;max-width:100%}
+.ad-typesel select:focus-visible{outline:2px solid var(--rag);outline-offset:2px}
+.ad-typesel option,.ad-typesel optgroup{background:#fff;color:#1d5fd1}
+.ad-typedesc{margin:0;font-size:calc(12px * var(--fs-scale,1));color:var(--muted);line-height:1.45}
+.ad-pipe{margin:0;font-size:calc(11.5px * var(--fs-scale,1));color:var(--muted);line-height:1.45}
+.ad-key{margin:0;padding:8px 10px;border-radius:8px;border:1px solid color-mix(in srgb,var(--warn,#a3561a) 45%,transparent);background:var(--warn-soft,#f8eadf);color:var(--fg);font-size:calc(12.5px * var(--fs-scale,1))}
 
 /* info sign: pulses on hover, a click lets a mini ALITA pop out */
 .chat-why{position:relative}

@@ -116,7 +116,7 @@ function renderDbBar(){
   $('#dbUnassigned').textContent=un?`${un} document${un===1?'':'s'} without a database`:'';
   $('#dbHint').textContent=(SEL_DB.length?dbNames(SEL_DB).join(' + '):'all (no selection)')+' · for A and B';
   $('#dbClear').hidden=!SEL_DB.length&&!(typeof CV!=='undefined'&&CV.sels.size);
-  $('#uDbs').innerHTML=dbPickerButtons([]);wirePick('#uDbs');
+  /* 3.13.0 (REQ-84): the old upload modal with its own database picker (#uDbs) is gone – uploads use the wizard */
   setHair();try{syncHairFlowers()}catch(e){}
   if(window.syncPuppy)syncPuppy();
   if(window.syncVoxel)syncVoxel();

@@ -61,6 +61,7 @@ $('#keyForm').addEventListener('submit',e=>{
   if(v && !v.startsWith('sk-or-')){toast('The key should start with "sk-or-"');return}
   apiKey=v;
   renderKey();toast(v?'Key set · until this page is closed or reloaded':'Key removed');
+  if(typeof adSync==='function'&&!$('#addData').hidden)adSync();   // the upload wizard waits for the key
 });
 $('#toggleKey').addEventListener('click',()=>{const i=$('#apiKey');i.type=i.type==='password'?'text':'password'});
 const CHAT_MODEL_ID='openai/gpt-6-luna';   // fixed model, no selection (backend: CHAT_MODEL)
@@ -80,7 +81,11 @@ function applyMe(user){
   if(typeof renderDbLock==='function')renderDbLock();
 }
 /* uploads: admins, and users into their own database */
-function applyUploadRights(){['#dbAdd','#openUpload'].forEach(s=>{const el=$(s);if(el)el.hidden=!(IS_ADMIN||(ACCOUNT&&!ACCOUNT.all))})}
+function applyUploadRights(){
+  const may=IS_ADMIN||!!(ACCOUNT&&!ACCOUNT.all);   // REQ-84: every logged-in user uploads into their own database
+  const el=$('#openUpload');if(el)el.hidden=!may;
+  if(typeof renderUpTile==='function')renderUpTile();
+}
 async function refreshMe(){try{const r=await fetch('api/me');if(r.ok)applyMe(await r.json())}catch(e){}}
 /* user names for the dropdown before the password field */
 async function loadAccounts(){

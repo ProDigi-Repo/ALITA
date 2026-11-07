@@ -4,7 +4,7 @@
    project card and a stage table under chat answers about a project's development.
    Every file links to its document (REQ-18).
    ====================================================================== */
-const PG_KIND={start:['first version','#495057'],substantive:['substantive change','#d9480f'],reword:['rewording','#868e96'],
+const PG_KIND={start:['first version','#495057'],substantive:['substantive change','#1d5fd1'],reword:['rewording','#868e96'],
   resubmission:['resubmission','#7048e8'],format:['formatting only','#adb5bd'],identical:['identical copy','#ced4da'],unknown:['not comparable (no text)','#ced4da']};
 const PG_ROLE={analysis_output:'analysis output',analysis_script:'analysis script',model_file:'model',data:'data'};
 const PG_CACHE=new Map();

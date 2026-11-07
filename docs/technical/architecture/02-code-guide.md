@@ -101,7 +101,11 @@ folder / file ─► scan (records, roles, versions, duplicates, dates, database
              ─► followups (re-cluster touched databases, citations, provisions)
 ```
 
-Entry points: `python -m app.ingestion <kind> [path]` (`cli.py`), the upload route `POST /api/ingest` (a job in the queue, `routes/ingest.py`) and the `seed` compose service. Legal folders (`_legal.yaml`) go through `legal_ingest.ingest_legal` instead.
+Entry points: `python -m app.ingestion <kind> [path]` (`cli.py`), the upload route `POST /api/ingest` (a job in the queue, `routes/ingest.py`; in the interface the tile "Upload new data" next to the database bar, REQ-84) and the `seed` compose service. Legal folders (`_legal.yaml`) go through `legal_ingest.ingest_legal` instead.
+
+### Uploads by users (REQ-84)
+
+Every logged-in account uploads into its own database (`access.py` lets `POST /api/ingest` through for accounts, the route forces the account's database); admins choose one. The job reports its pipeline step with `jobs.step("…")` (reading, LLM summary, chunks/embeddings/graph, clustering, citation network, provision links), which the tile shows. The follow-ups in `ingestion/followups.py` run under `visibility.unrestricted()`: they rebuild data of the whole index and must not see only the uploader's database.
 
 ## Front end
 

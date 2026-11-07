@@ -150,6 +150,13 @@
     <span class="unas" id="dbUnassigned"></span>
     <button class="clear" id="dbClear" type="button" hidden title="Deselect all databases and clusters">Clear selection</button>
   </section>
+  <!-- REQ-84: every user uploads their own data – own tile at the right of the database bar -->
+  <section class="dbbar uptile" id="upTile" aria-label="Upload new data" hidden>
+    <div class="up-head"><span class="up-ic" aria-hidden="true">⇪</span><b>Upload new data</b></div>
+    <p class="up-target" id="upTarget"></p>
+    <button type="button" class="up-btn" id="upOpen">+ Upload new data</button>
+    <ul class="up-jobs" id="upJobs" aria-live="polite"></ul>
+  </section>
   </div>
 
   <!-- ============ PAGE: CHAT ============ -->
@@ -417,50 +424,39 @@
   <div class="dr-head"><h3 id="histTitle">Chat history</h3><button class="icon-btn" id="histClose" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   <div class="dr-body" id="histBody"></div>
 </aside>
-<div class="modal" id="upload" hidden>
-  <form class="box" id="uploadForm">
-    <h3>Upload documents</h3>
-    <div class="seg" role="radiogroup" aria-label="Data type">
-      <label><input type="radio" name="utype" value="research_project" checked> Research Project</label>
-      <label><input type="radio" name="utype" value="research_paper"> Research Paper</label>
-      <label><input type="radio" name="utype" value="research_notes"> Research Notes</label>
-      <label><input type="radio" name="utype" value="legal_project"> Legal Project</label>
-      <label><input type="radio" name="utype" value="legal_guideline"> Guideline</label>
-      <label><input type="radio" name="utype" value="standard"> Standard</label>
-      <label><input type="radio" name="utype" value="guidance"> Guidance &amp; FAQ</label>
-    </div>
-    <p id="uHint">Upload the project folder as a ZIP. The folder name becomes the project name, and every file inside is linked to the project. The "Literatur" folder is skipped.</p>
-    <label id="uProjWrap" hidden>Link to project (optional)<input type="text" id="uProject" list="projList" placeholder="e.g. 11-MentalModelProcesses"></label>
-    <datalist id="projList"></datalist>
-    <label>File(s)<input type="file" id="uFiles" multiple accept=".zip"></label>
-    <div><p style="margin-bottom:6px">Database(s)</p><div class="dbpick" id="uDbs"></div></div>
-    <label class="check" style="flex-direction:row;color:var(--fg)"><input type="checkbox" id="uLlm" checked> Generate summary and methods with the LLM</label>
-    <div class="row"><button type="button" class="btn" id="uCancel">Cancel</button><button class="btn primary" type="submit">Upload</button></div>
-  </form>
-</div>
-<!-- "Add new data" (database bar): database · data type · overall date · files -->
+<!-- "Upload new data" (REQ-84; tile next to the database bar and Documents → + Upload): database · data type · overall date · files -->
 <div class="modal adddata" id="addData" hidden>
   <form class="box" id="addForm" aria-labelledby="adTitle">
-    <div class="ad-head"><h3 id="adTitle">Add new data</h3><button type="button" class="ad-x" data-adclose aria-label="Close">✕</button></div>
+    <div class="ad-head"><h3 id="adTitle">Upload new data</h3><button type="button" class="ad-x" data-adclose aria-label="Close">✕</button></div>
     <fieldset class="ad-step"><legend><b>1</b> Which database should the documents go to?</legend>
       <div class="ad-dbs" id="adDbs" role="radiogroup" aria-label="Database"></div></fieldset>
     <fieldset class="ad-step"><legend><b>2</b> What kind of data is it?</legend>
-      <div class="ad-types" role="radiogroup" aria-label="Data type">
-        <label class="ad-type"><input type="radio" name="adtype" value="research_project"><i aria-hidden="true">◆</i><b>Research project</b><span>a project folder as ZIP – manuscripts, data, analyses, submissions</span></label>
-        <label class="ad-type"><input type="radio" name="adtype" value="research_paper"><i aria-hidden="true">■</i><b>Research papers</b><span>published or own papers, one or more files</span></label>
-        <label class="ad-type"><input type="radio" name="adtype" value="research_notes"><i aria-hidden="true">●</i><b>Research notes</b><span>notes, minutes, idea collections, web articles</span></label>
-        <label class="ad-type"><input type="radio" name="adtype" value="legal_project"><i aria-hidden="true" style="color:var(--t-legal)">▲</i><b>Legal project</b><span>a ZIP with the versions of a law (proposal, adopted, consolidated) – add _legal.yaml for dates</span></label>
-        <label class="ad-type"><input type="radio" name="adtype" value="legal_guideline"><i aria-hidden="true" style="color:var(--t-guideline)">▲</i><b>Legal guidelines</b><span>formally adopted guidelines of authorities, e.g. Commission guidelines C(2025) …</span></label>
-        <label class="ad-type"><input type="radio" name="adtype" value="guidance"><i aria-hidden="true" style="color:var(--t-guidance)">▲</i><b>Guidance &amp; FAQ</b><span>Q&amp;A pages, FAQs, factsheets and explanations of authorities (not binding)</span></label>
-        <label class="ad-type"><input type="radio" name="adtype" value="standard"><i aria-hidden="true" style="color:var(--t-standard)">▲</i><b>Standards</b><span>ISO, IEC, CEN, DIN … one file per standard</span></label>
+      <div class="ad-typesel">
+        <select id="adType" aria-label="Data type" aria-describedby="adTypeDesc">
+          <option value="">Choose the kind of data …</option>
+          <optgroup label="Research">
+            <option value="research_paper">Research papers</option>
+            <option value="research_notes">Research notes</option>
+            <option value="research_project">Research project (ZIP)</option>
+          </optgroup>
+          <optgroup label="Law and regulation">
+            <option value="legal_project">Legal project – versions of a law (ZIP)</option>
+            <option value="legal_guideline">Legal guidelines</option>
+            <option value="guidance">Guidance &amp; FAQ</option>
+            <option value="standard">Standards</option>
+          </optgroup>
+        </select>
+        <p class="ad-typedesc" id="adTypeDesc"></p>
       </div></fieldset>
     <fieldset class="ad-step"><legend><b>3</b> <span id="adDateQ">Which overall date should the data get?</span></legend>
       <div class="ad-date"><input type="date" id="adDate" aria-describedby="adDateHint"><button type="button" class="mini" id="adDateClear">no date</button></div>
       <p id="adDateHint">Optional. Leave empty to take the dates from the files.</p></fieldset>
     <fieldset class="ad-step"><legend><b>4</b> Files</legend>
       <label class="ad-drop" id="adDrop"><input type="file" id="adFiles" multiple><span id="adDropText">Drop files here or <u>choose files</u></span></label>
-      <label id="adProjWrap" hidden>Link to an existing project (optional)<input type="text" id="adProject" list="projList" placeholder="e.g. 11-MentalModelProcesses"></label>
+      <label id="adProjWrap" hidden>Link to an existing project (optional)<input type="text" id="adProject" list="projList" placeholder="e.g. 11-MentalModelProcesses"></label><datalist id="projList"></datalist>
       <label class="check" style="flex-direction:row;color:var(--fg)"><input type="checkbox" id="adLlm" checked> Generate summary and methods with the LLM</label></fieldset>
+    <p class="ad-pipe" id="adPipe"></p>
+    <p class="ad-key" id="adKey" hidden></p>
     <p class="ad-sum" id="adSum" aria-live="polite"></p>
     <div class="row"><button type="button" class="btn" data-adclose>Cancel</button><button class="btn primary" type="submit" id="adGo" disabled>Add data</button></div>
   </form>

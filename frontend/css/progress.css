@@ -6,7 +6,7 @@
 .pg-empty{font-size:calc(12px * var(--fs-scale,1));color:var(--muted);padding:6px 2px}
 .pg-tl{overflow-x:auto;overflow-y:hidden;border-radius:8px;background:color-mix(in srgb,var(--fg) 3%,transparent);padding:2px 0}
 .pg-tl svg{display:block}
-.pg-band{fill:color-mix(in srgb,#d9480f 7%,transparent)}
+.pg-band{fill:color-mix(in srgb,var(--c2,#1d5fd1) 7%,transparent)}
 .pg-band.alt{fill:color-mix(in srgb,#1c7ed6 7%,transparent)}
 .pg-bl{font-size:calc(10px * var(--fs-scale,1));font-weight:600;fill:var(--fg);opacity:.75}
 .pg-lane{font-size:calc(9px * var(--fs-scale,1));fill:var(--muted);letter-spacing:.04em;text-transform:uppercase}

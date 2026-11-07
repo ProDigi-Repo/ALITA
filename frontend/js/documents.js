@@ -219,44 +219,46 @@ function closeDrawer(){const dr=$('#drawer');dr.hidden=true;$('#scrim').hidden=t
   if(dr.classList.contains('docked')){document.body.appendChild(dr);dr.classList.remove('docked')}}
 $('#drBack').addEventListener('click',closeDrawer);
 $('#drClose').addEventListener('click',closeDrawer);$('#scrim').addEventListener('click',closeDrawer);
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeDrawer();$('#upload').hidden=true}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer()});
 function fmtSize(b){if(b==null)return '–';return b<1024?b+' B':b<1048576?(b/1024).toFixed(0)+' KB':(b/1048576).toFixed(1)+' MB'}
 
-/* ---------- Upload ---------- */
+/* ---------- Upload new data (REQ-84): one wizard for everybody who may upload ----------
+   Opened from the tile next to the database bar and from Documents → + Upload. Accounts upload into their own
+   database (shown, not choosable), admins choose one. The server runs the whole pipeline on every file: text, LLM
+   summary and methods, chunks, embeddings, rhetorical roles, knowledge graph, clustering, citations, legal links. */
 const KIND_N=(t,n)=>({research_paper:'paper',research_notes:'note',legal_guideline:'guideline',standard:'standard',guidance:'guidance page',legal_project:'legal project'}[t]||'file')+(n>1?'s':'');
 const ZIP_T=t=>t==='research_project'||t==='legal_project';   // one ZIP per project (REQ-38: legal projects too)
-const LEGAL_HINT={guidance:'One or more Q&A pages, FAQs or factsheets of authorities (one file each, e.g. a web page printed as PDF). ALITA splits them into topics and questions (Q 2.1). A _legal.yaml can give the date of the snapshot; a later snapshot of the same page becomes a new version.',legal_project:'Upload the folder of a law as a ZIP: its versions (proposal, adopted text, consolidated versions) and accompanying documents. A _legal.yaml in the folder gives stages, entry into force and application dates.',legal_guideline:'One or more guidelines (one file each). Versions of the same guideline can be grouped with a _legal.yaml.',standard:'One or more standards (one file each). Check that the licence allows storing the full text.'};
-function openUpload(t){
-  if(LIVE&&!IS_ADMIN){toast('Admin access required');return}
-  if(t)$$('input[name=utype]').forEach(r=>r.checked=r.value===t);
-  syncUpload();$('#upload').hidden=false;
-}
-function syncUpload(){
-  const t=$('input[name=utype]:checked').value;
-  $('#uProjWrap').hidden=ZIP_T(t)||LEGAL_T.has(t);
-  $('#uFiles').accept=ZIP_T(t)?'.zip':'.pdf,.docx,.doc,.txt,.md,.pptx';
-  $('#uFiles').multiple=!ZIP_T(t);
-  $('#uHint').textContent=ZIP_T(t)
-    ?'Upload the project folder as a ZIP. The folder name becomes the project name, and every file inside is linked to the project. The "Literatur" folder is skipped.'
-    :LEGAL_HINT[t]||(t==='research_paper'?'One or more papers. Optionally link them to a project.':'Notes, minutes, idea collections. Optionally link them to a project.');
-}
-$$('input[name=utype]').forEach(r=>r.addEventListener('change',syncUpload));
-$('#openUpload').addEventListener('click',()=>openUpload());
-/* ---------- "Add new data" (button in the database bar): database · type · overall date · files ---------- */
+const AD_TYPE_DESC={
+  research_paper:'Published or own papers – PDF, DOCX, TXT or MD, one or more files. Optionally linked to a project.',
+  research_notes:'Notes, minutes, idea collections, web articles – one or more files. Optionally linked to a project.',
+  research_project:'A project folder as ZIP – manuscripts, data, analyses, submissions. The folder name becomes the project name, every file is linked to it; the "Literatur" folder is skipped.',
+  legal_project:'The folder of a law as ZIP: its versions (proposal, adopted text, consolidated versions) and accompanying documents. A _legal.yaml in the folder gives stages, entry into force and application dates.',
+  legal_guideline:'Formally adopted guidelines of authorities, one file each. Versions of the same guideline can be grouped with a _legal.yaml.',
+  guidance:'Q&A pages, FAQs, factsheets and explanations of authorities (not binding), one file each, e.g. a web page printed as PDF. ALITA splits them into topics and questions.',
+  standard:'ISO, IEC, CEN, DIN … one file per standard. Check that the licence allows storing the full text.'};
+const AD_PIPE='After the upload ALITA reads every file and runs the full pipeline: summary, methods and keywords (LLM) → chunks and embeddings → rhetorical roles → knowledge graph → clustering of the database → citation network and links to legal provisions.';
+/* who may upload: admins (any database) and logged-in accounts (their own database) */
+function canUpload(){return IS_ADMIN||!!(ACCOUNT&&!ACCOUNT.all&&ACCOUNT.database)}
+function ownDb(){return ACCOUNT&&!ACCOUNT.all?ACCOUNT.database:null}
 const AD={db:null,type:null};
-function adOpen(){
-  if(LIVE&&!IS_ADMIN){toast('Admin access required');return}
-  AD.db=SEL_DB.length===1?SEL_DB[0]:AD.db;AD.type=AD.type||null;
+function adOpen(type){
+  if(LIVE&&!canUpload()){toast(ACCOUNTS_ON?'Log in with your user name to upload your own data':'Uploading needs admin rights');return}
+  const own=ownDb();
+  AD.db=own||(SEL_DB.length===1?SEL_DB[0]:AD.db);
+  if(type)AD.type=type;
   const n=db=>DOCS.filter(d=>(d.db||[]).includes(db)).length;
-  $('#adDbs').innerHTML=DATABASES.map(db=>`<label class="ad-db" style="--c:${dbColor(db)}"><input type="radio" name="addb" value="${esc(db)}" ${AD.db===db?'checked':''}><span class="ad-fl">${dbIcon(db)}</span><b>${esc(dbName(db))}</b><small>${n(db)} docs</small></label>`).join('');
+  const choices=own?[own]:DATABASES;
+  $('#adDbs').innerHTML=choices.map(db=>`<label class="ad-db" style="--c:${dbColor(db)}"><input type="radio" name="addb" value="${esc(db)}" ${AD.db===db?'checked':''} ${own?'disabled':''}><span class="ad-fl">${dbIcon(db)}</span><b>${esc(dbName(db))}</b><small>${own?'your database · ':''}${n(db)} docs</small></label>`).join('');
+  $('#adDbs').closest('fieldset').querySelector('legend').lastChild.textContent=own?' Your documents go into your own database':' Which database should the documents go to?';
   $$('input[name=addb]').forEach(r=>r.addEventListener('change',()=>{AD.db=r.value;adSync()}));
-  $$('input[name=adtype]').forEach(r=>r.checked=r.value===AD.type);
+  $('#adType').value=AD.type||'';
   $('#adFiles').value='';$('#adProject').value='';$('#adDate').value='';
   adSync();$('#addData').hidden=false;
-  setTimeout(()=>($('input[name=addb]:checked')||$('input[name=addb]')).focus(),30);
+  setTimeout(()=>(own?$('#adType'):($('input[name=addb]:checked')||$('input[name=addb]'))).focus(),30);
 }
 function adSync(){
   const t=AD.type,files=[...$('#adFiles').files];
+  $('#adTypeDesc').textContent=t?AD_TYPE_DESC[t]:'Choose what you are uploading – ALITA processes each kind differently.';
   $('#adFiles').accept=ZIP_T(t)?'.zip':'.pdf,.docx,.doc,.txt,.md,.pptx';
   $('#adFiles').multiple=true;
   $('#adProjWrap').hidden=!t||ZIP_T(t)||LEGAL_T.has(t);
@@ -265,12 +267,16 @@ function adSync(){
     :'Optional. Leave empty to take the dates from the files.';
   $('#adDropText').innerHTML=files.length?`<b>${files.length} file${files.length>1?'s':''}</b>: ${esc(files.slice(0,3).map(f=>f.name).join(', '))}${files.length>3?' …':''}`
     :ZIP_T(t)?'Drop the projects here – <b>one ZIP per project</b> – or <u>choose files</u>':'Drop files here or <u>choose files</u>';
-  const ok=AD.db&&t&&files.length;$('#adGo').disabled=!ok;
-  $('#adGo').textContent=AD.db?`Add to ${dbName(AD.db)}`:'Add data';
+  $('#adPipe').textContent=AD_PIPE;
+  const noKey=LIVE&&!apiKey;            // the pipeline needs the user's OpenRouter key (summaries, embeddings, clusters)
+  $('#adKey').hidden=!noKey;
+  $('#adKey').innerHTML=noKey?'<b>Enter your OpenRouter key at the top first.</b> The pipeline uses it for summaries, embeddings and clustering; without it your documents could not be searched.':'';
+  const ok=AD.db&&t&&files.length&&!noKey;$('#adGo').disabled=!ok;
+  $('#adGo').textContent=AD.db?`Upload to ${dbName(AD.db)}`:'Upload';
   $('#adSum').textContent=!AD.db?'Choose a database.':!t?'Choose the kind of data.':!files.length?'Choose the files.'
     :`${files.length} ${ZIP_T(t)?(files.length>1?'projects (one ZIP each)':'project (ZIP)'):KIND_N(t,files.length)} → ${dbName(AD.db)}${$('#adDate').value?' · dated '+$('#adDate').value:' · dates from the files'}`;
 }
-$$('input[name=adtype]').forEach(r=>r.addEventListener('change',()=>{AD.type=r.value;adSync()}));
+$('#adType').addEventListener('change',e=>{AD.type=e.target.value||null;adSync()});
 ['change','input'].forEach(ev=>{$('#adFiles').addEventListener(ev,adSync);$('#adDate').addEventListener(ev,adSync)});
 $('#adDateClear').addEventListener('click',()=>{$('#adDate').value='';adSync()});
 const adDrop=$('#adDrop');
@@ -280,8 +286,8 @@ adDrop.addEventListener('drop',e=>{e.preventDefault();if(e.dataTransfer.files.le
 $$('[data-adclose]').forEach(b=>b.addEventListener('click',()=>$('#addData').hidden=true));
 $('#addData').addEventListener('click',e=>{if(e.target===$('#addData'))$('#addData').hidden=true});
 document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(!$('#adConfirm').hidden){$('#adConfirm').hidden=true;return}$('#addData').hidden=true});
-/* 3.6.0 (REQ-54): the "+ Add new data" button was removed from the database bar; uploads go via Documents → + Upload */
-if($('#dbAdd'))$('#dbAdd').addEventListener('click',adOpen);
+$('#upOpen').addEventListener('click',()=>adOpen());
+$('#openUpload').addEventListener('click',()=>adOpen(D.t&&D.t!=='legal'?D.t:null));   // Documents: the type of the open tab
 /* Second window before the upload: confirms the choice; for projects it checks that every project is one ZIP */
 $('#addForm').addEventListener('submit',e=>{
   e.preventDefault();const files=[...$('#adFiles').files];
@@ -296,7 +302,7 @@ $('#addForm').addEventListener('submit',e=>{
       ${list(files)}
       ${bad.length?`<p class="adc-warn">${bad.length===1?'This file is':'These files are'} not a ZIP: ${esc(bad.map(f=>f.name).join(', '))}. Pack each project folder into its own ZIP, then try again.</p>`
         :`<label class="check adc-check"><input type="checkbox" id="adcSure"> Yes – ${files.length===1?'this ZIP contains exactly one project':`these ${files.length} ZIPs contain one project each`}</label>
-          <p class="adc-note">* The final name comes from the folder inside the ZIP. Date: ${date?esc(date)+' for the project and its files without a date of their own':'taken from the files'}.</p>`}`;
+          <p class="adc-note">* The final name comes from the folder inside the ZIP${ownDb()?'; if another database already has a project of that name, yours gets “(' + esc(dbName(AD.db)) + ')” added':''}. Date: ${date?esc(date)+' for the project and its files without a date of their own':'taken from the files'}.</p>`}`;
   }else{
     const zips=files.filter(zip);
     body=`<p class="adc-q"><b>Upload ${files.length} ${KIND_N(t,files.length)} to ${esc(dbName(AD.db))}?</b></p>${list(files)}
@@ -311,7 +317,7 @@ $('#addForm').addEventListener('submit',e=>{
 $('#adcBack').addEventListener('click',()=>$('#adConfirm').hidden=true);
 $('#adcGo').addEventListener('click',async()=>{
   $('#adConfirm').hidden=true;const files=[...$('#adFiles').files];
-  if(!LIVE){$('#addData').hidden=true;toast('Demo mode: adding data requires the running backend');return}
+  if(!LIVE){$('#addData').hidden=true;toast('Demo mode: uploading requires the running backend');return}
   const fd=new FormData();
   fd.append('doc_type',AD.type);files.forEach(f=>fd.append('files',f));fd.append('databases',AD.db);
   if($('#adDate').value)fd.append('date',$('#adDate').value);
@@ -321,30 +327,30 @@ $('#adcGo').addEventListener('click',async()=>{
   try{
     const r=await fetch('api/ingest',{method:'POST',body:fd,headers:headers(false)});
     if(!r.ok)throw new Error((await r.json().catch(()=>({}))).detail||r.status);
-    const {jobs}=await r.json();$('#addData').hidden=true;toast(`${dbName(AD.db)}: processing started (${jobs.length} job${jobs.length===1?'':'s'})`);
+    const {jobs}=await r.json();$('#addData').hidden=true;toast(`${dbName(AD.db)}: upload received – processing ${jobs.length} job${jobs.length===1?'':'s'}`);
     pollJobs(jobs);
   }catch(err){toast('Upload failed: '+err.message);adSync()}
 });
-
-$('#uCancel').addEventListener('click',()=>$('#upload').hidden=true);
-$('#uploadForm').addEventListener('submit',async e=>{
-  e.preventDefault();
-  const files=$('#uFiles').files;
-  if(!files.length){toast('Please choose a file');return}
-  if(!LIVE){$('#upload').hidden=true;toast('Demo mode: uploading requires the running backend');return}
-  const fd=new FormData();
-  fd.append('doc_type',$('input[name=utype]:checked').value);
-  [...files].forEach(f=>fd.append('files',f));
-  if($('#uProject').value.trim())fd.append('project_name',$('#uProject').value.trim());
-  fd.append('use_llm',$('#uLlm').checked);
-  const udb=pickedDbs('#uDbs');if(udb.length)fd.append('databases',udb.join(','));
-  try{
-    const r=await fetch('api/ingest',{method:'POST',body:fd,headers:headers(false)});
-    if(!r.ok)throw new Error((await r.json()).detail||r.status);
-    const {jobs}=await r.json();$('#upload').hidden=true;toast(`Processing started (${jobs.length} job${jobs.length===1?'':'s'})`);
-    pollJobs(jobs);
-  }catch(err){toast('Upload failed: '+err.message)}
-});
+/* ---------- The "Upload new data" tile: who may upload, and the own uploads with their pipeline step ---------- */
+const UP_JOBS=new Map();
+const UP_STATUS={queued:'waiting',running:'processing',done:'done',error:'failed',interrupted:'interrupted'};
+function renderUpTile(){
+  const tile=$('#upTile');if(!tile)return;
+  const may=!LIVE||canUpload();
+  tile.hidden=!(may||ACCOUNTS_ON);          // anonymous visitors of an instance with accounts see how to get there
+  $('#upOpen').disabled=LIVE&&!may;
+  const own=ownDb();
+  $('#upTarget').innerHTML=!LIVE?'Demo mode – needs the running backend'
+    :!may?'Log in with your user name to upload your own files'
+    :own?`into your database <b>${esc(dbName(own))}</b>`:'into a database of your choice';
+  const jobs=[...UP_JOBS.values()].sort((a,b)=>(b.created||'').localeCompare(a.created||'')).slice(0,4);
+  $('#upJobs').innerHTML=jobs.map(j=>{
+    const st=j.status==='queued'&&j.waiting_for_lock?'waiting for an import':j.status==='queued'&&j.position>1?`waiting · ${j.position-1} ahead`:UP_STATUS[j.status]||j.status;
+    const detail=j.status==='running'&&j.step?j.step:j.status==='error'||j.status==='interrupted'?(j.error||''):'';
+    return `<li class="up-j s-${esc(j.status)}" title="${esc(j.name+(detail?' – '+detail:''))}"><span class="up-dot" aria-hidden="true"></span><span class="up-n">${esc(j.name)}</span><span class="up-s">${esc(st)}</span>${detail?`<span class="up-d">${esc(detail)}</span>`:''}</li>`}).join('');
+}
+function upTrack(j){if(j&&j.id){UP_JOBS.set(j.id,j);renderUpTile()}}
+Store.on('gate',()=>renderUpTile(),45);
 /* REQ-83: uploads wait in one queue on the server (one job at a time). Finished: done | error | interrupted. */
 const JOB_FINISHED=new Set(['done','error','interrupted']),POLLING=new Set();
 async function pollJobs(ids){
@@ -356,6 +362,7 @@ async function pollJobs(ids){
     for(const id of [...open]){
       const r=await fetch('api/jobs/'+id).catch(()=>null);
       const j=r&&r.ok?await r.json().catch(()=>null):(r&&r.status===404?null:{status:'unknown'});
+      if(j&&j.id)upTrack(j);
       if(j&&j.status==='queued'){        // say once how many jobs are ahead – other people's uploads count too
         const ahead=(j.position||1)-1,key=j.waiting_for_lock?'lock':ahead;
         if(told[id]!==key){told[id]=key;
@@ -374,6 +381,7 @@ async function resumeJobs(){
   if(!LIVE)return;
   const r=await fetch('api/jobs?mine=true&limit=20').catch(()=>null);if(!r||!r.ok)return;
   const {jobs=[]}=await r.json().catch(()=>({}));
+  jobs.slice(0,4).forEach(j=>UP_JOBS.set(j.id,j));renderUpTile();
   const open=jobs.filter(j=>j.status==='queued'||j.status==='running').map(j=>j.id);
   if(open.length){toast(`${open.length} upload${open.length===1?' is':'s are'} still being processed`);pollJobs(open)}
 }

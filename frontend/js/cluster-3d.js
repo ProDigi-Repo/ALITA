@@ -221,10 +221,10 @@ function mountGraph3D(units,cls,box=$('#cvGraph'),key='graph',GH=350){ // key/GH
     if(LAY){const x0=-spanX/2-R*0.5,x1=spanX/2+R*0.5,band=(y0,y1,lab,col,right)=>{const c=[[x0,y0],[x1,y0],[x1,y1],[x0,y1]].map(([x,y])=>P({x,y,z:0}));if(c.some(v=>!v))return;
         g.fillStyle=col;g.beginPath();c.forEach((v,k)=>k?g.lineTo(v.x,v.y):g.moveTo(v.x,v.y));g.closePath();g.fill();g.strokeStyle='rgba(128,140,170,.35)';g.setLineDash([4,5]);g.lineWidth=1;g.beginPath();g.moveTo(c[0].x,c[0].y);g.lineTo(c[1].x,c[1].y);g.stroke();g.setLineDash([]);
         const l=P({x:right?x1:x0,y:y1,z:0});if(l){g.fillStyle=muted;g.font='600 10.5px "IBM Plex Sans",sans-serif';g.textAlign=right?'right':'left';g.fillText(lab,l.x+(right?-6:6),l.y+13);g.textAlign='left'}};
-      band(Y_TOP[0],Y_TOP[1],'PROJECTS & PAPERS','rgba(31,95,139,.06)');band(Y_SEM[0],Y_SEM[1],'SEMANTIC CLUSTERS','rgba(217,72,15,.04)',true);band(Y_DOC[0],Y_DOC[1],'DOCUMENTS','rgba(110,120,140,.06)',true)}
+      band(Y_TOP[0],Y_TOP[1],'PROJECTS & PAPERS','rgba(31,95,139,.06)');band(Y_SEM[0],Y_SEM[1],'SEMANTIC CLUSTERS','rgba(29,95,209,.04)',true);band(Y_DOC[0],Y_DOC[1],'DOCUMENTS','rgba(110,120,140,.06)',true)}
     T.forEach(t=>{const p=P(t.a),q=P(t.b);if(!p||!q)return;g.globalAlpha=cvOff(t.c.id)?.15:.55;g.strokeStyle=cvCol(t.c.id);g.lineWidth=1.5;g.setLineDash([2,4]);g.beginPath();g.moveTo(p.x,p.y);g.lineTo(q.x,q.y);g.stroke();g.setLineDash([]);g.globalAlpha=1});
     const mx=Math.max(1,...L.map(l=>l.n));
-    L.forEach(l=>{const p=P(l.a),q=P(l.b);if(!p||!q)return;g.strokeStyle='rgba(217,72,15,.45)';g.lineWidth=1+3*l.n/mx;g.beginPath();g.moveTo(p.x,p.y);g.lineTo(q.x,q.y);g.stroke()});
+    L.forEach(l=>{const p=P(l.a),q=P(l.b);if(!p||!q)return;g.strokeStyle='rgba(29,95,209,.45)';g.lineWidth=1+3*l.n/mx;g.beginPath();g.moveTo(p.x,p.y);g.lineTo(q.x,q.y);g.stroke()});
     if(XL.length){const anyX=CV.sels.size>0;XL.forEach(l=>{const p=P(l.pa),q=P(l.pb);if(!p||!q)return;const hi=anyX&&cvHas(l.a)&&cvHas(l.b);
       g.globalAlpha=anyX&&!hi&&(cvOff(l.a)||cvOff(l.b))?.25:.9;g.strokeStyle=XC_COL;g.lineWidth=(hi?2:1.2)+l.s*3;g.setLineDash([8,6]);g.beginPath();g.moveTo(p.x,p.y);g.lineTo(q.x,q.y);g.stroke();g.setLineDash([]);
       const mx=(p.x+q.x)/2,my=(p.y+q.y)/2,lab=l.s.toFixed(2);g.font='600 10.5px "IBM Plex Mono",monospace';const w=g.measureText(lab).width+10;

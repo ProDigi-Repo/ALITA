@@ -1,11 +1,15 @@
 """Maintenance after an ingestion: re-cluster the touched databases, citation network, paper -> provision links.
 
-None of them may make an ingestion fail."""
+None of them may make an ingestion fail. REQ-84: they work on the whole index, whoever uploaded. An upload by an account
+runs with that account's restricted view (``visibility``); without lifting it the citation rebuild would see only the
+account's documents and replace the citation edges of every other database with them."""
 from __future__ import annotations
 
 import logging
 
+from .. import visibility
 from ..config import get_settings
+from ..jobs import step
 from .options import IngestOptions
 
 log = logging.getLogger("ingest")
@@ -28,6 +32,16 @@ async def maybe_recluster(opts: IngestOptions, databases: list[str] | None = Non
     from ..clustering import recompute
 
     dbs = sorted(set(s.normalize_databases(databases or []) or []))
+    step("Clustering")
+    try:
+        with visibility.unrestricted():
+            return await _recluster(s, opts, dbs, recompute)
+    except Exception as e:  # clustering must not make the ingestion fail
+        log.warning("Clustering failed: %s", e)
+        return None
+
+
+async def _recluster(s, opts: IngestOptions, dbs: list[str], recompute) -> dict | None:
     out = None
     try:
         for db in dbs or [None]:
@@ -48,9 +62,11 @@ def maybe_citations(opts: IngestOptions) -> dict | None:
         return None
     from ..citations import rebuild
 
+    step("Citation network")
     try:
-        res = rebuild()
-        log.info("Zitationsnetz: %s", res)
+        with visibility.unrestricted():
+            res = rebuild()
+        log.info("Citation network: %s", res)
         return res
     except Exception as e:   # the citation network must not make the ingestion fail
         log.warning("Citation network failed: %s", e)
@@ -63,8 +79,10 @@ def maybe_provisions(opts: IngestOptions) -> dict | None:
         return None
     from ..provisions import rebuild
 
+    step("Links to legal provisions")
     try:
-        res = rebuild()
+        with visibility.unrestricted():
+            res = rebuild()
         log.info("Provisions: %s", res)
         return res
     except Exception as e:   # must not make the ingestion fail

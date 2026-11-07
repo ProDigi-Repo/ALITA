@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 
 from ..config import get_settings
+from ..jobs import step
 from ..schemas import (
     DocType,
     DocumentRecord,
@@ -29,6 +30,7 @@ async def ingest_project(folder: Path, opts: IngestOptions) -> ProjectRecord:
     """Ingest one project folder: scan, assign databases, enrich with the LLM, index and store the project record."""
     from .. import store
 
+    step("Reading the files")
     project, items = scan_project(folder)
     if opts.date:
         apply_overall_date(project, items, opts.date)
@@ -39,7 +41,9 @@ async def ingest_project(folder: Path, opts: IngestOptions) -> ProjectRecord:
         dbs = (old or {}).get("databases") or []
     apply_databases(project, items, dbs)
     if opts.use_llm:
+        step("Summaries, methods and keywords (LLM)")
         await enrich_items(items, opts, project)
+    step("Chunks, embeddings, rhetorical roles and knowledge graph")
     project.indexed_count = await index_items(items, opts)
     store.upsert_project(project)
     await maybe_recluster(opts, dbs)
@@ -54,6 +58,7 @@ async def ingest_file(path: Path, doc_type: DocType, opts: IngestOptions, projec
     if project_name:
         ctx = ProjectContext(project_id=make_project_id(project_name), project_name=project_name,
                              rel_path=path.name, folder="", role=ProjectRole.reference if doc_type == DocType.research_paper else ProjectRole.notes)
+    step("Reading the file")
     it = build_record(path, doc_type, scope=doc_type.value, rel_path=f"{path.parent.name}/{path.name}", project=ctx)
     if opts.date:                                   # set by the user at upload
         it.record.date, it.record.date_source, it.record.year = opts.date, "user", opts.date.year
@@ -61,7 +66,9 @@ async def ingest_file(path: Path, doc_type: DocType, opts: IngestOptions, projec
     apply_curated_summary(it.record, path)
     mark_content_duplicate(it.record)
     if opts.use_llm and not it.record.duplicate_of:
+        step("Summary, methods and keywords (LLM)")
         await enrich_items([it], opts)
+    step("Chunks, embeddings, rhetorical roles and knowledge graph")
     await index_items([it], opts)
     await maybe_recluster(opts, it.record.databases)
     maybe_citations(opts)
