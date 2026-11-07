@@ -38,8 +38,6 @@ async def rebuild_clusters(request: Request, x_key: KeyHeader = None,
     Cluster numbers, names and descriptions may change. Runs in the job queue."""
     from .. import store, visibility
     from ..clustering import recompute
-    from ..ingestion.followups import _recluster
-    from ..ingestion.options import IngestOptions
     own = own_database(request)
     asked = databases_param(database) or []
     if own and any(d != own for d in asked):
@@ -53,15 +51,25 @@ async def rebuild_clusters(request: Request, x_key: KeyHeader = None,
             dbs = sorted({db for d in store.scroll_documents() for db in d.get("databases") or []})
 
     async def run():
+        from ..ingestion.followups import uses_project_files
         from ..jobs import step
-        out = {"databases": dbs, "k": 0, "documents": 0, "per_database": {}}
+        out = {"databases": dbs, "k": 0, "documents": 0, "per_database": {}, "errors": {}}
         with visibility.unrestricted():
             for db in dbs:
                 step(f"Clustering {db}")
-                res = await _recluster(settings(), IngestOptions(api_key=x_key, databases=[db]), [db], recompute) or {}
-                out["per_database"][db] = {k: res.get(k) for k in ("k", "documents", "units", "unit")}
+                try:      # unlike after an upload, errors are reported here – the user asked for this
+                    res = await recompute(settings().cluster_k or None, x_key, databases=[db],
+                                          project_files=uses_project_files(db))
+                except Exception as e:  # noqa: BLE001 – reported per database, the others still run
+                    out["errors"][db] = str(e) or type(e).__name__
+                    continue
+                out["per_database"][db] = {"k": res.get("k") or 0, "documents": res.get("documents") or 0,
+                                           "units": res.get("units"), "unit": res.get("unit"), "note": res.get("note"),
+                                           "skipped": len(res.get("skipped") or [])}
                 out["k"] += res.get("k") or 0
                 out["documents"] += res.get("documents") or 0
+        if out["errors"] and not out["k"]:
+            raise RuntimeError("; ".join(f"{db}: {e}" for db, e in out["errors"].items()))
         return out
     return await queued(request, "cluster", ", ".join(dbs) or "all", run)
 

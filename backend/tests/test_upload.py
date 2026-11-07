@@ -441,3 +441,31 @@ def test_classify_takes_the_nearest_cluster_and_touches_nothing_else(monkeypatch
     assert m["n"]["cluster_id"] == 2 and m["n"]["cluster_title"] == "Water" and m["n"]["cluster_alt_id"] == 1
     assert m["n"]["cluster_classified"] is True and m["dup"]["cluster_id"] == 2 and m["dup"]["cluster_score"] is None
     assert m["n"]["cluster_x"] == 1.0 and m["n"]["cluster_y"] == 1.0
+
+
+def test_recompute_button_reports_failures_instead_of_success(live, monkeypatch):
+    """REQ-93: "Recompute clusters" said "0 clusters" when clustering failed or found nothing; now the reason comes back,
+    and a failure of every database is an error (500), not a success."""
+    from app import clustering
+    _, client, _ = live
+    _login(client, "admin", "master-password")
+
+    async def broken(*a, **k):
+        raise RuntimeError("embedding service unreachable")
+    monkeypatch.setattr(clustering, "recompute", broken)
+    r = client.post("/api/clusters/rebuild?database=CHARMANDER", headers=KEY)
+    assert r.status_code == 500 and "CHARMANDER: embedding service unreachable" in r.json()["detail"]
+
+    async def half(k=None, api_key=None, databases=None, project_files=False):
+        if databases == ["VULPIX"]:
+            raise RuntimeError("boom")
+        return {"k": 0, "documents": 0, "note": "Too few documents with a structured summary", "skipped": ["x"]}
+    monkeypatch.setattr(clustering, "recompute", half)
+    r = client.post("/api/clusters/rebuild?database=CHARMANDER&database=VULPIX", headers=KEY)
+    assert r.status_code == 500                                   # nothing clustered and an error -> failure
+    async def ok_but_empty(k=None, api_key=None, databases=None, project_files=False):
+        return {"k": 0, "documents": 0, "note": "Too few documents with a structured summary", "skipped": ["x", "y"]}
+    monkeypatch.setattr(clustering, "recompute", ok_but_empty)
+    res = client.post("/api/clusters/rebuild?database=CHARMANDER", headers=KEY).json()
+    assert res["k"] == 0 and res["per_database"]["CHARMANDER"]["note"].startswith("Too few")
+    assert res["per_database"]["CHARMANDER"]["skipped"] == 2 and res["errors"] == {}

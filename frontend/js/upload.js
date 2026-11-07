@@ -137,18 +137,33 @@ $('#upRecluster').addEventListener('click',()=>{
 $('#rcBack').addEventListener('click',()=>$('#rcConfirm').hidden=true);
 $('#rcConfirm').addEventListener('click',e=>{if(e.target===$('#rcConfirm'))$('#rcConfirm').hidden=true});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#rcConfirm').hidden)$('#rcConfirm').hidden=true});
+/* the outcome in words – including why nothing was clustered (no summaries yet, no key for new embeddings …) */
+function reclusterMessage(res){
+  const per=Object.entries(res.per_database||{}),errs=Object.entries(res.errors||{});
+  const lines=per.map(([db,r])=>r.k?`${dbName(db)}: ${r.k} cluster${r.k===1?'':'s'} for ${r.documents} document${r.documents===1?'':'s'}`
+    :`${dbName(db)}: not clustered – ${r.note||'no documents with a summary'}${r.skipped?` (${r.skipped} without a summary vector${apiKey?'':' – enter your OpenRouter key to embed them'})`:''}`);
+  errs.forEach(([db,e])=>lines.push(`${dbName(db)}: failed – ${e}`));
+  return lines;
+}
+let RC_BUSY=false;
 $('#rcGo').addEventListener('click',async()=>{
-  $('#rcConfirm').hidden=true;const dbs=reclusterTargets();
+  $('#rcConfirm').hidden=true;if(RC_BUSY)return;
+  const dbs=reclusterTargets(),btn=$('#upRecluster'),label=btn.textContent;
   const q=ownDb()?'':dbs.map(d=>'database='+encodeURIComponent(d)).join('&');
-  toast('Recomputing the clusters …');if(typeof activityNow==='function')setTimeout(activityNow,300);
+  RC_BUSY=true;btn.disabled=true;btn.textContent='↻ Recomputing …';
+  toast('Recomputing the clusters – progress in the Activity tile');if(typeof activityNow==='function')setTimeout(activityNow,300);
   try{
     const r=await fetch('api/clusters/rebuild'+(q?'?'+q:''),{method:'POST',headers:headers(false)});
     let res=await r.json().catch(()=>({}));
-    if(!r.ok&&r.status!==202)throw new Error(res.detail||r.status);
-    if(r.status===202)res=await waitForJob(res);
-    toast(`Clusters recomputed: ${res.k} cluster${res.k===1?'':'s'} for ${res.documents} documents`);
+    if(!r.ok&&r.status!==202)throw new Error(res.detail||`server answered ${r.status}`);
+    if(r.status===202){toast('Still recomputing (or waiting for an import) – the result follows here');res=await waitForJob(res)}
+    const lines=reclusterMessage(res);
+    if(res.k)toast(`Clusters recomputed: ${res.k} cluster${res.k===1?'':'s'} for ${res.documents} documents`);
+    else toast('No clusters computed – '+(lines.join(' · ')||'no documents with a summary'),12000);
+    if(lines.length>1||!res.k)console.info('Recompute clusters:',lines.join('\n'));
     await loadDocs();
-  }catch(e){toast('Recomputing failed: '+e.message)}
+  }catch(e){toast('Recomputing the clusters failed: '+e.message,12000)}
+  finally{RC_BUSY=false;btn.disabled=false;btn.textContent=label}
   if(typeof activityNow==='function')activityNow();
 });
 function upTrack(){if(typeof activityNow==='function')activityNow()}   // a job changed: refresh the activity tile

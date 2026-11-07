@@ -1,7 +1,7 @@
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),2600)}
+function toast(t,ms=2600){const el=$('#toast');el.textContent=t;el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),ms)}   // ms: longer for explanations
 
 const TYPE_LABEL={research_project:'Project',research_paper:'Paper',research_notes:'Notes',legal_project:'Legal project',legal_guideline:'Guideline',standard:'Standard',guidance:'Guidance & FAQ'};
 const LEGAL_T=new Set(['legal_project','legal_guideline','standard','guidance']);   /* REQ-38: law, guidelines, standards – drawn as triangles */

@@ -96,6 +96,7 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 | REQ-90 | Delete data in the Documents tab | ✅ done | 3.13.0 | Bin per row, Delete in details, Delete project; accounts own database only (shared → only untag), admins fully, legal texts with their whole law; job queue + recompute. `app/deletion.py`, `js/delete.js`. |
 | REQ-91 | Ocean party animation over the whole screen after every upload | ✅ done | 3.13.0 | `js/party.js`, `css/party.css`; own characters (no TV characters); Escape ends it; reduce-motion → calm banner. |
 | REQ-92 | Clustering becomes classification on every upload; button for a complete recomputation in the upload tile | ✅ done | 3.13.0 | `clustering/classify.py` (nearest centroid; small databases < CLUSTER_MIN_UNITS still clustered); `POST /api/clusters/rebuild` (accounts own db, admins selected/all, per database); button "Recompute clusters". |
+| REQ-93 | "Recompute clusters" does not work (bug report) | ✅ fixed | 3.13.0 | Errors were swallowed and an empty result looked like success; now per-database result/reason/error, busy state, longer messages. |
 
 ## Open points for the requirement owners
 - REQ-10, REQ-15 – REQ-18: main document chain per project, inferred links between versions and analyses, threshold for "substantive", AI stage texts automatic or on demand, versions without full text.
