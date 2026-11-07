@@ -328,12 +328,10 @@ $('#adcGo').addEventListener('click',async()=>{
     const r=await fetch('api/ingest',{method:'POST',body:fd,headers:headers(false)});
     if(!r.ok)throw new Error((await r.json().catch(()=>({}))).detail||r.status);
     const {jobs}=await r.json();$('#addData').hidden=true;toast(`${dbName(AD.db)}: upload received – processing ${jobs.length} job${jobs.length===1?'':'s'}`);
-    pollJobs(jobs);
+    pollJobs(jobs);upTrack();
   }catch(err){toast('Upload failed: '+err.message);adSync()}
 });
-/* ---------- The "Upload new data" tile: who may upload, and the own uploads with their pipeline step ---------- */
-const UP_JOBS=new Map();
-const UP_STATUS={queued:'waiting',running:'processing',done:'done',error:'failed',interrupted:'interrupted'};
+/* ---------- The "Upload new data" tile: who may upload where (progress: activity tile, js/activity.js) ---------- */
 function renderUpTile(){
   const tile=$('#upTile');if(!tile)return;
   const may=!LIVE||canUpload();
@@ -343,13 +341,9 @@ function renderUpTile(){
   $('#upTarget').innerHTML=!LIVE?'Demo mode – needs the running backend'
     :!may?'Log in with your user name to upload your own files'
     :own?`into your database <b>${esc(dbName(own))}</b>`:'into a database of your choice';
-  const jobs=[...UP_JOBS.values()].sort((a,b)=>(b.created||'').localeCompare(a.created||'')).slice(0,4);
-  $('#upJobs').innerHTML=jobs.map(j=>{
-    const st=j.status==='queued'&&j.waiting_for_lock?'waiting for an import':j.status==='queued'&&j.position>1?`waiting · ${j.position-1} ahead`:UP_STATUS[j.status]||j.status;
-    const detail=j.status==='running'&&j.step?j.step:j.status==='error'||j.status==='interrupted'?(j.error||''):'';
-    return `<li class="up-j s-${esc(j.status)}" title="${esc(j.name+(detail?' – '+detail:''))}"><span class="up-dot" aria-hidden="true"></span><span class="up-n">${esc(j.name)}</span><span class="up-s">${esc(st)}</span>${detail?`<span class="up-d">${esc(detail)}</span>`:''}</li>`}).join('');
+  $('.uptile .up-hint').hidden=!(LIVE&&may);
 }
-function upTrack(j){if(j&&j.id){UP_JOBS.set(j.id,j);renderUpTile()}}
+function upTrack(){if(typeof activityNow==='function')activityNow()}   // a job changed: refresh the activity tile
 Store.on('gate',()=>renderUpTile(),45);
 /* REQ-83: uploads wait in one queue on the server (one job at a time). Finished: done | error | interrupted. */
 const JOB_FINISHED=new Set(['done','error','interrupted']),POLLING=new Set();
@@ -381,7 +375,7 @@ async function resumeJobs(){
   if(!LIVE)return;
   const r=await fetch('api/jobs?mine=true&limit=20').catch(()=>null);if(!r||!r.ok)return;
   const {jobs=[]}=await r.json().catch(()=>({}));
-  jobs.slice(0,4).forEach(j=>UP_JOBS.set(j.id,j));renderUpTile();
+  renderUpTile();
   const open=jobs.filter(j=>j.status==='queued'||j.status==='running').map(j=>j.id);
   if(open.length){toast(`${open.length} upload${open.length===1?' is':'s are'} still being processed`);pollJobs(open)}
 }

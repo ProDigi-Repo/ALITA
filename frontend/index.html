@@ -150,12 +150,18 @@
     <span class="unas" id="dbUnassigned"></span>
     <button class="clear" id="dbClear" type="button" hidden title="Deselect all databases and clusters">Clear selection</button>
   </section>
+  <!-- REQ-87: activity on the server – own uploads/chats with progress, the other users' anonymously -->
+  <section class="dbbar acttile" id="actTile" aria-label="Activity" hidden>
+    <div class="up-head"><span class="up-ic" aria-hidden="true">≋</span><b>Activity</b><span class="act-load" id="actLoad"></span></div>
+    <div class="act-sec"><span class="act-h">You</span><ul class="act-list" id="actYou" aria-live="polite"></ul></div>
+    <div class="act-sec"><span class="act-h">Other users</span><ul class="act-list" id="actOthers"></ul></div>
+  </section>
   <!-- REQ-84: every user uploads their own data – own tile at the right of the database bar -->
   <section class="dbbar uptile" id="upTile" aria-label="Upload new data" hidden>
     <div class="up-head"><span class="up-ic" aria-hidden="true">⇪</span><b>Upload new data</b></div>
     <p class="up-target" id="upTarget"></p>
     <button type="button" class="up-btn" id="upOpen">+ Upload new data</button>
-    <ul class="up-jobs" id="upJobs" aria-live="polite"></ul>
+    <p class="up-hint">Progress of your uploads: see Activity</p>
   </section>
   </div>
 
@@ -523,6 +529,7 @@
 <script src="js/voxel.js"></script>
 <script>window.syncPuppy&&syncPuppy();window.syncVoxel&&syncVoxel()</script>
 <script src="js/tour.js"></script>
+<script src="js/activity.js"></script>
 <script src="js/start.js"></script>
 <!--APP-END-->
 </body>

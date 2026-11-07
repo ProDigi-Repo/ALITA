@@ -92,8 +92,11 @@ def test_an_account_uploads_files_that_run_through_the_whole_pipeline(live):
     from app import store
     s, client, calls = live
     _login(client, "charmander", "fire-secret-1")
+    bad = client.post("/api/ingest", headers=KEY, data={"doc_type": "research_paper", "databases": "VULPIX"},
+                      files=[("files", ("x.txt", b"hello", "text/plain"))])
+    assert bad.status_code == 403 and "CHARMANDER" in bad.json()["detail"]     # REQ-86: only the assigned database
     r = client.post("/api/ingest", headers=KEY,
-                    data={"doc_type": "research_paper", "databases": "VULPIX"},      # ignored: own database only
+                    data={"doc_type": "research_paper", "databases": "CHARMANDER"},
                     files=[("files", ("fire.txt", FIRE.encode(), "text/plain")),
                            ("files", ("smoke.txt", SMOKE.encode(), "text/plain"))])
     assert r.status_code == 200, r.text
@@ -158,3 +161,82 @@ def test_followups_see_every_database_whoever_uploaded(monkeypatch):
     finally:
         visibility.reset(token)
     assert seen == {"citations": None, "provisions": None, "cluster": None}
+
+
+def test_accounts_link_files_only_to_projects_of_their_database(live, monkeypatch):
+    """REQ-86: an account may not attach a file to another database's project."""
+    from app import store
+    _, client, _ = live
+    projects = {"fox-project": {"name": "fox-project", "databases": ["VULPIX"]},
+                "fire-project": {"name": "fire-project", "databases": ["CHARMANDER"]}}
+    monkeypatch.setattr(store, "get_project", lambda n: projects.get(n))
+    _login(client, "charmander", "fire-secret-1")
+    send = lambda proj: client.post("/api/ingest", headers=KEY,                      # noqa: E731
+                                    data={"doc_type": "research_paper", "project_name": proj},
+                                    files=[("files", ("note.txt", b"some text", "text/plain"))])
+    r = send("fox-project")
+    assert r.status_code == 403 and "own database" in r.json()["detail"]
+    ok = send("fire-project")
+    assert ok.status_code == 200
+    _wait(client, ok.json()["jobs"][0])
+
+
+def test_activity_shows_own_work_in_full_and_others_anonymously(live):
+    """REQ-87: the activity tile – own uploads with name and step, other users' without name, file or database."""
+    import asyncio
+    import json as _json
+
+    from app import concurrency, jobs
+    _, client, _ = live
+    release = __import__("threading").Event()
+
+    def slow(name):
+        async def run():
+            jobs.step("Summary, methods and keywords (LLM)")
+            await asyncio.get_running_loop().run_in_executor(None, release.wait, 10)
+            return {}
+        return run
+    other = jobs.QUEUE.submit("research_paper", "secret-fox-plan.pdf", "account:vulpix", slow("x"), databases=["VULPIX"])
+    mine = jobs.QUEUE.submit("research_paper", "fire.pdf", "account:charmander", slow("y"), databases=["CHARMANDER"])
+    for _ in range(100):
+        if jobs.QUEUE.view(other.id)["step"]:
+            break
+        time.sleep(0.05)
+    with concurrency._Track("account:vulpix", "graph") as e:
+        e["state"] = "answering"
+        with concurrency._Track("account:charmander", "chat"):
+            _login(client, "charmander", "fire-secret-1")
+            a = client.get("/api/activity").json()
+    release.set()
+    _wait(client, mine.id)
+    you, others, server = a["you"], a["others"], a["server"]
+    open_ = [u for u in you["uploads"] if u["status"] in ("queued", "running")]   # earlier finished ones may follow
+    assert [u["name"] for u in open_] == ["fire.pdf"] and open_[0]["status"] == "queued"
+    assert all(u["status"] in ("done", "error", "interrupted") for u in you["uploads"][1:])
+    assert open_[0]["position"] == 1 and you["chats"] == [{"kind": "chat", "state": "waiting", "seconds": 0}]
+    assert len(others["uploads"]) == 1 and others["uploads"][0]["kind"] == "upload"
+    assert others["uploads"][0]["step"] == "Summary, methods and keywords (LLM)" and 0 < others["uploads"][0]["progress"] < 1
+    assert others["chats"][0]["kind"] == "graph" and others["chats"][0]["state"] == "answering"
+    leaked = _json.dumps(others)
+    assert "secret-fox-plan" not in leaked and "VULPIX" not in leaked and "vulpix" not in leaked
+    assert server["chats_answering"] == 1 and server["chats_waiting"] == 1 and server["uploads_running"] == 1
+    assert server["uploads_waiting"] == 1 and server["chat_capacity"] >= 1
+
+
+def test_chats_are_counted_while_they_run(live):
+    import asyncio
+
+    from app import concurrency
+
+    async def chat():
+        for i in range(3):
+            await asyncio.sleep(0.1)
+            yield "delta", {"t": str(i)}
+
+    async def main():
+        seen = []
+        async for _ in concurrency.stream_in_thread(chat, owner="account:charmander", kind="graph"):
+            seen.append([(c["kind"], c["state"]) for c in concurrency.active_chats()])
+        return seen, concurrency.active_chats()
+    seen, after = asyncio.run(main())
+    assert all(s == [("graph", "answering")] for s in seen) and after == []

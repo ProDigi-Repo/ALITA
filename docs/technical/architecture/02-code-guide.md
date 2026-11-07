@@ -107,9 +107,13 @@ Entry points: `python -m app.ingestion <kind> [path]` (`cli.py`), the upload rou
 
 Every logged-in account uploads into its own database (`access.py` lets `POST /api/ingest` through for accounts, the route forces the account's database); admins choose one. The job reports its pipeline step with `jobs.step("…")` (reading, LLM summary, chunks/embeddings/graph, clustering, citation network, provision links), which the tile shows. The follow-ups in `ingestion/followups.py` run under `visibility.unrestricted()`: they rebuild data of the whole index and must not see only the uploader's database.
 
+### Activity (REQ-87)
+
+`GET /api/activity` combines `jobs.QUEUE` (uploads and recalculations with `step` and `progress`) and `concurrency.active_chats()` (every chat registers while it waits for a worker and while it is answered). The caller's own entries come in full; the other users' are reduced to kind, status, step and progress – no owner, file name or database. `js/activity.js` renders the tile and polls every 3 s while something runs, every 15 s otherwise, and not while the tab is hidden.
+
 ## Front end
 
-Scripts are plain globals loaded in this order (see `index.html`): `data.js` (generated) → `core.js` (helpers, API calls) → `state.js` (`Store`) → `databases.js` → `header-access.js` → feature views (`cluster-*`, `documents.js`, `chat.js`, `people.js`, `progress.js`, `citations.js`, `legal.js`, `space3d*.js` …) → `tour.js` → `start.js` (boot).
+Scripts are plain globals loaded in this order (see `index.html`): `data.js` (generated) → `core.js` (helpers, API calls) → `state.js` (`Store`) → `databases.js` → `header-access.js` → feature views (`cluster-*`, `documents.js`, `chat.js`, `people.js`, `progress.js`, `citations.js`, `legal.js`, `space3d*.js` …) → `tour.js` → `activity.js` → `start.js` (boot).
 
 Views do not call each other. They subscribe to topics with `Store.on(topic, fn, order)`; whoever changes the data calls `Store.emit(topic)`. Lower `order` runs first, and one failing view does not stop the others.
 

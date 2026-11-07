@@ -126,7 +126,17 @@ async def ingest(
             raise HTTPException(400, "date must be YYYY-MM-DD") from e
     acc = getattr(request.state, "account", None)
     own_db = acc.database if acc is not None and not acc.all_databases else None
-    target_dbs = [own_db] if own_db else databases_param(databases)   # REQ-77: own database only
+    if own_db:                  # REQ-77/86: an account uploads only into the database assigned to it
+        asked = [d.strip().upper() for d in (databases or "").split(",") if d.strip()]
+        if any(d != own_db for d in asked):
+            raise HTTPException(403, f"You can only upload into your own database ({own_db})")
+        if project_name and doc_type not in PROJECT_TYPES:
+            from .. import store, visibility
+            with visibility.unrestricted():
+                proj = store.get_project(project_name.strip())
+            if proj is not None and own_db not in (proj.get("databases") or []):
+                raise HTTPException(403, "You can only link files to projects of your own database")
+    target_dbs = [own_db] if own_db else databases_param(databases)
     opts = IngestOptions(use_llm=use_llm, api_key=x_key, databases=target_dbs, date=when)
     data_dir = settings().data_dir
     owner = owner_of(request)
@@ -194,3 +204,49 @@ def job(job_id: str, request: Request):
     if j is None or not may_see(request, j):
         raise HTTPException(404, "Unknown job")
     return j
+
+
+@router.get("/activity")
+def activity(request: Request):
+    """REQ-87: what is going on on the server right now – the caller's own uploads and chats in full, everybody else's
+    anonymously (kind, step, progress; no names, files or databases), plus the load of the chat workers."""
+    import time
+
+    from ..concurrency import active_chats
+    me = owner_of(request)
+    now = time.time()
+    jobs_now = QUEUE.list(None, 200)
+    active = [j for j in jobs_now if j["status"] in ("queued", "running")]
+    recent = [j for j in jobs_now if j["owner"] == me and j["status"] not in ("queued", "running")
+              and now - _ts(j.get("finished")) < 3600][:3]
+    upload_kinds = {"project", "legal_project"} | {t.value for t in DocType}
+
+    def mine(j: dict) -> dict:
+        return {k: j.get(k) for k in ("id", "kind", "name", "status", "step", "progress", "position", "waiting_for_lock",
+                                      "error", "created", "started", "finished")}
+
+    def anon(j: dict) -> dict:
+        return {"kind": "upload" if j["kind"] in upload_kinds else "maintenance", "status": j["status"],
+                "step": j.get("step"), "progress": j.get("progress"), "position": j.get("position"),
+                "seconds": round(now - _ts(j.get("started") or j.get("created")))}
+
+    chats = active_chats()
+    view = lambda c: {"kind": c["kind"], "state": c["state"], "seconds": round(now - c["started"])}   # noqa: E731
+    return {
+        "you": {"uploads": [mine(j) for j in active if j["owner"] == me] + [mine(j) for j in recent],
+                "chats": [view(c) for c in chats if c["owner"] == me]},
+        "others": {"uploads": [anon(j) for j in active if j["owner"] != me],
+                   "chats": [view(c) for c in chats if c["owner"] != me]},
+        "server": {"chat_capacity": settings().chat_threads,
+                   "chats_answering": sum(c["state"] == "answering" for c in chats),
+                   "chats_waiting": sum(c["state"] == "waiting" for c in chats),
+                   "uploads_running": sum(j["status"] == "running" for j in active),
+                   "uploads_waiting": sum(j["status"] == "queued" for j in active)},
+    }
+
+
+def _ts(iso: str | None) -> float:
+    try:
+        return datetime.fromisoformat(iso).timestamp() if iso else 0.0
+    except ValueError:
+        return 0.0

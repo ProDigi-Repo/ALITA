@@ -14,6 +14,8 @@ import asyncio
 import contextvars
 import logging
 import threading
+import time
+import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, TypeVar
@@ -24,6 +26,33 @@ T = TypeVar("T")
 _POOL: ThreadPoolExecutor | None = None
 _POOL_LOCK = threading.Lock()
 _DONE = object()
+
+# ----------------------------------------------------------------- who is asking right now (REQ-87, activity tile)
+_ACTIVE: dict[str, dict] = {}
+_ACTIVE_LOCK = threading.Lock()
+
+
+class _Track:
+    """Registers one chat while it waits for a worker thread and while it is answered."""
+
+    def __init__(self, owner: str | None, kind: str) -> None:
+        self.id = uuid.uuid4().hex
+        self.entry = {"owner": owner or "local", "kind": kind, "state": "waiting", "started": time.time()}
+
+    def __enter__(self) -> dict:
+        with _ACTIVE_LOCK:
+            _ACTIVE[self.id] = self.entry
+        return self.entry
+
+    def __exit__(self, *exc) -> None:
+        with _ACTIVE_LOCK:
+            _ACTIVE.pop(self.id, None)
+
+
+def active_chats() -> list[dict]:
+    """Snapshot of the chats in progress: owner, kind (chat | graph | progress), state (waiting | answering), started."""
+    with _ACTIVE_LOCK:
+        return [dict(e) for e in _ACTIVE.values()]
 
 
 def pool() -> ThreadPoolExecutor:
@@ -42,13 +71,18 @@ def _in_own_loop(ctx: contextvars.Context, factory: Callable[[], Awaitable[T]]) 
     return ctx.run(asyncio.run, main())
 
 
-async def run_in_thread(factory: Callable[[], Awaitable[T]]) -> T:
+async def run_in_thread(factory: Callable[[], Awaitable[T]], owner: str | None = None, kind: str = "chat") -> T:
     """Await ``factory()`` on its own event loop in a worker thread, with the caller's context."""
     ctx = contextvars.copy_context()
-    return await asyncio.get_running_loop().run_in_executor(pool(), _in_own_loop, ctx, factory)
+    with _Track(owner, kind) as entry:
+        async def started() -> T:
+            entry["state"] = "answering"
+            return await factory()
+        return await asyncio.get_running_loop().run_in_executor(pool(), _in_own_loop, ctx, started)
 
 
-async def stream_in_thread(factory: Callable[[], AsyncIterator[Any]], buffer: int = 256) -> AsyncIterator[Any]:
+async def stream_in_thread(factory: Callable[[], AsyncIterator[Any]], buffer: int = 256,
+                           owner: str | None = None, kind: str = "chat") -> AsyncIterator[Any]:
     """Iterate the async generator ``factory()`` on its own event loop in a worker thread and yield its items here.
 
     Errors of the generator are raised here. When the consumer stops early (client gone), the generator is cancelled."""
@@ -68,7 +102,10 @@ async def stream_in_thread(factory: Callable[[], AsyncIterator[Any]], buffer: in
                 continue
         fut.cancel()
 
+    track = _Track(owner, kind)
+
     async def pump() -> None:
+        track.entry["state"] = "answering"
         gen = factory()
         try:
             async for item in gen:
@@ -81,6 +118,7 @@ async def stream_in_thread(factory: Callable[[], AsyncIterator[Any]], buffer: in
             await gen.aclose()
             put(("end", _DONE))
 
+    track.__enter__()
     future = loop.run_in_executor(pool(), lambda: ctx.run(asyncio.run, pump()))
     try:
         while True:
@@ -91,6 +129,7 @@ async def stream_in_thread(factory: Callable[[], AsyncIterator[Any]], buffer: in
                 raise value
             yield value
     finally:
+        track.__exit__()
         stop.set()
         while not queue.empty():       # unblock a worker waiting on a full queue
             queue.get_nowait()

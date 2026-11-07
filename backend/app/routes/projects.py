@@ -87,7 +87,7 @@ def project_progress(name: str, request: Request, stages: int = 5, recompute: bo
 
 
 @router.post("/projects/{name}/progress")
-async def project_progress_llm(name: str, body: ProgressRequest, x_key: KeyHeader = None):
+async def project_progress_llm(name: str, body: ProgressRequest, request: Request, x_key: KeyHeader = None):
     """Like GET, recomputed; with use_llm the AI also words the state of insight of each stage."""
     from ..progress import project_progress as pp
     from ..progress import summarize_stages
@@ -97,7 +97,8 @@ async def project_progress_llm(name: str, body: ProgressRequest, x_key: KeyHeade
         return await run_in_threadpool(pp, name, body.stages, True)
     try:
         from ..concurrency import run_in_thread
-        return await run_in_thread(lambda: summarize_stages(name, body.stages, x_key))   # REQ-83: off the server loop
+        from ..jobs import owner_of
+        return await run_in_thread(lambda: summarize_stages(name, body.stages, x_key), owner_of(request), "progress")   # REQ-83/87
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
 

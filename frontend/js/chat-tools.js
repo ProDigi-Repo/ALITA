@@ -167,7 +167,12 @@ function simulateStream(chat,typingEl,a,done){
   },350);
 }
 // Live: Server-Sent Events from /api/chat/stream (meta → delta … → done | error)
-async function streamChat(body,chat,typingEl,url='api/chat/stream'){
+async function streamChat(body,chat,typingEl,url='api/chat/stream'){   // REQ-87: the activity tile shows the own chat
+  const nudge=()=>{if(typeof activityNow==='function')activityNow()};
+  setTimeout(nudge,400);
+  try{return await streamChatRaw(body,chat,typingEl,url)}finally{nudge()}
+}
+async function streamChatRaw(body,chat,typingEl,url){
   const r=await fetch(url,{method:'POST',headers:headers(),body:JSON.stringify(body)});
   if(r.status===404||r.status===405)return {fallback:true};
   if(!r.ok||!r.body){let m='Error '+r.status;try{m=(await r.json()).detail||m}catch(e){}return {error:m}}

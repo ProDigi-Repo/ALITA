@@ -36,6 +36,27 @@ from .fileio import atomic_write_json
 log = logging.getLogger(__name__)
 
 FINISHED = ("done", "error", "interrupted")
+
+# REQ-87: the steps a job of each kind goes through, in order (from jobs.step() calls) – for its progress bar
+_FOLLOW = ["Clustering", "Citation network", "Links to legal provisions"]
+PIPELINES = {
+    "file": ["Reading the file", "Summary, methods and keywords (LLM)",
+             "Chunks, embeddings, rhetorical roles and knowledge graph", *_FOLLOW],
+    "project": ["Reading the files", "Summaries, methods and keywords (LLM)",
+                "Chunks, embeddings, rhetorical roles and knowledge graph", *_FOLLOW],
+    "legal": ["Reading and parsing the legal text", "Summaries (LLM)", "Text units and embeddings", "Knowledge graph"],
+}
+
+
+def pipeline_of(kind: str) -> list[str]:
+    """Expected steps of a job kind (empty for maintenance jobs without steps)."""
+    if kind == "project":
+        return PIPELINES["project"]
+    if kind in ("legal_project", "legal_guideline", "standard", "guidance"):
+        return PIPELINES["legal"]
+    if kind in ("research_paper", "research_notes"):
+        return PIPELINES["file"]
+    return []
 INTERRUPTED = "The server restarted before this job finished – please start it again."
 
 
@@ -59,12 +80,25 @@ class Job:
     extra: dict = field(default_factory=dict)
 
     def public(self, position: int | None = None) -> dict:
-        """The job as the API returns it (with its place in the queue while it waits)."""
+        """The job as the API returns it (with its place in the queue while it waits and its progress 0–1)."""
         d = asdict(self)
         d.update(d.pop("extra") or {})
         if position is not None:
             d["position"] = position
+        d["progress"] = self.progress()
         return d
+
+    def progress(self) -> float:
+        """Rough share done: 1 when finished, 0 while waiting, else by the position of the current step."""
+        if self.status in FINISHED:
+            return 1.0
+        if self.status != "running":
+            return 0.0
+        steps = pipeline_of(self.kind)
+        if not steps or not self.step:
+            return 0.5 if not steps else 0.02
+        idx = steps.index(self.step) if self.step in steps else len(self.steps)
+        return round(min(0.97, (idx + 0.5) / len(steps)), 3)
 
 
 def _now() -> str:

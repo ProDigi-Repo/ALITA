@@ -145,6 +145,9 @@ def test_upload_goes_into_the_own_database(env, monkeypatch, tmp_path):
     login(client, "charmander", "fire-secret-1")
     r = client.post("/api/ingest", data={"doc_type": "research_paper", "databases": "VULPIX", "use_llm": "false"},
                     files={"files": ("note.txt", b"hello")})
+    assert r.status_code == 403                          # REQ-86: another database is refused, not silently replaced
+    r = client.post("/api/ingest", data={"doc_type": "research_paper", "use_llm": "false"},
+                    files={"files": ("note.txt", b"hello")})
     assert r.status_code == 200
     job = wait_job(client, r.json()["jobs"][0])          # REQ-83: the upload runs in the job queue
     assert job["status"] == "done" and job["owner"] == "account:charmander"

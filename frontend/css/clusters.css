@@ -236,3 +236,23 @@ html.map-window #page-graph .bgrid{grid-template-columns:minmax(0,1fr);grid-temp
 .composer textarea,.bslot>.tile.t-graph>.composer textarea{height:auto;min-height:104px!important;max-height:280px;resize:vertical;line-height:1.45;font-size:calc(15px * var(--fs-scale,1));padding:11px 13px}
 .composer{align-items:stretch}
 .composer .send{align-self:flex-end}
+/* REQ-85: the knowledge-map header looks exactly like the chat header next to it – same blue (solid), white text,
+   same height (54 px), one line. Applies to A and B alike. */
+.t-rag .cv-head,.t-graph .cv-head,.cg-main.t-graph .cv-head{background:var(--acc);color:#fff;border-bottom:0;height:54px;box-sizing:border-box;
+  flex-wrap:nowrap;padding:10px 14px;gap:8px;overflow:hidden;align-content:center}
+.t-rag .cv-head .cv-break,.t-graph .cv-head .cv-break{display:none}
+.t-rag .cv-head .badge,.t-graph .cv-head .badge{display:inline-grid;place-items:center;width:26px;height:26px;padding:0;border-radius:50%;
+  background:#fff;color:var(--acc);font-size:calc(14px * var(--fs-scale,1));flex-shrink:0}
+.t-rag .cv-head h3,.t-graph .cv-head h3,.cg-main .cv-head h3{color:#fff;font-size:calc(17px * var(--fs-scale,1));font-weight:600}
+.t-rag .cv-head .mini,.t-graph .cv-head .mini{background:rgb(255 255 255 / .16);border-color:rgb(255 255 255 / .45);color:#fff;white-space:nowrap}
+.t-rag .cv-head .mini:hover,.t-graph .cv-head .mini:hover,.t-graph .cv-head .mini[aria-pressed="true"],.t-rag .cv-head .mini[aria-pressed="true"]{background:#fff;color:var(--acc);border-color:#fff}
+.t-rag .cv-head .cv-mode,.t-graph .cv-head .cv-mode{background:rgb(255 255 255 / .16);border-color:rgb(255 255 255 / .45)}
+.t-rag .cv-head .cv-mode button,.t-graph .cv-head .cv-mode button{color:#fff}
+.t-rag .cv-head .cv-mode button[aria-pressed="true"],.t-graph .cv-head .cv-mode button[aria-pressed="true"]{background:#fff;color:var(--acc)}
+.t-rag .cv-head .xc-pick,.t-graph .cv-head .xc-pick{color:rgb(255 255 255 / .88);flex-shrink:1;min-width:0}
+.t-rag .cv-head .xc-pick select,.t-graph .cv-head .xc-pick select{background:#fff;color:var(--acc);border-color:#fff;max-width:160px;min-width:118px}
+.t-rag .cv-head .xc-pick,.t-graph .cv-head .xc-pick{flex-shrink:0}
+.t-rag .cv-head .meta,.t-graph .cv-head .meta{color:rgb(255 255 255 / .85);flex:1 1 0;min-width:0}
+.t-rag .cv-head .cv-basis,.t-graph .cv-head .cv-basis{background:rgb(255 255 255 / .16);color:#fff;flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+#page-graph .cg-max[aria-pressed="true"]{background:#fff;color:var(--c2,#1d5fd1)}
+@media (max-width:560px){.t-rag .cv-head,.t-graph .cv-head{height:auto;flex-wrap:wrap}}
