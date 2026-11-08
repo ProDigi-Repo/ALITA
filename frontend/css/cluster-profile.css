@@ -22,7 +22,7 @@
 .cpd-bar>span:first-child{font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:calc(10.5px * var(--fs-scale,1));color:var(--muted,#5b6478)}
 .cpd-state{color:var(--muted,#5b6478);font-style:italic;margin-right:auto}
 .cpd-x{border:0;background:none;cursor:pointer;color:var(--muted,#5b6478);font-size:calc(13px * var(--fs-scale,1));padding:2px 6px;border-radius:4px}.cpd-x:hover{background:var(--line,#dfe3ec);color:var(--fg,#141826)}
-.cprof.cprof-docked{position:static;width:auto;max-height:none;overflow:visible;pointer-events:auto;box-shadow:none;border:0;border-radius:0;padding:10px 14px 12px;columns:2 380px;column-gap:28px}
+.cprof.cprof-docked{position:static;z-index:auto;width:auto;max-height:none;overflow:visible;pointer-events:auto;box-shadow:none;border:0;border-radius:0;padding:10px 14px 12px;columns:2 380px;column-gap:28px}
 .cprof-docked .cp-h,.cprof-docked .cp-d{column-span:all}
 .cprof-docked h6{break-after:avoid}.cprof-docked ul,.cprof-docked .cp-chips{break-inside:avoid-column}
 /* in the 3D·time view: docked at the bottom of the screen */
