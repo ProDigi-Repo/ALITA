@@ -805,3 +805,13 @@ def test_ingest_all_catches_up_what_the_seed_ingested_without_a_key():
     assert _done({"indexed": False, "summary_key": "k"}, with_key)       # no text, but summarised already
     assert not _done({"indexed_count": 0}, with_key, field="indexed_count")
     assert _done({"indexed_count": 12}, with_key, field="indexed_count") and not _done(None, with_key)
+
+
+def test_cli_rejects_the_placeholder_key_before_starting():
+    """REQ-110: `OPENROUTER_API_KEY=sk-or-v1-…` copied from the instructions crashed deep in the HTTP library."""
+    from app.ingestion.cli import key_problem
+    assert "placeholder" in key_problem("sk-or-v1-…")
+    assert "placeholder" in key_problem("sk-or-v1-<your key>")
+    assert key_problem("sk-or-v1-abc def" + "x" * 40)
+    assert key_problem("hello")
+    assert key_problem(None) is None and key_problem("sk-or-v1-" + "a1b2" * 16) is None

@@ -35,6 +35,20 @@ def _dump(project: ProjectRecord | None, items: list[Item], out: Path) -> None:
     out.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
+def key_problem(key: str | None) -> str | None:
+    """REQ-110: a key copied from an example (`sk-or-v1-…`) or with spaces/umlauts fails only deep inside the HTTP
+    library ("'ascii' codec can't encode …") after the import has started – check it before."""
+    if not key:
+        return None
+    if "…" in key or key.endswith("...") or "<" in key:
+        return "this is the placeholder from the instructions – put in the complete key from the chair (sk-or-v1-…, about 70 characters)"
+    if not key.isascii() or any(c.isspace() for c in key):
+        return "it contains spaces or characters that cannot be part of a key – copy it again without quotes or line breaks"
+    if not key.startswith("sk-or-") or len(key) < 30:
+        return "it does not look like an OpenRouter key (they start with sk-or- and have about 70 characters)"
+    return None
+
+
 def main() -> None:
     """Command line entry point: `python -m app.ingestion <kind> [path] [options]` (see --help)."""
     ap = argparse.ArgumentParser(description="Load documents into the RAG index")
@@ -65,6 +79,9 @@ def main() -> None:
     opts = IngestOptions(use_llm=not a.no_llm, embed=not a.no_embed, enrich_scope=a.scope,
                          databases=get_settings().normalize_databases(a.db),
                          api_key=(a.api_key or get_settings().openrouter_api_key or None))
+    problem = key_problem(opts.api_key)
+    if problem:
+        ap.exit(2, f"OpenRouter key: {problem}\n")
     from ..jobs import write_lock
     with write_lock(on_wait=lambda: print("Waiting for an upload or another import to finish …", file=sys.stderr)):
         _run(ap, a, opts)                        # REQ-83: never at the same time as the backend's job queue

@@ -113,6 +113,8 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 | REQ-107 | Videos explain the progress of knowledge (main reason to use ALITA) | ✅ done | 3.13.0 | Two scenes on knowledge progress and stage table; overlapping stage labels fixed. |
 | REQ-108 | Upload tile content top-aligned | ✅ done | 3.13.0 | justify-content flex-start. |
 | REQ-109 | Bug: database ALITA shows nothing | ✅ fixed | 3.13.0 | Seed without key left the data without vectors; `ingest all` with a key now catches up. |
+| REQ-110 | Bug: import stopped with "'ascii' codec can't encode '…'" | ✅ fixed | 3.13.0 | Placeholder key from the instructions; CLI checks the key first (`cli.key_problem`). |
+| REQ-111 | Round AI icon top right in the videos | ✅ done | 3.13.0 | User's icon instead of the pill. |
 
 ## Open points for the requirement owners
 - REQ-10, REQ-15 – REQ-18: main document chain per project, inferred links between versions and analyses, threshold for "substantive", AI stage texts automatic or on demand, versions without full text.
