@@ -104,9 +104,8 @@ button.cw-tag:hover::after,button.cw-tag:focus-visible::after{animation:cwRing 1
 #avatar{transition:opacity .35s ease}
 #avatar.alita-away{opacity:0;pointer-events:none}
 
-/* REQ-12: the current chat scope, right above the input */
-.composer{flex-wrap:wrap}
-.chat-scope{flex:1 0 100%;font-size:calc(11.5px * var(--fs-scale,1));color:var(--muted);line-height:1.5;padding:0 2px}
+/* REQ-12: the current chat scope, right above the input (the composer is a column since REQ-99) */
+.chat-scope{flex:none;font-size:calc(11.5px * var(--fs-scale,1));color:var(--muted);line-height:1.5;padding:0 2px}
 .chat-scope b{color:var(--fg);font-weight:600}
 .chat-scope .sc-pj{color:var(--t-project);font-weight:600}
 .chat-scope .sc-cl{display:inline-block;font-family:var(--f-mono);font-size:calc(10.5px * var(--fs-scale,1));color:#fff;background:hsl(var(--h) 55% 45%);border-radius:999px;padding:0 6px}

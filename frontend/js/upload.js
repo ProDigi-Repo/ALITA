@@ -20,11 +20,6 @@ const AD_PIPE='After the upload ALITA reads every file and runs the full pipelin
 function canUpload(){return IS_ADMIN||!!(ACCOUNT&&!ACCOUNT.all&&ACCOUNT.database)}
 function ownDb(){return ACCOUNT&&!ACCOUNT.all?ACCOUNT.database:null}
 const AD={db:null,type:null,mode:'new'};
-/* REQ-96: research projects – a new project (ZIP) or new documents/versions for an existing one (single files) */
-const ADD=()=>AD.type==='research_project'&&AD.mode==='add';
-const NEED_ZIP=t=>ZIP_T(t)&&!ADD();
-function adProjects(){return PROJECTS.filter(p=>(p.db||[]).includes(AD.db)).sort((a,b)=>(a.name||'').localeCompare(b.name||''))}
-function adProjFiles(name){return DOCS.filter(d=>d.pn===name&&d.t==='research_project'&&d.la!==false&&d.rp).sort((a,b)=>a.rp.localeCompare(b.rp))}
 function adOpen(type){
   if(LIVE&&!canUpload()){toast(ACCOUNTS_ON?'Log in with your user name to upload your own data':'Uploading needs admin rights');return}
   const own=ownDb();
@@ -40,20 +35,6 @@ function adOpen(type){
   AD.mode='new';$$('input[name=admode]').forEach(r=>r.checked=r.value==='new');
   adSync();$('#addData').hidden=false;
   setTimeout(()=>(own?$('#adType'):($('input[name=addb]:checked')||$('input[name=addb]'))).focus(),30);
-}
-function adSyncMode(files){
-  const show=AD.type==='research_project';$('#adMode').hidden=!show;$('#adAdd').hidden=!ADD();
-  if(!ADD())return;
-  const sel=$('#adExProj'),projs=adProjects(),cur=sel.value;
-  sel.innerHTML=projs.length?projs.map(p=>`<option value="${esc(p.name)}">${esc(p.title&&p.title!==p.name?p.title+' ('+p.name+')':p.name)} · ${p.files||0} files</option>`).join('')
-    :'<option value="">No project in this database yet – upload a new one first</option>';
-  if(projs.some(p=>p.name===cur))sel.value=cur;
-  const one=files.length===1&&!!sel.value;$('#adVerWrap').hidden=!one;
-  if(one){
-    const vs=$('#adVersionOf'),was=vs.value;
-    vs.innerHTML='<option value="">a new document of the project</option>'+adProjFiles(sel.value).map(d=>`<option value="${esc(d.rp)}">a new version of ${esc(d.rp)}${d.v?' (now v'+esc(d.v)+')':''}</option>`).join('');
-    if([...vs.options].some(o=>o.value===was))vs.value=was;
-  }
 }
 function adSync(){
   const t=AD.type,files=[...$('#adFiles').files];

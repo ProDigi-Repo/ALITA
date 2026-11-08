@@ -121,10 +121,7 @@ button,.mini,select{min-height:24px}
   z-index:1;margin:-16px -16px 0;padding:6px 16px;background:var(--sunk);border-bottom:1px solid var(--line);color:var(--muted);
   font-size:calc(11.5px * var(--fs-scale,1));text-align:left}
 
-/* ---------- REQ-99: bigger question field, Send below it ---------- */
-.composer,#page-graph .bslot>.tile.t-graph>.composer{display:flex!important;flex-direction:column!important;flex-wrap:nowrap!important;align-items:stretch!important;gap:8px}
-.composer textarea,#page-graph .bslot>.tile.t-graph>.composer textarea{width:100%;min-height:150px!important;max-height:420px}
-.composer .send,.bslot>.tile.t-graph>.composer .send{align-self:flex-end;min-width:150px;min-height:44px;font-size:calc(15px * var(--fs-scale,1))}
+/* ---------- REQ-99: herrings out of the Send button (the question field itself: clusters.css) ---------- */
 .herring{position:fixed;z-index:9998;pointer-events:none;will-change:transform,opacity;filter:drop-shadow(0 2px 3px rgb(0 0 0 / .25))}
 
 /* ---------- REQ-102: document types as sea creatures ---------- */

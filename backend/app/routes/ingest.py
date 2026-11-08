@@ -11,10 +11,9 @@ from typing import Annotated
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 
 from ..jobs import QUEUE, owner_of
+from ..project_add import add_job, existing_project
 from ..schemas import DocType
 from ..uploads import (
-    add_job,
-    existing_project,
     job_factory,
     job_kind,
     stage_all,

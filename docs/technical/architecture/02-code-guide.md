@@ -30,6 +30,7 @@
 | `registry.py` | Database registry: id, display name, colours, public flag, description |
 | `routes/` | API routers by domain: `system`, `accounts`, `documents`, `projects`, `clusters`, `chat`, `graph`, `legal`, `ingest` (uploads), `jobs` (job status, activity); shared helpers in `routes/common.py` |
 | `uploads.py` | Uploads (REQ-84/86): which database an upload may go to, ZIP checks, staging in `<DATA_DIR>/incoming`, name clashes between databases, the job of each file |
+| `project_add.py` | New documents or versions for an existing research project (REQ-96): checks, the project's folder, next version name `_v<n+1>`, the job |
 | `activity.py` | What runs on the server for the activity tile (REQ-87): own work in full, other users' anonymously |
 | `deletion.py` | Deleting from the Documents tab (REQ-90): who may delete what (plan), carrying it out in a job, recomputing afterwards |
 
@@ -39,12 +40,13 @@
 |---|---|
 | `schemas.py` | Pydantic models: `DocumentRecord`, `ProjectRecord`, `Chunk`, `SearchFilters`, chat request/response |
 | `store.py` | Qdrant: collections `documents`, `chunks`, `projects`; all reads go through `visibility` |
-| `graph.py` | Neo4j: statements for documents, DEO roles, clusters, citations, provisions, legal models; path queries for the Graph Chat |
-| `llm.py` | OpenRouter chat models and embeddings via pydantic-ai; the key always comes from the request |
+| `graph/` | Neo4j (package since REQ-105): `db` (connection, schema, ontologies), `documents` (documents, sections, chunks, people), `links` (citations, provisions, legal models, clusters), `query` (paths and neighbours for the Graph Chat, statistics); everything importable from `app.graph` |
+| `provisions/` | Papers → provisions they discuss (REQ-68, package since REQ-105): `refs` (finding references), `resolve` (version and today's number), `link` (storing, rebuild), `chat` (scope, passages, papers per article) |
+| `llm.py` | OpenRouter chat models and embeddings via pydantic-ai; the key always comes from the request. One HTTP client (and the models built on it) per event loop, closed with the chat's loop (REQ-103) – never cache a client across loops |
 | `usage.py` | Token meter per question or job |
 | `concurrency.py`, `jobs.py`, `fileio.py` | Several users at once (REQ-83): chats on worker threads, the job queue for everything that writes, atomic files |
 
-**Ingestion** (`app/ingestion/`, see below) uses `extract.py` (text per file type), `chunking.py`, `project_meta.py` (file roles, versions, language), `enrich.py` (LLM structured summary), `glossary.py`, `deo.py`/`deo_classify.py` (rhetorical roles), `people.py`/`project_teams.py` (teams), `clustering/` (package: `__init__` = units, vectors, `recompute`, LLM descriptions; `numeric.py` = k-means, silhouette, terms, 2D layout; `naming.py` = person-name pseudonyms and cluster titles; `classify.py` = sorting new uploads into the existing clusters, REQ-92), `citations.py`, `provisions.py`, `purge.py`, `migrate.py`.
+**Ingestion** (`app/ingestion/`, see below; `incremental.py` re-ingests a project with only its new files, REQ-96) uses `extract.py` (text per file type), `chunking.py`, `project_meta.py` (file roles, versions, language), `enrich.py` (LLM structured summary), `glossary.py`, `deo.py`/`deo_classify.py` (rhetorical roles), `people.py`/`project_teams.py` (teams), `clustering/` (package: `__init__` = units, vectors, `recompute`, LLM descriptions; `numeric.py` = k-means, silhouette, terms, 2D layout; `naming.py` = person-name pseudonyms and cluster titles; `classify.py` = sorting new uploads into the existing clusters, REQ-92), `citations.py`, `provisions.py`, `purge.py`, `migrate.py`.
 
 **Chats and retrieval**
 
@@ -58,7 +60,7 @@
 | `cluster_overview.py`, `cluster_profile.py`, `cluster_query.py`, `cluster_relations.py` | Knowledge map: overview, hover profiles, cluster questions, relations across databases |
 | `progress.py` | Knowledge progress of a project in stages |
 
-**Legal ontology** (`app/legal/` plus `legal_ingest.py`, `legal_amend.py`, `legal_time.py`, `legal_chat.py`): `parse` splits a norm into components, `history` builds temporal versions and actions, `units` makes the searchable Text Units, `query` answers "valid at", wording and change questions; `legal_time` plans the reference date of a question and `legal_chat` adds legal context to both chats.
+**Legal ontology** (`app/legal/` plus `legal_ingest.py`, `legal_amend.py`, `legal_time.py`, `legal_chat.py`): `parse` splits a norm into components (package since REQ-105: `patterns`, `faq`, `components`, `order`), `history` builds temporal versions and actions, `units` makes the searchable Text Units, `query` answers "valid at", wording and change questions; `legal_time` plans the reference date of a question and `legal_chat` adds legal context to both chats.
 
 ## A request, end to end
 
@@ -116,7 +118,7 @@ Every logged-in account uploads into its own database (`access.py` lets `POST /a
 
 ## Front end
 
-Scripts are plain globals loaded in this order (see `index.html`): `data.js` (generated) → `core.js` (helpers, API calls) → `state.js` (`Store`) → `databases.js` → `header-access.js` → feature views (`cluster-*`, `documents.js`, `upload.js` (wizard, upload tile, job polling), `delete.js` (deleting, REQ-90), `party.js` (upload party, REQ-91), `chat.js`, `people.js`, `progress.js`, `citations.js`, `legal.js`, `space3d*.js` …) → `tour.js` → `activity.js` → `start.js` (boot).
+Scripts are plain globals loaded in this order (see `index.html`): `data.js` (generated) → `core.js` (helpers, API calls) → `state.js` (`Store`) → `databases.js` → `header-access.js` → feature views (`cluster-*`, `documents.js`, `upload-project.js` + `upload.js` (wizard incl. adding to existing projects, upload tile, job polling), `delete.js` (deleting, REQ-90), `party.js` (upload party, REQ-91), `chat.js`, `people.js`, `progress.js`, `citations.js`, `legal.js`, `space3d*.js` …) → `tour.js` → `activity.js` → `start.js` (boot). Before the views: `sea-glyphs.js` (document types as sea creatures, SVG and canvas, REQ-102); after `cluster-page.js`: `layout.js` (column dividers, text size per tile, REQ-97/98) and `herring.js` (REQ-99). Styles for small screens, touch and accessibility: `css/layout.css` (loaded last).
 
 Views do not call each other. They subscribe to topics with `Store.on(topic, fn, order)`; whoever changes the data calls `Store.emit(topic)`. Lower `order` runs first, and one failing view does not stop the others.
 

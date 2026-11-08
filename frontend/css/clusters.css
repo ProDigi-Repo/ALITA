@@ -153,14 +153,12 @@
   .bslot>.tile.t-graph>.chat{grid-column:1;grid-row:2/10}
   /* input column: scope line on top, text box and Send side by side, down to the bottom of the tile */
   .bslot>.tile.t-graph>.composer{grid-column:2;grid-row:8/11;z-index:1;border-left:1px solid var(--line);min-width:0;
-    display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;padding:8px 12px;gap:6px}
+    display:flex;flex-direction:column;align-items:stretch;padding:8px 12px;gap:6px}
   .bslot>.tile.t-graph>.hint{display:none}   /* same hint as under Advanced settings */
   .bslot>.tile.t-graph>.ainote{grid-column:1;grid-row:10}
   .bslot>.tile.t-graph>.chat .msg.user{display:none}
-  .bslot>.tile.t-graph>.composer .chat-scope{grid-column:1/-1;font-size:calc(11px * var(--fs-scale,1));line-height:1.4}
+  .bslot>.tile.t-graph>.composer .chat-scope{font-size:calc(11px * var(--fs-scale,1));line-height:1.4}
   .bslot>.tile.t-graph>.composer .chat-scope .sc-addp{font-size:calc(10.5px * var(--fs-scale,1));padding:0 6px}
-  .bslot>.tile.t-graph>.composer .send{align-self:end}
-  .bslot>.tile.t-graph>.composer textarea{min-height:44px;height:44px}
   .bslot>.tile.t-graph::after{content:"";grid-column:2;grid-row:2/-1;border-left:1px solid var(--line);background:var(--sunk);z-index:0}
   .bslot>.tile.t-graph>.ptoggle,.bslot>.tile.t-graph>.filters,.bslot>.tile.t-graph>.stoggle,.bslot>.tile.t-graph>.spanel{z-index:1;border-left:1px solid var(--line);min-width:0}
   .bslot>.tile.t-graph>.ptoggle,.bslot>.tile.t-graph>.stoggle{flex-wrap:wrap;row-gap:2px;padding:8px 12px}
@@ -198,8 +196,7 @@
   .bslot>.tile.t-graph>.spanel{grid-column:1!important;grid-row:6!important}
   .bslot>.tile.t-graph>.chat{grid-column:1!important;grid-row:7!important}
   .bslot>.tile.t-graph>.gside{grid-column:1!important;grid-row:8!important;min-height:0!important;max-height:130px;border-left:0!important;border-top:1px solid var(--line)}
-  .bslot>.tile.t-graph>.composer{grid-column:1!important;grid-row:9!important;border-left:0!important;flex-direction:row!important;align-items:flex-end!important}
-  .bslot>.tile.t-graph>.composer textarea{min-height:44px!important}
+  .bslot>.tile.t-graph>.composer{grid-column:1!important;grid-row:9!important;border-left:0!important}
   .bslot>.tile.t-graph>.hint{grid-column:1!important;grid-row:10!important;border-left:0!important}
   .bslot>.tile.t-graph>.ainote{grid-column:1!important;grid-row:11!important}
   .bslot>.tile.t-graph>.ptoggle,.bslot>.tile.t-graph>.filters,.bslot>.tile.t-graph>.stoggle,.bslot>.tile.t-graph>.spanel{border-left:0!important}
@@ -233,9 +230,10 @@ html.map-window #page-graph .bgrid{grid-template-columns:minmax(0,1fr);grid-temp
 @media (max-width:1100px){html.map-window #page-graph .bq-map{height:calc(100vh - 16px);position:static}}
 
 /* REQ-64: larger question input (both chats): 4 lines, grows with the text up to ~11 lines, can be dragged taller */
-.composer textarea,.bslot>.tile.t-graph>.composer textarea{height:auto;min-height:104px!important;max-height:280px;resize:vertical;line-height:1.45;font-size:calc(15px * var(--fs-scale,1));padding:11px 13px}
-.composer{align-items:stretch}
-.composer .send{align-self:flex-end}
+/* REQ-64/99: a large question field with Send below it */
+.composer{flex-direction:column;align-items:stretch;gap:8px}
+.composer textarea{width:100%;height:auto;min-height:150px;max-height:420px;resize:vertical;line-height:1.45;font-size:calc(15px * var(--fs-scale,1));padding:11px 13px}
+.composer .send{align-self:flex-end;min-width:150px;min-height:44px;font-size:calc(15px * var(--fs-scale,1))}
 /* REQ-85: the knowledge-map header looks exactly like the chat header next to it – same blue (solid), white text,
    same height (54 px), one line. Applies to A and B alike. */
 .t-rag .cv-head,.t-graph .cv-head,.cg-main.t-graph .cv-head{background:var(--acc);color:#fff;border-bottom:0;height:54px;box-sizing:border-box;

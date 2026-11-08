@@ -7,7 +7,6 @@ import logging
 from pathlib import Path
 
 from ..config import get_settings
-from ..glossary import merge_tags
 from ..jobs import step
 from ..schemas import (
     DocType,
@@ -19,6 +18,7 @@ from ..schemas import (
     make_project_id,
 )
 from .followups import maybe_citations, maybe_provisions, maybe_recluster
+from .incremental import keep_project_fields, split_known, update_flags
 from .index import index_items, mark_content_duplicate
 from .options import IngestOptions
 from .scan import apply_curated_summary, apply_databases, apply_overall_date, build_record, detect_databases, scan_project
@@ -66,51 +66,6 @@ async def ingest_project(folder: Path, opts: IngestOptions, new_files: set[str] 
     maybe_citations(opts)
     maybe_provisions(opts)
     return project
-
-
-CARRIED = ("title", "summary", "methods", "keywords", "indexed", "index_note", "summary_key", "date", "date_source",
-           "year", "authors", "ingested_at")
-
-
-def split_known(items: list, new_files: set[str]) -> tuple[list, list]:
-    """REQ-96: items to ingest (new or changed files) and items already in the index with the same text, whose
-    stored summary, methods, title and date are carried over (returned with their stored payload)."""
-    from .. import store
-
-    todo, kept = [], []
-    for it in items:
-        r = it.record
-        old = None if r.project.rel_path in new_files else store.get_document(r.doc_id)
-        if not old or old.get("content_hash") != r.content_hash:
-            todo.append(it)
-            continue
-        stored = DocumentRecord.model_validate(old)
-        for f in CARRIED:
-            setattr(r, f, getattr(stored, f))
-        kept.append((it, old))
-    return todo, kept
-
-
-def keep_project_fields(project: ProjectRecord, old: dict, items: list) -> None:
-    """REQ-96: what the stored project knew and a scan of its folder does not (LLM summary, methods, team)."""
-    prev = ProjectRecord.model_validate(old)
-    if project.summary.is_empty():
-        project.summary = prev.summary
-    project.methods = merge_tags(prev.methods, project.methods)[:8]
-    if not project.authors and prev.authors:
-        project.authors = list(prev.authors)
-        for it in items:
-            if not it.record.authors:
-                it.record.authors = list(prev.authors)
-
-
-def update_flags(r: DocumentRecord, old: dict) -> None:
-    """REQ-96: a file already in the index – write only what a new version changes (latest flag, duplicate)."""
-    from .. import store
-
-    proj = r.project.model_dump(mode="json")
-    if old.get("is_latest") != r.project.is_latest or (old.get("project") or {}) != proj:
-        store.set_document_fields(r.doc_id, {"is_latest": r.project.is_latest, "project": proj})
 
 
 async def ingest_file(path: Path, doc_type: DocType, opts: IngestOptions, project_name: str | None = None) -> DocumentRecord:

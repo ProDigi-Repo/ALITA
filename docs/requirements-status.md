@@ -107,6 +107,7 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 | REQ-101 | Database "TEST" for live demonstrations | ✅ done | 3.13.0 | Public; admins upload. |
 | REQ-102 | Sea creatures as document-type symbols | ✅ done | 3.13.0 | Octopus, whale, herring, shark, shell, dolphin, pufferfish in maps, legends, lists. |
 | REQ-103 | Bug: "Event loop is closed" in the chat | ✅ fixed | 3.13.0 | One OpenRouter connection per chat loop; regression test. |
+| REQ-105 | Refactor again (round 4) | ✅ done – no change in behaviour | 3.13.0 | `provisions/`, `graph/`, `legal/parse/` packages; `project_add.py`, `ingestion/incremental.py`, `upload-project.js`; composer CSS without `!important`; `tools/split_module.py`. |
 
 ## Open points for the requirement owners
 - REQ-10, REQ-15 – REQ-18: main document chain per project, inferred links between versions and analyses, threshold for "substantive", AI stage texts automatic or on demand, versions without full text.
