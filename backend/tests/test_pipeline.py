@@ -791,3 +791,17 @@ def test_upload_usage_meter_and_cost():
     assert s["price_source"] == "settings (estimate)"
     assert s["question_tokens"] == 1200 and s["answer_tokens"] == 200                 # chat: question = input + embedding, answer = output
     assert abs(s["question_eur"] + s["answer_eur"] - s["eur"]) < 1e-5
+
+
+def test_ingest_all_catches_up_what_the_seed_ingested_without_a_key():
+    """REQ-109: the automatic seed at start-up has no key – files and projects stay without vectors. A later
+    `ingest all` with a key must not skip them as "already ingested"."""
+    from app.ingestion.options import IngestOptions
+    from app.ingestion.pipeline import _done
+    with_key, without = IngestOptions(api_key="sk-x"), IngestOptions()
+    seeded = {"indexed": False}
+    assert not _done(seeded, with_key) and _done(seeded, without)
+    assert _done({"indexed": True}, with_key) and _done({"duplicate_of": "d1"}, with_key)
+    assert _done({"indexed": False, "summary_key": "k"}, with_key)       # no text, but summarised already
+    assert not _done({"indexed_count": 0}, with_key, field="indexed_count")
+    assert _done({"indexed_count": 12}, with_key, field="indexed_count") and not _done(None, with_key)

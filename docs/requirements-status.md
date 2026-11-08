@@ -109,6 +109,10 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 | REQ-103 | Bug: "Event loop is closed" in the chat | ✅ fixed | 3.13.0 | One OpenRouter connection per chat loop; regression test. |
 | REQ-104 | Tutorial videos German and English, ALITA as narrator; key from the chair; empty group at the start | ✅ done | 3.13.0 | Two MP4s outside the repo (2:37 / 2:41), synthetic voice, subtitles; tour text: key from the chair. |
 | REQ-105 | Refactor again (round 4) | ✅ done – no change in behaviour | 3.13.0 | `provisions/`, `graph/`, `legal/parse/` packages; `project_add.py`, `ingestion/incremental.py`, `upload-project.js`; composer CSS without `!important`; `tools/split_module.py`. |
+| REQ-106 | "AI generated" label top right in the videos | ✅ done | 3.13.0 | The user's AI GENERATED pill burnt in, bubble keeps clear. |
+| REQ-107 | Videos explain the progress of knowledge (main reason to use ALITA) | ✅ done | 3.13.0 | Two scenes on knowledge progress and stage table; overlapping stage labels fixed. |
+| REQ-108 | Upload tile content top-aligned | ✅ done | 3.13.0 | justify-content flex-start. |
+| REQ-109 | Bug: database ALITA shows nothing | ✅ fixed | 3.13.0 | Seed without key left the data without vectors; `ingest all` with a key now catches up. |
 
 ## Open points for the requirement owners
 - REQ-10, REQ-15 – REQ-18: main document chain per project, inferred links between versions and analyses, threshold for "substantive", AI stage texts automatic or on demand, versions without full text.

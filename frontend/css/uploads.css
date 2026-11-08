@@ -5,7 +5,7 @@
 .bar-row:has(>.uptile:not([hidden]))>.dbbar:not(.uptile):not(.acttile){flex:1 1 auto}
 .bar-row:has(>.acttile:not([hidden])){display:flex;gap:14px;align-items:stretch}
 .bar-row:has(>.acttile:not([hidden]))>.dbbar:not(.uptile):not(.acttile){flex:1 1 auto}
-.bar-row>.uptile{flex:0 0 clamp(230px,18vw,300px);flex-direction:column;flex-wrap:nowrap;align-items:stretch;justify-content:center;gap:8px;padding:12px 14px}
+.bar-row>.uptile{flex:0 0 clamp(230px,18vw,300px);flex-direction:column;flex-wrap:nowrap;align-items:stretch;justify-content:flex-start;gap:8px;padding:12px 14px}
 .uptile .up-head{display:flex;align-items:center;gap:8px}
 .uptile .up-head b{font-size:calc(11px * var(--fs-scale,1));color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:600}
 .uptile .up-ic{display:grid;place-items:center;width:24px;height:24px;border-radius:7px;background:rgb(95 216 255 / .16);color:#bff9ff;font-size:calc(14px * var(--fs-scale,1))}

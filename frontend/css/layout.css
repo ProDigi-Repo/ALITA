@@ -128,3 +128,5 @@ button,.mini,select{min-height:24px}
 .sea-ic{vertical-align:-3px;flex:none}
 .sea-leg{display:inline-flex;align-items:center;gap:4px}
 .sea-leg .sea-ic{margin-right:1px}
+/* the upload and activity tiles: content top-aligned, both as high as the row (user wish 2026-11-08) */
+.bar-row>.uptile,.bar-row>.acttile{justify-content:flex-start;align-self:stretch}

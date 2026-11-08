@@ -98,6 +98,17 @@ FILE_FOLDERS = {
 }
 
 
+def _done(record: dict | None, opts: IngestOptions, field: str = "indexed") -> bool:
+    """Is a file or project from the research folder already ingested well enough to skip it? Something ingested
+    without a key (the automatic seed at start-up) is ingested again as soon as a run has a key, otherwise it would
+    stay without summaries, vectors and clusters (REQ-109)."""
+    if not record:
+        return False
+    if record.get(field) or record.get("duplicate_of") or record.get("summary_key"):
+        return True                     # indexed, a duplicate, or already summarised with a key (e.g. no text)
+    return not (opts.embed and opts.api_key)
+
+
 async def ingest_all(root: Path, opts: IngestOptions, force: bool = False) -> None:
     """Ingest every subfolder of root as a research project (e.g. /research at compose start-up).
     Without an API key only metadata is ingested, so that the document list is filled anyway."""
@@ -158,14 +169,14 @@ async def ingest_all(root: Path, opts: IngestOptions, force: bool = False) -> No
     touched: set[str] = set()                     # re-cluster only these databases at the end
     for path, kind in singles:
         doc_id = make_doc_id(kind.value, kind.value, f"{path.parent.name}/{path.name}")
-        if not force and store.get_document(doc_id):
+        if not force and _done(store.get_document(doc_id), opts):
             print(f"skipped (already ingested): {path.name}")
             continue
         r = await ingest_file(path, kind, single)
         touched.update(r.databases or [])
         print(f"{kind.value}: {r.filename} [{', '.join(r.databases) or 'no database'}] indexed={r.indexed}")
     for folder in folders:
-        if not force and store.get_project(folder.name):
+        if not force and _done(store.get_project(folder.name), opts, field="indexed_count"):
             print(f"skipped (already ingested): {folder.name}")
             continue
         p = await ingest_project(folder, single)
