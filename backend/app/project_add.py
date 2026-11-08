@@ -66,10 +66,10 @@ def project_folder(proj: dict, data_dir: Path, create: bool = True) -> Path | No
 def next_version(folder: Path, rel: str, suffix: str) -> str:
     """REQ-96: relative path for the next version of the project file ``rel`` (``Paper_v3.docx`` → ``Paper_v4``;
     an unversioned ``Paper.docx`` counts as version 1 → ``Paper_v2``), in the same folder, with the new file's type."""
-    from .project_meta import COPY_RE, VERSION_RE, parse_version
+    from .project_meta import COPY_RE, DOC_EXT_RE, VERSION_RE, VERSION_TAIL_RE, parse_version
     old = PurePosixPath(rel)
-    stem = COPY_RE.sub("", old.stem).strip()
-    m = VERSION_RE.match(stem)
+    stem = DOC_EXT_RE.sub("", COPY_RE.sub("", old.stem).strip()).strip()
+    m = VERSION_RE.match(stem) or VERSION_TAIL_RE.match(stem)      # REQ-113: 'Proposal_v41_LDK' -> 'Proposal_v42'
     base = m.group("base").rstrip("_- ") if m and m.group("base") else stem
     key = base.lower()
     here = folder / old.parent

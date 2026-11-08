@@ -25,7 +25,9 @@ ROLE_RULES: list[tuple[ProjectRole, re.Pattern, set[str] | None]] = [
     (ProjectRole.figures, re.compile(r"figure|abbildung|grafik|bild"), {"pptx", "ppt", "pdf", "jpg", "png"}),
     (ProjectRole.submission_pdf, re.compile(r"proof|_original_v\d|^[a-z]{2,6}-[sd]-\d{2}-\d+|^[a-z]{4}-\d{4}-"), {"pdf"}),
     (ProjectRole.questionnaire, re.compile(r"fragebogen|questionnaire|survey"), None),
-    (ProjectRole.manuscript, re.compile(r"artikel|article|manuscript|paper|working ?paper"), {"docx", "doc", "pdf", "tex"}),
+    (ProjectRole.other, re.compile(r"vorlage|template"), {"docx", "doc", "odt", "dotx"}),   # REQ-113: a blank template is no draft
+    (ProjectRole.manuscript, re.compile(r"artikel|article|manuscript|paper|working ?paper|proposal|antrag|entwurf|draft"),
+     {"docx", "doc", "odt", "rtf", "pdf", "tex"}),
     (ProjectRole.notes, re.compile(r"ideen|notes?|notizen|textteilspeicher|literature research|protokoll"), None),
     (ProjectRole.data, re.compile(r"daten|data|rohdaten|dataset"), {"pdf", "docx", "txt"}),
 ]
@@ -68,13 +70,26 @@ def detect_role(filename: str, filetype: str, folder_parts: list[str]) -> Projec
 
 # ------------------------------------------------------------------ versions
 VERSION_RE = re.compile(r"^(?P<base>.*?)[_\- ]?v(?P<num>\d+)(?P<suffix>[a-z]?)$", re.I)
+# REQ-113: a version number followed by initials or a note – "Proposal_v13_DL", "Proposal_v41_LDK_only last chapter"
+VERSION_TAIL_RE = re.compile(r"^(?P<base>.+?)[_\- ]v(?P<num>\d+)(?P<suffix>[a-z]?)[_\- ](?P<tail>.+)$", re.I)
 COPY_RE = re.compile(r"\s*\(\d+\)$")
+DOC_EXT_RE = re.compile(r"\.(docx?|odt|rtf|pdf|txt|md|tex|pptx?|xlsx?)$", re.I)   # "x_v33.docx.odt" -> stem "x_v33.docx"
+
+
+DOC_FAMILY = {"docx", "doc", "odt", "rtf", "pdf", "tex", "md", "txt"}
+
+
+def version_family(filetype: str) -> str:
+    """REQ-113: the versions of a text are one series whatever the format (v33 as .odt, v42 as .pdf)."""
+    return "doc" if filetype in DOC_FAMILY else filetype
 
 
 def parse_version(stem: str) -> tuple[str, str | None, int | None]:
-    """'Artikel_v27a' -> ('artikel', '27a', 27). 'Daten' -> ('daten', None, None)."""
-    clean = COPY_RE.sub("", stem).strip()
-    m = VERSION_RE.match(clean)
+    """'Artikel_v27a' -> ('artikel', '27a', 27). 'Daten' -> ('daten', None, None).
+    REQ-113: also 'Proposal_v13_DL' / 'Proposal_v41_LDK_only last chapter' -> ('proposal', '13', 13) – initials or notes
+    after the number belong to the same series; 'Appendix_v3.12.0' (a software version) stays unversioned."""
+    clean = DOC_EXT_RE.sub("", COPY_RE.sub("", stem).strip()).strip()
+    m = VERSION_RE.match(clean) or VERSION_TAIL_RE.match(clean)
     if not m or not m.group("base"):
         return clean.lower(), None, None
     base = m.group("base").rstrip("_- ").lower()

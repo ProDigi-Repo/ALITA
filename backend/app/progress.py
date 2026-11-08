@@ -115,32 +115,70 @@ def _proj(d: dict) -> dict:
     return d.get("project") or {}
 
 
+def _series(d: dict) -> tuple[str, int | None, str]:
+    """REQ-113: (series, version number, stem) from the file name – also for 'Proposal_v13_DL' or 'x_v33.docx.odt' and
+    for documents stored before the version rule knew such names."""
+    from pathlib import PurePosixPath
+
+    from .project_meta import DOC_EXT_RE, parse_version
+    stem = DOC_EXT_RE.sub("", PurePosixPath(d.get("filename") or "").stem)
+    base, _v, num = parse_version(stem)
+    p = _proj(d)
+    if num is None and p.get("version_num") is not None:
+        base, num = (p.get("version_group") or base).rsplit(".", 1)[0], p.get("version_num")
+    return base, num, stem.lower()
+
+
 def _ver(d: dict) -> tuple:
     p = _proj(d)
-    num = p.get("version_num")
+    num = _series(d)[1]
     suf = re.sub(r"^\d+", "", p.get("version") or "")
     return (num if num is not None else 10**6, suf, d.get("date") or "")
 
 
+TEXT_TYPES = ("docx", "doc", "odt", "tex", "rtf", "md", "txt")       # preferred over a PDF of the same version
+DRAFT_TYPES = set(TEXT_TYPES) | {"pdf"}
+DRAFT_ROLES = SPINE_ROLES | {"notes", "other"}
+MIN_CHAIN = 3
+
+
+def _type_rank(d: dict) -> int:
+    ft = d.get("filetype") or ""
+    return TEXT_TYPES.index(ft) if ft in TEXT_TYPES else len(TEXT_TYPES)
+
+
 def pick_spine(docs: list[dict]) -> tuple[list[dict], str | None]:
-    """Longest version chain of the manuscripts (e.g. Artikel_v1 … v60); without a chain: all manuscripts by date."""
-    ms = [d for d in docs if (d.get("role") in SPINE_ROLES) and not _proj(d).get("duplicate_of")]
+    """Longest version chain of the manuscripts (e.g. Artikel_v1 … v60); without a chain: all manuscripts by date.
+    REQ-113: one chain across file formats (v33 as .odt, v42 as .pdf) and name notes (v13_DL, v14_LDK); a series of at least
+    three numbered drafts counts as the manuscript even when its name does not say so (e.g. 'Short_Proposal_v1 … v42');
+    of the same file in two formats (v42.docx, v42.pdf) only the text format is a version."""
+    live = [d for d in docs if not _proj(d).get("duplicate_of")]
+    chains: dict[str, list[dict]] = {}
+    for d in live:
+        base, num, _stem = _series(d)
+        if num is not None and d.get("filetype") in DRAFT_TYPES and d.get("role") in DRAFT_ROLES:
+            chains.setdefault(base, []).append(d)
+    best = max(chains, key=lambda g: (len({_series(x)[1] for x in chains[g]}),
+                                      sum(x.get("role") in SPINE_ROLES for x in chains[g])), default=None)
+    if best and len({_series(x)[1] for x in chains[best]}) >= MIN_CHAIN:
+        one: dict[str, dict] = {}
+        for d in sorted(chains[best], key=_type_rank):           # same version in two formats -> the text format
+            one.setdefault(_series(d)[2], d)
+        return sorted(one.values(), key=_ver), best
+    ms = [d for d in live if d.get("role") in SPINE_ROLES]
     if not ms:
         return [], None
-    text_like = [d for d in ms if d.get("filetype") in {"docx", "doc", "tex", "odt", "rtf", "md", "txt"}]
+    text_like = [d for d in ms if d.get("filetype") in TEXT_TYPES]
     ms = text_like or ms
-    groups: dict[str, list[dict]] = {}
-    for d in ms:
-        groups.setdefault(_proj(d).get("version_group") or "", []).append(d)
-    best = max((g for g in groups if g), key=lambda g: len(groups[g]), default=None)
-    if best and len(groups[best]) >= 3:
-        return sorted(groups[best], key=_ver), best
     return sorted(ms, key=lambda d: (d.get("date") or "", _ver(d))), None
+
+
+SPINE_RULES = "2"     # REQ-113: changes the cached result when the backbone rules change
 
 
 def signature(docs: list[dict]) -> str:
     """Fingerprint of a set of project documents; changes when files, contents, roles or dates change."""
-    h = hashlib.sha1()
+    h = hashlib.sha1(f"spine{SPINE_RULES}|".encode())
     for d in sorted(docs, key=lambda x: x["doc_id"]):
         h.update(f"{d['doc_id']}|{d.get('content_hash')}|{d.get('role')}|{d.get('date')}\n".encode())
     return h.hexdigest()[:16]

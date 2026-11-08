@@ -26,6 +26,7 @@ from ..project_meta import (
     is_archived,
     parse_version,
     title_from_filename,
+    version_family,
     version_sort_key,
 )
 from ..schemas import (
@@ -185,7 +186,7 @@ def scan_project(folder: Path, exclude: list[str] | None = None) -> tuple[Projec
             venue=venue,
             submission_no=sub_no,
             stage=stage,
-            version_group=f"{base}.{ft}",
+            version_group=f"{base}.{version_family(ft)}",
             version=version,
             version_num=vnum,
             archived=is_archived(parts),
@@ -205,7 +206,7 @@ def scan_project(folder: Path, exclude: list[str] | None = None) -> tuple[Projec
 
 
 def mark_latest(items: list[Item]) -> None:
-    """Per version group (base name + file type) only the highest version is 'latest'.
+    """Per version group (base name + file type family, REQ-113) only the highest version is 'latest'.
     Unversioned files with the same name (e.g. 'Title page.docx' per journal): the newest date wins."""
     groups: dict[str, list[Item]] = defaultdict(list)
     for it in items:
