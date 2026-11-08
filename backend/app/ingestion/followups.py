@@ -62,17 +62,20 @@ async def _recluster(s, opts: IngestOptions, dbs: list[str], recompute) -> dict 
 async def _classify(s, opts: IngestOptions, dbs: list[str], recompute) -> dict | None:
     """REQ-92: classify each database's new units; a small database (CLUSTER_MIN_UNITS) is still clustered."""
     from ..clustering.classify import classify, needs_clustering
-    out: dict = {"classified": 0, "clustered": []}
+    out: dict = {"classified": 0, "clustered": [], "k": 0, "documents": 0}
     for db in dbs or [None]:
         files = bool(db) and uses_project_files(db)
         scope = [db] if db else None
         if needs_clustering(scope):
             res = await recompute(s.cluster_k or None, opts.api_key, databases=scope, project_files=files)
             out["clustered"].append(db or "all")
+            out["k"] += res.get("k") or 0
+            out["documents"] += res.get("documents") or 0
             log.info("Clustering %s (small database): %s", db or "all", {k: res.get(k) for k in ("k", "units", "documents")})
         else:
             res = await classify(opts.api_key, scope, project_files=files)
             out["classified"] += res.get("classified", 0)
+            out["documents"] += res.get("classified", 0)
             log.info("Classification %s: %s", db or "all", {k: res.get(k) for k in ("classified", "documents", "into")})
     return out
 

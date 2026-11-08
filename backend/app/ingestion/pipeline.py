@@ -98,6 +98,15 @@ FILE_FOLDERS = {
 }
 
 
+def cluster_summary(res: dict) -> str:
+    """The closing line of `ingest all` – a full clustering and a classification (REQ-92) report differently; this
+    line must never fail after hours of ingestion (REQ-112)."""
+    parts = [f"{res.get('documents', 0)} documents in {res.get('k', 0)} clusters"] if res.get("k") else []
+    if res.get("classified"):
+        parts.append(f"{res['classified']} new documents sorted into existing clusters")
+    return "Clustering: " + ("; ".join(parts) or "nothing to cluster")
+
+
 def _done(record: dict | None, opts: IngestOptions, field: str = "indexed") -> bool:
     """Is a file or project from the research folder already ingested well enough to skip it? Something ingested
     without a key (the automatic seed at start-up) is ingested again as soon as a run has a key, otherwise it would
@@ -199,7 +208,7 @@ async def ingest_all(root: Path, opts: IngestOptions, force: bool = False) -> No
         print(f"{kind.value}: {getattr(r, 'name', None) or getattr(r, 'filename', '')} ingested")
     res = await maybe_recluster(opts, sorted(touched)) if touched else None   # once at the end, only the databases concerned
     if res:
-        print(f"Clustering: {res['documents']} documents in {res['k']} clusters")
+        print(cluster_summary(res))
     cit = maybe_citations(opts)
     maybe_provisions(opts)
     if cit:

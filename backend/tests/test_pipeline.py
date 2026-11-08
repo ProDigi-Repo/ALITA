@@ -815,3 +815,13 @@ def test_cli_rejects_the_placeholder_key_before_starting():
     assert key_problem("sk-or-v1-abc def" + "x" * 40)
     assert key_problem("hello")
     assert key_problem(None) is None and key_problem("sk-or-v1-" + "a1b2" * 16) is None
+
+
+def test_ingest_all_summary_line_accepts_both_result_shapes():
+    """REQ-112: `ingest all` crashed at its very end with KeyError 'documents' – the classification (REQ-92) returns
+    other keys than a full clustering, and citations/provisions were then skipped."""
+    from app.ingestion.pipeline import cluster_summary
+    assert cluster_summary({"k": 4, "documents": 31}) == "Clustering: 31 documents in 4 clusters"
+    assert "5 new documents" in cluster_summary({"classified": 5, "clustered": []})
+    assert "4 clusters" in cluster_summary({"classified": 2, "clustered": ["ALITA"], "k": 4, "documents": 33})
+    assert cluster_summary({"classified": 0, "clustered": []}) == "Clustering: nothing to cluster"
