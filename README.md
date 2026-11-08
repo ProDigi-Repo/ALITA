@@ -404,7 +404,7 @@ backend (`app/query_meta.py`); in live operation the LLM adds to both in the sam
 
 ## Databases
 
-Every file carries the metadata field `databases` (one or more). The list is configurable in `.env`: `DATABASES=AL,CNN_DM,DL,JSW,LDK,ML,UM,EUAIA,WACHTER,OTH`. `OTH` ("Others") takes everything that belongs in no other database. Since 3.0.0 there is `EUAIA` ("EU AI Act", cornflower) for legal texts, guidelines and standards around the AI Regulation. **If you set `DATABASES` in your `.env`, add `EUAIA` there**, otherwise the database does not appear. Since 3.6.0 there is `WACHTER` ("Wachter", shield icon): scientific papers on trustworthy AI and the EU AI Act (`research/WACHTER/papers/`).
+Every file carries the metadata field `databases` (one or more). The list is configurable in `.env`: `DATABASES=AL,CNN_DM,DL,JSW,LDK,ML,UM,EUAIA,WACHTER,OTH`. `OTH` ("Others") takes everything that belongs in no other database. Since 3.0.0 there is `EUAIA` ("EU AI Act", cornflower) for legal texts, guidelines and standards around the AI Regulation. **If you set `DATABASES` in your `.env`, add `EUAIA` there**, otherwise the database does not appear. Since 3.6.0 there is `WACHTER` ("Wachter", shield icon): scientific papers on trustworthy AI and the EU AI Act (`research/WACHTER/papers/`). Since 3.13.0 there are `ALITA` (the ALITA research project and the papers it builds on, `research/ALITA/`) and `TEST` (for trying things out and live demonstrations); both are public like EU AI Act and Wachter.
 
 Assignment (priority from top to bottom):
 

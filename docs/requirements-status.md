@@ -99,6 +99,14 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 | REQ-93 | "Recompute clusters" does not work (bug report) | ✅ fixed | 3.13.0 | Errors were swallowed and an empty result looked like success; now per-database result/reason/error, busy state, longer messages. Found while filming REQ-94: with a cluster selected, its docked description covered the dialog's confirm button (z-index) – fixed. |
 | REQ-94 | Short user guide (DE/EN) and a short tutorial video | ✅ done | 3.13.0 | Guide as a doc outside the repo (API key in plain words, group + password, purpose, use, methods and technologies); 1:52 video filmed from the real interface with demo data. |
 | REQ-95 | Detailed admin guide for gengar | ✅ done | 3.13.0 | Bilingual doc outside the repo: rights, uploads into any database, deleting, recompute, accounts CLI, update, command line, troubleshooting, security. |
+| REQ-96 | New documents and versions for an existing project; knowledge progress visible through versions | ✅ done | 3.13.0 | Wizard choice new project / add to existing; `add_to_project`, `version_of`; next version `_v<n+1>`; only new files summarised and embedded; project keeps its cluster. |
+| REQ-97 | Tiles for tablets and small laptops (resizable with the mouse), WCAG and ergonomics | ✅ done | 3.13.0 | Column dividers (mouse, touch, keyboard), compact top tiles, one column on phones, 44/24 px targets, visible focus, skip link. |
+| REQ-98 | Larger text per tile | ✅ done | 3.13.0 | A− / A+ per tile, 85–175 %, kept per browser. |
+| REQ-99 | AI transparency notice (EU AI Act Art. 50(1)) in the chat and top right; larger question field, Send below, herrings | ✅ done | 3.13.0 | Permanent notice in header and answer areas; placeholder "Ask the AI system …"; herring animation. |
+| REQ-100 | Public database "ALITA" with the ALITA research project and its papers | ✅ done – ingestion with key pending | 3.13.0 | `research/ALITA/Alita` (70 files), `research/ALITA/papers` (30 papers) on the local instance. |
+| REQ-101 | Database "TEST" for live demonstrations | ✅ done | 3.13.0 | Public; admins upload. |
+| REQ-102 | Sea creatures as document-type symbols | ✅ done | 3.13.0 | Octopus, whale, herring, shark, shell, dolphin, pufferfish in maps, legends, lists. |
+| REQ-103 | Bug: "Event loop is closed" in the chat | ✅ fixed | 3.13.0 | One OpenRouter connection per chat loop; regression test. |
 
 ## Open points for the requirement owners
 - REQ-10, REQ-15 – REQ-18: main document chain per project, inferred links between versions and analyses, threshold for "substantive", AI stage texts automatic or on demand, versions without full text.

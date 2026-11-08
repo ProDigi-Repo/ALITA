@@ -37,7 +37,7 @@ function cpDocListHtml(list,label,open){
   if(!list.length)return '';
   const role=u=>u.ro&&typeof ROLE_LABEL!=='undefined'&&ROLE_LABEL[u.ro]?ROLE_LABEL[u.ro]:'';
   const rows=[...list].sort((a,b)=>(b.y||0)-(a.y||0)||String(a.ti||'').localeCompare(String(b.ti||''))).map(u=>
-    `<li><button type="button" ${u.id?`data-doc="${esc(u.id)}"`:''} title="${esc((u.rp||u.ti||'')+(u.id?' – click to open':''))}"><i class="m-${esc(u.t||'')}">${CP_TYPE_MARK[u.t]||'•'}</i><span>${esc(u.ti||u.fn||'(untitled)')}</span><small>${[CV_TYPE[u.t]||'',role(u),u.y||'',u.pn&&label!=='project'?u.pn:''].filter(Boolean).map(esc).join(' · ')}</small></button></li>`).join('');
+    `<li><button type="button" ${u.id?`data-doc="${esc(u.id)}"`:''} title="${esc((u.rp||u.ti||'')+(u.id?' – click to open':''))}"><i class="m-${esc(u.t||'')}">${seaIcon(u.t,14,'currentColor')}</i><span>${esc(u.ti||u.fn||'(untitled)')}</span><small>${[CV_TYPE[u.t]||'',role(u),u.y||'',u.pn&&label!=='project'?u.pn:''].filter(Boolean).map(esc).join(' · ')}</small></button></li>`).join('');
   return `<details class="cp-docs"${open?' open':''}><summary><h6>Documents (${list.length})</h6></summary><ul>${rows}</ul></details>`;
 }
 function cpWireDocs(root){root.querySelectorAll('[data-doc]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();if(typeof openDoc==='function')openDoc(b.dataset.doc)}))}

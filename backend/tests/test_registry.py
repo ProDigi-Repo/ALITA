@@ -8,7 +8,7 @@ from app.config import ROOT, Settings
 def test_registry_defaults_and_env_overrides():
     s = Settings(_env_file=None)
     assert [d.id for d in s.registry()] == registry.DEFAULT_IDS
-    assert {d.id for d in s.registry() if d.public} == {"EUAIA", "WACHTER"}
+    assert {d.id for d in s.registry() if d.public} == {"EUAIA", "WACHTER", "ALITA", "TEST"}
     s = Settings(_env_file=None, databases="WACHTER,NEW", database_names={"NEW": "Tulip"}, public_databases="NEW")
     wachter, new = s.registry()
     assert (wachter.name, wachter.public, wachter.color) == ("Wachter", False, "#5a3fb8")

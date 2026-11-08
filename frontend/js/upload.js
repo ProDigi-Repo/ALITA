@@ -19,7 +19,12 @@ const AD_PIPE='After the upload ALITA reads every file and runs the full pipelin
 /* who may upload: admins (any database) and logged-in accounts (their own database) */
 function canUpload(){return IS_ADMIN||!!(ACCOUNT&&!ACCOUNT.all&&ACCOUNT.database)}
 function ownDb(){return ACCOUNT&&!ACCOUNT.all?ACCOUNT.database:null}
-const AD={db:null,type:null};
+const AD={db:null,type:null,mode:'new'};
+/* REQ-96: research projects – a new project (ZIP) or new documents/versions for an existing one (single files) */
+const ADD=()=>AD.type==='research_project'&&AD.mode==='add';
+const NEED_ZIP=t=>ZIP_T(t)&&!ADD();
+function adProjects(){return PROJECTS.filter(p=>(p.db||[]).includes(AD.db)).sort((a,b)=>(a.name||'').localeCompare(b.name||''))}
+function adProjFiles(name){return DOCS.filter(d=>d.pn===name&&d.t==='research_project'&&d.la!==false&&d.rp).sort((a,b)=>a.rp.localeCompare(b.rp))}
 function adOpen(type){
   if(LIVE&&!canUpload()){toast(ACCOUNTS_ON?'Log in with your user name to upload your own data':'Uploading needs admin rights');return}
   const own=ownDb();
@@ -32,30 +37,50 @@ function adOpen(type){
   $$('input[name=addb]').forEach(r=>r.addEventListener('change',()=>{AD.db=r.value;adSync()}));
   $('#adType').value=AD.type||'';
   $('#adFiles').value='';$('#adProject').value='';$('#adDate').value='';
+  AD.mode='new';$$('input[name=admode]').forEach(r=>r.checked=r.value==='new');
   adSync();$('#addData').hidden=false;
   setTimeout(()=>(own?$('#adType'):($('input[name=addb]:checked')||$('input[name=addb]'))).focus(),30);
 }
+function adSyncMode(files){
+  const show=AD.type==='research_project';$('#adMode').hidden=!show;$('#adAdd').hidden=!ADD();
+  if(!ADD())return;
+  const sel=$('#adExProj'),projs=adProjects(),cur=sel.value;
+  sel.innerHTML=projs.length?projs.map(p=>`<option value="${esc(p.name)}">${esc(p.title&&p.title!==p.name?p.title+' ('+p.name+')':p.name)} · ${p.files||0} files</option>`).join('')
+    :'<option value="">No project in this database yet – upload a new one first</option>';
+  if(projs.some(p=>p.name===cur))sel.value=cur;
+  const one=files.length===1&&!!sel.value;$('#adVerWrap').hidden=!one;
+  if(one){
+    const vs=$('#adVersionOf'),was=vs.value;
+    vs.innerHTML='<option value="">a new document of the project</option>'+adProjFiles(sel.value).map(d=>`<option value="${esc(d.rp)}">a new version of ${esc(d.rp)}${d.v?' (now v'+esc(d.v)+')':''}</option>`).join('');
+    if([...vs.options].some(o=>o.value===was))vs.value=was;
+  }
+}
 function adSync(){
   const t=AD.type,files=[...$('#adFiles').files];
-  $('#adTypeDesc').textContent=t?AD_TYPE_DESC[t]:'Choose what you are uploading – ALITA processes each kind differently.';
-  $('#adFiles').accept=ZIP_T(t)?'.zip':'.pdf,.docx,.doc,.txt,.md,.pptx';
+  adSyncMode(files);
+  $('#adTypeDesc').textContent=ADD()?'New documents or new versions for a project that is already in the database – single files, no ZIP.':t?AD_TYPE_DESC[t]:'Choose what you are uploading – ALITA processes each kind differently.';
+  $('#adFiles').accept=NEED_ZIP(t)?'.zip':ADD()?'':'.pdf,.docx,.doc,.txt,.md,.pptx';
   $('#adFiles').multiple=true;
   $('#adProjWrap').hidden=!t||ZIP_T(t)||LEGAL_T.has(t);
-  $('#adDateQ').textContent=ZIP_T(t)?'Which overall date should the project get?':t==='research_paper'?'Which date should the papers get (e.g. publication)?':t==='research_notes'?'Which date should the notes get?':'Which overall date should the data get?';
+  $('#adDateQ').textContent=ADD()?'Which date should the new files get?':ZIP_T(t)?'Which overall date should the project get?':t==='research_paper'?'Which date should the papers get (e.g. publication)?':t==='research_notes'?'Which date should the notes get?':'Which overall date should the data get?';
   $('#adDateHint').textContent=ZIP_T(t)?'Optional. Files with their own document date keep it (the version history needs it); files without a reliable date and the project itself get this date.'
     :'Optional. Leave empty to take the dates from the files.';
   $('#adDropText').innerHTML=files.length?`<b>${files.length} file${files.length>1?'s':''}</b>: ${esc(files.slice(0,3).map(f=>f.name).join(', '))}${files.length>3?' …':''}`
-    :ZIP_T(t)?'Drop the projects here – <b>one ZIP per project</b> – or <u>choose files</u>':'Drop files here or <u>choose files</u>';
+    :NEED_ZIP(t)?'Drop the projects here – <b>one ZIP per project</b> – or <u>choose files</u>'
+    :ADD()?'Drop the new documents or versions here (single files) – or <u>choose files</u>':'Drop files here or <u>choose files</u>';
   $('#adPipe').textContent=AD_PIPE;
   const noKey=LIVE&&!apiKey;            // the pipeline needs the user's OpenRouter key (summaries, embeddings, clusters)
   $('#adKey').hidden=!noKey;
   $('#adKey').innerHTML=noKey?'<b>Enter your OpenRouter key at the top first.</b> The pipeline uses it for summaries, embeddings and clustering; without it your documents could not be searched.':'';
-  const ok=AD.db&&t&&files.length&&!noKey;$('#adGo').disabled=!ok;
+  const ok=AD.db&&t&&files.length&&!noKey&&(!ADD()||$('#adExProj').value);$('#adGo').disabled=!ok;
   $('#adGo').textContent=AD.db?`Upload to ${dbName(AD.db)}`:'Upload';
   $('#adSum').textContent=!AD.db?'Choose a database.':!t?'Choose the kind of data.':!files.length?'Choose the files.'
+    :ADD()?(!$('#adExProj').value?'Choose the project.':`${files.length===1&&$('#adVersionOf').value?'New version of '+$('#adVersionOf').value:files.length+' new file'+(files.length>1?'s':'')} → project ${$('#adExProj').value}`)
     :`${files.length} ${ZIP_T(t)?(files.length>1?'projects (one ZIP each)':'project (ZIP)'):KIND_N(t,files.length)} → ${dbName(AD.db)}${$('#adDate').value?' · dated '+$('#adDate').value:' · dates from the files'}`;
 }
 $('#adType').addEventListener('change',e=>{AD.type=e.target.value||null;adSync()});
+$$('input[name=admode]').forEach(r=>r.addEventListener('change',()=>{AD.mode=r.value;adSync()}));
+['#adExProj','#adVersionOf'].forEach(s=>$(s).addEventListener('change',adSync));
 ['change','input'].forEach(ev=>{$('#adFiles').addEventListener(ev,adSync);$('#adDate').addEventListener(ev,adSync)});
 $('#adDateClear').addEventListener('click',()=>{$('#adDate').value='';adSync()});
 const adDrop=$('#adDrop');
@@ -74,7 +99,12 @@ $('#addForm').addEventListener('submit',e=>{
   const t=AD.type,date=$('#adDate').value,zip=f=>/\.zip$/i.test(f.name);
   const list=fs=>`<ul class="adc-files">${fs.map(f=>`<li class="${ZIP_T(t)?(zip(f)?'ok':'bad'):''}"><span>${ZIP_T(t)?(zip(f)?'✓':'✗'):'•'}</span>${esc(f.name)}${ZIP_T(t)&&zip(f)?` <small>→ project “${esc(f.name.replace(/\.zip$/i,''))}”*</small>`:''}</li>`).join('')}</ul>`;
   let body,ok=true,need=false;
-  if(ZIP_T(t)){
+  if(ADD()){
+    const proj=$('#adExProj').value,ver=files.length===1?$('#adVersionOf').value:'',zips=files.filter(zip);ok=!zips.length;
+    body=`<p class="adc-q"><b>${ver?`Add a new version of ${esc(ver)}`:`Add ${files.length} file${files.length>1?'s':''}`} to the project ${esc(proj)}?</b></p>${list(files)}
+      <p>${ver?'The file is saved as the next version; the earlier versions stay, so the version history shows the progress.':'Files with the name of a file already in the project become its next version; the others are new documents of the project.'} Only the new files are summarised and embedded.</p>
+      ${zips.length?`<p class="adc-warn">Add single files, not ZIPs: ${esc(zips.map(f=>f.name).join(', '))}.</p>`:''}`;
+  }else if(ZIP_T(t)){
     const bad=files.filter(f=>!zip(f));ok=!bad.length;need=ok;
     body=`<p class="adc-q"><b>Is every project delivered as its own ZIP file?</b></p>
       <p>Each ZIP becomes <b>one ${t==='legal_project'?'legal project':'research project'}</b> in <b>${esc(dbName(AD.db))}</b>; the folder inside the ZIP gives the project its name. Several projects = several ZIP files, never several projects in one ZIP.</p>
@@ -89,7 +119,7 @@ $('#addForm').addEventListener('submit',e=>{
       ${zips.length?`<p class="adc-warn">${esc(zips.map(f=>f.name).join(', '))} ${zips.length>1?'are ZIP files':'is a ZIP file'}. If it is a project folder, go back and choose “Research project”.</p>`:''}`;
   }
   $('#adcBody').innerHTML=body;
-  const go=$('#adcGo');go.hidden=!ok;go.disabled=need;go.textContent=ZIP_T(t)?`Upload ${files.length} project${files.length>1?'s':''}`:'Upload';
+  const go=$('#adcGo');go.hidden=!ok;go.disabled=need;go.textContent=ADD()?'Add to the project':ZIP_T(t)?`Upload ${files.length} project${files.length>1?'s':''}`:'Upload';
   const sure=$('#adcSure');if(sure)sure.addEventListener('change',()=>go.disabled=!sure.checked);
   $('#adConfirm').hidden=false;(sure||go.hidden?$('#adcBack'):go).focus();
 });
@@ -101,6 +131,7 @@ $('#adcGo').addEventListener('click',async()=>{
   fd.append('doc_type',AD.type);files.forEach(f=>fd.append('files',f));fd.append('databases',AD.db);
   if($('#adDate').value)fd.append('date',$('#adDate').value);
   if(!ZIP_T(AD.type)&&$('#adProject').value.trim())fd.append('project_name',$('#adProject').value.trim());
+  if(ADD()){fd.append('add_to_project',$('#adExProj').value);if(files.length===1&&$('#adVersionOf').value)fd.append('version_of',$('#adVersionOf').value)}
   fd.append('use_llm',$('#adLlm').checked);
   $('#adGo').disabled=true;$('#adGo').textContent='Uploading…';
   try{

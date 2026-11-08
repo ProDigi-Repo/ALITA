@@ -93,9 +93,9 @@ function mountMap3D(units,cls){
     // documents
     const pts=[];S.forEach((sl,i)=>sl.units.forEach(u=>{if(!u.on)return;const p=P(pos(u,i));if(p)pts.push({u,p})}));   // only the selected databases
     pts.sort((a,b)=>b.p.z-a.p.z).forEach(({u,p})=>{const dim=!u.on||(cvOff(u.ci)),r=Math.max(2,Math.min(8,p.s*2.6));
-      g.globalAlpha=dim?.16:1;g.fillStyle=v3Css(v3Col(u,u.ci));v3Shape(g,u.t,p.x,p.y,r);g.fill();
+      g.globalAlpha=dim?.16:1;{const fc=v3Css(v3Col(u,u.ci));g.fillStyle=fc;if(!seaGlyphCanvas(g,u.t,p.x,p.y,r*3.4,fc)){v3Shape(g,u.t,p.x,p.y,r);g.fill()}}
       if(r>=3.5&&typeof s3Flower==='function'){const img=s3Flower((u.db||[])[0]);if(img){const f=r*(u.t==='research_project'?2:1.7);g.drawImage(img,p.x-f/2,p.y-f/2,f,f)}}g.globalAlpha=1;
-      if(st.hov===u){v3Shape(g,u.t,p.x,p.y,r);g.strokeStyle=muted;g.lineWidth=2;g.stroke()}if(!dim)st.hits.push({kind:'doc',u,x:p.x,y:p.y,r:r+3})});
+      if(st.hov===u){g.beginPath();g.arc(p.x,p.y,r*2,0,Math.PI*2);g.strokeStyle=muted;g.lineWidth=2;g.stroke()}if(!dim)st.hits.push({kind:'doc',u,x:p.x,y:p.y,r:r+3})});
     // cluster labels per period (size = documents in that period)
     Object.entries(cen).forEach(([ci,per])=>Object.entries(per).forEach(([i,{m,n:k}])=>{const q=P(m);if(!q)return;const c=cls.find(x=>x.id===+ci);
       const dim=cvOff(+ci),lab=`C${ci}·${k}`;g.font='600 10px "IBM Plex Mono",monospace';const w=g.measureText(lab).width+10,h=14;
@@ -235,18 +235,17 @@ function mountGraph3D(units,cls,box=$('#cvGraph'),key='graph',GH=350){ // key/GH
         legal_project:css.getPropertyValue('--t-legal').trim()||'#a23b2a',legal_guideline:css.getPropertyValue('--t-guideline').trim()||'#9a6a00',standard:css.getPropertyValue('--t-standard').trim()||'#3f6f7a',guidance:css.getPropertyValue('--t-guidance').trim()||'#5b6b1f'};
       nodes.forEach(d=>{const ds=docsOf(d);if(!ds.length)return;const dim=cvOff(d.c.id),top=P({x:d.x,y:Y_DOC[1]-1,z:d.z}),q=P(d);if(top&&q){g.globalAlpha=dim?.12:.35;g.strokeStyle=cvCol(d.c.id);g.lineWidth=1;g.beginPath();g.moveTo(q.x,q.y);g.lineTo(top.x,top.y);g.stroke()}
         ds.forEach((u,k)=>{const col=k%DCOLS,row=Math.floor(k/DCOLS),w=P({x:d.x+(col-(Math.min(DCOLS,ds.length)-1)/2)*DOCSP,y:Y_DOC[1]-3-row*DOCSP,z:d.z});if(!w)return;
-          const r=Math.max(1.6,1.25*w.s);g.globalAlpha=dim?.2:.9;g.fillStyle=CG.mode==='db'&&(u.db||[])[0]?(getComputedStyle(document.documentElement).getPropertyValue('--db-'+u.db[0]).trim()||muted):(tc[u.t]||muted);g.beginPath();
-          if(u.t==='research_project'){g.moveTo(w.x,w.y-r*1.3);g.lineTo(w.x+r*1.3,w.y);g.lineTo(w.x,w.y+r*1.3);g.lineTo(w.x-r*1.3,w.y);g.closePath()}else if(LEGAL_T.has(u.t)){g.moveTo(w.x,w.y-r*1.4);g.lineTo(w.x+r*1.25,w.y+r*.9);g.lineTo(w.x-r*1.25,w.y+r*.9);g.closePath()}else g.arc(w.x,w.y,r,0,Math.PI*2);g.fill();
+          const r=Math.max(1.6,1.25*w.s);g.globalAlpha=dim?.2:.9;g.fillStyle=CG.mode==='db'&&(u.db||[])[0]?(getComputedStyle(document.documentElement).getPropertyValue('--db-'+u.db[0]).trim()||muted):(tc[u.t]||muted);seaGlyphCanvas(g,u.t,w.x,w.y,r*3.6,g.fillStyle,null);
           st.hits.push({kind:'doc',u,x:w.x,y:w.y,r:r+2})});g.globalAlpha=1});
       if(PA.length){const pp=tc.research_paper;PA.forEach(a=>{const t=P(a),q=P(a.d);if(!t||!q)return;g.globalAlpha=cvOff(a.d.c.id)?.1:.45;g.strokeStyle=pp;g.lineWidth=1.2;g.beginPath();g.moveTo(t.x,t.y);g.lineTo(q.x,q.y);g.stroke();g.globalAlpha=1;
-        const r=Math.max(4,5.5*t.s);g.fillStyle=pp;g.fillRect(t.x-r,t.y-r,2*r,2*r);g.strokeStyle='rgba(255,255,255,.9)';g.lineWidth=1.5;g.strokeRect(t.x-r,t.y-r,2*r,2*r);
+        const r=Math.max(5,6.5*t.s);seaGlyphCanvas(g,'research_paper',t.x,t.y,r*2.6,pp);
         (a.u.db||[]).filter(n=>DB_FLOWER[n]).slice(0,2).forEach((n,k)=>cvFlowerBadge(g,n,t.x+(k-((Math.min(2,(a.u.db||[]).length))-1)/2)*11,t.y-r-7,5.5));
         st.hits.push({kind:'doc',u:a.u,x:t.x,y:t.y,r:r+3})})}
     }
     if(PJ.length){const pc=css.getPropertyValue('--t-project').trim()||'#1f5f8b',mxp=Math.max(1,...PJ.flatMap(p=>p.to.map(t=>t.cnt))),anyS=CV.sels.size>0;
       PJ.forEach(p=>{const a=P(p);if(!a)return;p.to.forEach(t=>{const b=P(t.d);if(!b)return;g.globalAlpha=anyS&&!cvHas(t.d.c.id)?.1:.5;g.strokeStyle=pc;g.lineWidth=1+5*t.cnt/mxp;g.beginPath();g.moveTo(a.x,a.y);g.lineTo(b.x,b.y);g.stroke()});g.globalAlpha=1});
       PJ.forEach(p=>{const a=P(p);if(!a)return;const r=Math.max(8,11*a.s);g.fillStyle=pc;g.beginPath();g.arc(a.x,a.y,r,0,Math.PI*2);g.fill();g.strokeStyle='rgba(255,255,255,.9)';g.lineWidth=2;g.stroke();
-        g.fillStyle='#fff';g.beginPath();g.moveTo(a.x,a.y-r*.45);g.lineTo(a.x+r*.45,a.y);g.lineTo(a.x,a.y+r*.45);g.lineTo(a.x-r*.45,a.y);g.closePath();g.fill();
+        seaGlyphCanvas(g,'research_project',a.x,a.y,r*1.55,'#fff',null,pc);
         const nx=[...PJ,...PA].map(q=>P(q)).filter(q=>q&&q.x>a.x+1).reduce((m,q)=>Math.min(m,q.x-8),W),room=nx-a.x-r-14;   // name fits up to the next project or paper
         g.fillStyle=fg;g.font='600 12px "IBM Plex Sans",sans-serif';let nm=p.pn;while(nm.length>4&&g.measureText(nm).width>room)nm=nm.slice(0,-2)+'…';if(nm!==p.pn&&!nm.endsWith('…'))nm+='…';g.fillText(nm,a.x+r+5,a.y-1);g.fillStyle=muted;g.font='10.5px "IBM Plex Sans",sans-serif';const sub=`${p.n} docs · ${p.by.size} clusters`;if(g.measureText(sub).width<=room)g.fillText(sub,a.x+r+5,a.y+12);
         const pr=PROJECTS.find(x=>x.name===p.pn);((pr&&pr.db)||[]).filter(n=>DB_FLOWER[n]).forEach((n,k)=>cvFlowerBadge(g,n,a.x-r*.8-k*11,a.y-r*.8,5.5));

@@ -149,6 +149,22 @@ def upsert_document(d: DocumentRecord, summary_vector: list[float] | None = None
     )
 
 
+def set_document_fields(doc_id: str, fields: dict) -> None:
+    """REQ-96: change single payload fields of a document (and of its chunks, for the chunk fields) – vectors,
+    summaries and clusters stay."""
+    s, c = get_settings(), client()
+    c.set_payload(s.col_documents, fields, points=[doc_id])
+    chunk = {k: v for k, v in fields.items() if k in CHUNK_PAYLOAD_FIELDS}
+    if chunk:
+        c.set_payload(s.col_chunks, chunk, points=qm.Filter(must=[qm.FieldCondition(key="doc_id", match=qm.MatchValue(value=doc_id))]))
+
+
+def set_project_fields(name: str, fields: dict) -> None:
+    """REQ-96: change single payload fields of a project record (e.g. keep its cluster after new files)."""
+    if fields:
+        client().set_payload(get_settings().col_projects, fields, points=[make_project_id(name)])
+
+
 _LEGAL_IDX = False
 
 

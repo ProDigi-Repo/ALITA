@@ -87,7 +87,7 @@ def test_anonymous_sees_public_databases_and_cannot_change_anything(env):
     _, client = env
     assert titles(client) == ["AI Act"]
     me = client.get("/api/me").json()
-    assert me["accounts"] is True and me["account"] is None and me["databases"] == ["EUAIA", "WACHTER"] and me["is_admin"] is False
+    assert me["accounts"] is True and me["account"] is None and me["databases"] == ["ALITA", "EUAIA", "TEST", "WACHTER"] and me["is_admin"] is False
     assert client.post("/api/graph/rebuild").status_code == 403
     assert client.post("/api/ingest").status_code == 403
     assert [u["user"] for u in client.get("/api/accounts").json()["users"]][0] == "admin"

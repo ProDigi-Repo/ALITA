@@ -162,7 +162,7 @@ function renderClusterGraph(units,cls,o={}){
     if(showDocs)c.on.forEach((u,i)=>{const a=i/c.on.length*2*Math.PI-Math.PI/2,ring=r+(big?14:7),ux=n.x+Math.cos(a)*ring,uy=n.y+Math.sin(a)*ring;
       const col=colorDb?`var(--db-${(u.db||[])[0]||'none'},var(--muted))`:(TYPE_COLOR[u.t]||'var(--t-project)');
       const sz=big?5.5:2.6,attrs=big?` class="cnode doc" data-u="${esc(u.id||'')}" data-pn="${u.t==='research_project'?esc(u.pn):''}" data-c="${c.id}"`:'';
-      g+=`<g${attrs} opacity="${op}">`+(u.t==='research_project'?`<path d="M${ux} ${uy-sz*1.6}L${ux+sz*1.6} ${uy}L${ux} ${uy+sz*1.6}L${ux-sz*1.6} ${uy}Z" fill="${col}" stroke="var(--panel)"/>`:LEGAL_T.has(u.t)?`<path d="M${ux} ${uy-sz*1.5}L${ux+sz*1.35} ${uy+sz}L${ux-sz*1.35} ${uy+sz}Z" fill="${col}" stroke="var(--panel)"/>`:u.t==='research_paper'&&big?`<rect x="${ux-sz}" y="${uy-sz}" width="${sz*2}" height="${sz*2}" rx="1.5" fill="${col}" stroke="var(--panel)"/>`:`<circle cx="${ux}" cy="${uy}" r="${sz}" fill="${col}" stroke="var(--panel)" stroke-width="${big?1:0}"/>`)+'</g>'});
+      g+=`<g${attrs} opacity="${op}">`+seaGlyphSVG(u.t,ux,uy,Math.max(8,sz*(big?3.4:3)),col)+'</g>'});
     const nm=cvName(c,info),title=big||nm.length<=26?nm:nm.slice(0,25).replace(/\s+\S*$/,'')+'…';
     const words=(c.label||'').split(' · ').slice(0,2).join(' · ');   // distinctive terms as a detail line (big graph)
     const ly=n.y+r+(big?(showDocs?34:22):19);

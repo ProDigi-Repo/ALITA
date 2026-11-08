@@ -40,6 +40,10 @@ DEFAULTS: tuple[Database, ...] = (
              description="EU AI Act: versions of the law, guidelines and guidance (since 3.0.0)"),
     Database("WACHTER", "Wachter", "#5a3fb8", "#b3a2ff", public=True,
              description="Papers on trustworthy AI and the AI Act (since 3.6.0)"),
+    Database("ALITA", "ALITA", "#0b7f86", "#4fd6dc", public=True,
+             description="The ALITA research project itself: its project files and the papers it builds on (since 3.13.0)"),
+    Database("TEST", "TEST", "#6b6f76", "#b8bcc4", public=True,
+             description="For trying things out and live demonstrations; may be emptied at any time (since 3.13.0)"),
     Database("OTH", "Others", "#b4325f", "#f08aac", description="Everything that belongs nowhere else"),
 )
 DEFAULT_IDS = [d.id for d in DEFAULTS]

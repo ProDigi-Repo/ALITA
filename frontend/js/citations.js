@@ -148,7 +148,7 @@ function ciDraw(){
   const lbl=CI.nodes.length<=40||CI.cam.k>1.3;
   CI.nodes.forEach(n=>{
     const dim=f&&!near.has(n.id),iso=!n.cited_by&&!n.cites;g.globalAlpha=dim?.18:iso?.55:1;
-    g.fillStyle=ciCol(n);v3Shape(g,n.kind==='project'?'research_project':n.kind,n.x,n.y,n.r);g.fill();
+    {const t=n.kind==='project'?'research_project':n.kind,fc=ciCol(n);g.fillStyle=fc;if(!seaGlyphCanvas(g,t,n.x,n.y,n.r*3,fc)){v3Shape(g,t,n.x,n.y,n.r);g.fill()}}
     if(CI.hover===n||f===n.id){g.lineWidth=2.4/CI.cam.k;g.strokeStyle=acc;g.stroke()}
     if((lbl&&!iso)||CI.hover===n||f===n.id||n.cited_by>=2){g.font=`${(n.cited_by?12:11)/CI.cam.k}px `+getComputedStyle(document.body).fontFamily;g.textAlign='left';
       g.fillStyle=fg;g.globalAlpha=dim?.25:iso?.6:.95;
@@ -164,7 +164,7 @@ async function ciRender(force){
   if(CI.layoutKey!==k&&CI.data){ciLayout(W,H);CI.layoutKey=k;CI.cam={x:0,y:0,k:1}}
   const s=(CI.data&&CI.data.stats)||{};
   $('#ciMeta').textContent=CI.data&&!CI.data.demo&&!CI.data.error?`${s.edges||0} citation${s.edges===1?'':'s'} · ${s.nodes||0} papers & projects${SEL_DB.length?' · '+dbNames(SEL_DB).join('+'):''}${s.run?' · computed '+String(s.run).slice(0,10):''}`:'';
-  $('#ciLegend').innerHTML=(CG.mode==='db'?`<span>Colour = database</span>`:`<span><i style="--c:var(--t-paper);border-radius:2px"></i>Paper</span><span><i style="--c:var(--t-notes)"></i>Note</span><span><i style="--c:var(--t-project);transform:rotate(45deg);border-radius:1px"></i>Project</span>`)+
+  $('#ciLegend').innerHTML=(CG.mode==='db'?`<span>Colour = database</span>`:seaLegend(['research_paper','research_notes','research_project']))+
     `<span>Arrow = cites (from the reference list) · solid = DOI or title with author · dashed = title only · size = cited by · left → right = year · click a node to open it, drag to pan, wheel to zoom</span>`;
   ciDraw();
 }

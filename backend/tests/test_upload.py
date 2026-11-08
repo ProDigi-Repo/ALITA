@@ -469,3 +469,60 @@ def test_recompute_button_reports_failures_instead_of_success(live, monkeypatch)
     res = client.post("/api/clusters/rebuild?database=CHARMANDER", headers=KEY).json()
     assert res["k"] == 0 and res["per_database"]["CHARMANDER"]["note"].startswith("Too few")
     assert res["per_database"]["CHARMANDER"]["skipped"] == 2 and res["errors"] == {}
+
+
+def test_new_documents_and_versions_are_added_to_an_existing_project(live):
+    """REQ-96: files added to an existing project land in its folder; a file named like an existing one, or chosen as
+    its new version, becomes the next version (latest), the old one stays as an earlier version; only the new files
+    go through the LLM; the project keeps its cluster; other accounts cannot add to it."""
+    import io
+    import zipfile
+    from pathlib import Path
+
+    from app import store
+    s, client, calls = live
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("Thesis/Manuscript_v1.txt", FIRE)
+        z.writestr("Thesis/Interview notes.txt", SMOKE)
+    _login(client, "charmander", "fire-secret-1")
+    r = client.post("/api/ingest", headers=KEY, data={"doc_type": "research_project"},
+                    files=[("files", ("Thesis.zip", buf.getvalue(), "application/zip"))])
+    assert _wait(client, r.json()["jobs"][0])["status"] == "done"
+    cluster = client.get("/api/projects/Thesis").json().get("cluster_id")
+    before = {d["filename"]: d["summary"] for d in store.scroll_documents() if d.get("project_name") == "Thesis"}
+    calls.clear()
+
+    v2 = FIRE.replace("40 firefighters", "60 firefighters and 12 trainers") + "New results on drills.\n"
+    r = client.post("/api/ingest", headers=KEY, data={"doc_type": "research_project", "add_to_project": "Thesis",
+                                                       "version_of": "Manuscript_v1.txt"},
+                    files=[("files", ("draft final.txt", v2.encode(), "text/plain"))])
+    assert r.status_code == 200, r.text
+    assert _wait(client, r.json()["jobs"][0])["status"] == "done"
+    r = client.post("/api/ingest", headers=KEY, data={"doc_type": "research_project", "add_to_project": "Thesis"},
+                    files=[("files", ("Interview notes.txt", (SMOKE + "Second round of interviews.\n").encode(), "text/plain")),
+                           ("files", ("Survey design.txt", ("Survey design\n\n" + SMOKE).encode(), "text/plain"))])
+    assert _wait(client, r.json()["jobs"][0])["status"] == "done"
+
+    folder = Path(s.data_dir) / "projects" / "Thesis"
+    assert {p.name for p in folder.iterdir()} == {"Manuscript_v1.txt", "Manuscript_v2.txt", "Interview notes.txt",
+                                                    "Interview notes_v2.txt", "Survey design.txt"}
+    assert calls and {f for f, _ in calls} <= {"Interview notes_v2.txt", "Manuscript_v2.txt", "Survey design.txt"}
+    docs = {d["filename"]: d for d in store.scroll_documents() if d.get("project_name") == "Thesis"}
+    assert docs["Manuscript_v2.txt"]["is_latest"] and not docs["Manuscript_v1.txt"]["is_latest"]
+    assert docs["Interview notes_v2.txt"]["is_latest"] and not docs["Interview notes.txt"]["is_latest"]
+    assert docs["Manuscript_v1.txt"]["summary"] == before["Manuscript_v1.txt"]     # kept, not redone
+    assert all(d["indexed"] for d in docs.values())
+    chunks = store.scroll_chunks(docs["Manuscript_v1.txt"]["doc_id"])
+    assert chunks and not any(c.get("is_latest") for c in chunks)
+    proj = client.get("/api/projects/Thesis").json()
+    assert proj["file_count"] == 5 and proj.get("cluster_id") == cluster
+
+    client.post("/api/logout")
+    _login(client, "vulpix", "fox-secret-22")
+    r = client.post("/api/ingest", headers=KEY, data={"doc_type": "research_project", "add_to_project": "Thesis"},
+                    files=[("files", ("x.txt", b"x", "text/plain"))])
+    assert r.status_code in (403, 404)
+    r = client.post("/api/ingest", headers=KEY, data={"doc_type": "research_paper", "add_to_project": "Thesis"},
+                    files=[("files", ("x.txt", b"x", "text/plain"))])
+    assert r.status_code == 400

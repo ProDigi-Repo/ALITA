@@ -67,3 +67,11 @@
 .uptile .up-btn2{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid rgb(61 242 255 / .45);background:transparent;color:#bff9ff;border-radius:999px;font:inherit;font-size:calc(12px * var(--fs-scale,1));font-weight:600;padding:5px 12px;cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s}
 .uptile .up-btn2:hover{background:rgb(61 242 255 / .14);border-color:#3df2ff;color:#fff}
 .uptile .up-btn2:focus-visible{outline:2px solid #3df2ff;outline-offset:2px}
+/* REQ-96: new project or new documents/versions for an existing one */
+.ad-mode{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.ad-mode>.check{flex-direction:row;align-items:flex-start;gap:8px;color:var(--fg)}
+.ad-add{display:flex;flex-direction:column;gap:8px;margin:4px 0 0 26px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--sunk,#f6f7fb)}
+.ad-add label{display:flex;flex-direction:column;gap:4px;font-weight:600}
+.ad-add select{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--panel,#fff);color:var(--fg)}
+.ad-addhint{margin:0;color:var(--muted);font-size:calc(12.5px * var(--fs-scale,1))}
+.ad-add[hidden],.ad-mode[hidden]{display:none}

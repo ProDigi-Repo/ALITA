@@ -9,6 +9,8 @@
   --db-UM:#3d7a2a;
   --db-EUAIA:#0067c5;
   --db-WACHTER:#5a3fb8;
+  --db-ALITA:#0b7f86;
+  --db-TEST:#6b6f76;
   --db-OTH:#b4325f;
 }
 @media (prefers-color-scheme: dark){
@@ -22,6 +24,8 @@
   --db-UM:#8fcf7a;
   --db-EUAIA:#5cc4ff;
   --db-WACHTER:#b3a2ff;
+  --db-ALITA:#4fd6dc;
+  --db-TEST:#b8bcc4;
   --db-OTH:#f08aac;
 }
 }
@@ -35,6 +39,8 @@
   --db-UM:#8fcf7a;
   --db-EUAIA:#5cc4ff;
   --db-WACHTER:#b3a2ff;
+  --db-ALITA:#4fd6dc;
+  --db-TEST:#b8bcc4;
   --db-OTH:#f08aac;
 }
 /* surfaces that are always dark: database bar, 3D cluster space */
@@ -48,5 +54,7 @@
   --db-UM:#8fcf7a;
   --db-EUAIA:#5cc4ff;
   --db-WACHTER:#b3a2ff;
+  --db-ALITA:#4fd6dc;
+  --db-TEST:#b8bcc4;
   --db-OTH:#f08aac;
 }

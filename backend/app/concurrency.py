@@ -67,8 +67,20 @@ def pool() -> ThreadPoolExecutor:
 
 def _in_own_loop(ctx: contextvars.Context, factory: Callable[[], Awaitable[T]]) -> T:
     async def main() -> T:
-        return await factory()
+        try:
+            return await factory()
+        finally:
+            await _close_clients()
     return ctx.run(asyncio.run, main())
+
+
+async def _close_clients() -> None:
+    """The HTTP clients of a chat's own loop are closed with it (llm.py keeps one per loop)."""
+    from . import llm
+    try:
+        await llm.close_loop_clients()
+    except Exception:  # noqa: BLE001 – closing must never hide the chat's result
+        pass
 
 
 async def run_in_thread(factory: Callable[[], Awaitable[T]], owner: str | None = None, kind: str = "chat") -> T:
@@ -116,6 +128,7 @@ async def stream_in_thread(factory: Callable[[], AsyncIterator[Any]], buffer: in
             put(("error", e))
         finally:
             await gen.aclose()
+            await _close_clients()
             put(("end", _DONE))
 
     track.__enter__()
