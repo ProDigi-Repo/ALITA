@@ -117,6 +117,9 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 | REQ-111 | Round AI icon top right in the videos | ✅ done | 3.13.0 | User's icon instead of the pill. |
 | REQ-112 | Bug: `ingest all` ended with KeyError 'documents' | ✅ fixed | 3.13.0 | Classification result shape (REQ-92) vs. closing line; citations/provisions were skipped. |
 | REQ-113 | Knowledge progress: drafts with initials/notes after the version number and in several formats are one version chain | ✅ fixed | 3.13.0 | `parse_version` accepts `_v13_DL`, `_v41_LDK_<note>`, `.docx.odt`; one series across text formats and PDF (`version_family`); proposal/antrag/entwurf/draft = manuscript, Vorlage/template not; `progress.pick_spine` takes any series of ≥3 numbered drafts, one per version (text format first), also for already ingested data. `tests/test_version_chain.py`. |
+| REQ-114 | Tutorial videos: no AI notice on screen, ALITA says "I am an AI system" at the start; clusters and recomputing explained | ✅ done | 3.13.0 | Outside the repo; notice hidden only in the filmed interface; new scenes on clusters and Recompute clusters. |
+| REQ-115 | User guide as separate German and English docs | ✅ done | 3.13.0 | Outside the repo (Docs). |
+| REQ-116 | AI notice overlapped header controls | ✅ fixed | 3.13.0 | `layout.css`: own strip at the top right (`.top{padding-top:46px}` ≥ 1101 px). |
 
 ## Open points for the requirement owners
 - REQ-10, REQ-15 – REQ-18: main document chain per project, inferred links between versions and analyses, threshold for "substantive", AI stage texts automatic or on demand, versions without full text.
