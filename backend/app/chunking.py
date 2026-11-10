@@ -1,4 +1,4 @@
-"""Zerlegt extrahierte Segmente in überlappende Chunks und behält die Fundstelle."""
+"""Splits extracted segments into overlapping chunks and keeps the location."""
 from __future__ import annotations
 
 import re
@@ -18,7 +18,7 @@ def _split(text: str, size: int, overlap: int) -> list[str]:
     while start < len(text):
         end = min(len(text), start + size)
         if end < len(text):
-            # an Absatz- oder Satzgrenze schneiden
+            # cut at a paragraph or sentence boundary
             window = text[start:end]
             cut = max(window.rfind("\n\n"), window.rfind(". "), window.rfind("\n"))
             if cut > size * 0.5:
@@ -31,6 +31,7 @@ def _split(text: str, size: int, overlap: int) -> list[str]:
 
 
 def chunk_segments(doc_id: str, segments: list[Segment], size: int = 1200, overlap: int = 200) -> list[Chunk]:
+    """Split the segments of a document into overlapping chunks of about `size` characters with stable ids (uuid5 of doc_id and position)."""
     chunks: list[Chunk] = []
     for seg in segments:
         for piece in _split(seg.text, size, overlap):

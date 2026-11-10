@@ -1,4 +1,4 @@
-"""REQ-68: Verweise von Papern auf Bestimmungen eines Gesetzes – finden, Fassung bestimmen, auf geltende Nummern abbilden."""
+"""REQ-68: references from papers to provisions of a law – find them, determine the version, map to current numbers."""
 from app import graph
 from app import provisions as P
 from app.legal import Component, VersionInput, build_history

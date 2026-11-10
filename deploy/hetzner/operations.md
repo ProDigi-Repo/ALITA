@@ -1,45 +1,45 @@
-# Kleine VM, Code-Deployment und Rollback
+# Small VM, code deployment and rollback
 
-Manueller Betrieb ohne GitHub-Zugangsdaten auf der VM und ohne zusätzliche offene Ports.
-Kein automatischer Actions-Deploy. Secrets, Einladungen, private Schlüssel und Backups bleiben außerhalb von Git.
+Manual operation without GitHub credentials on the VM and without additional open ports.
+No automatic Actions deploy. Secrets, invitations, private keys and backups stay outside Git.
 
-## Optionales 4-GB-Pilotprofil
+## Optional 4 GB pilot profile
 
-`docker-compose.4gb.yml` enthält die auf der kleinen VM erprobten Grenzen:
-Backend 1280 MiB (ein Worker, höchstens acht gleichzeitige Anfragen), Neo4j 1152 MiB
-(Heap 256–512 MiB, Pagecache 256 MiB), Qdrant 1024 MiB (ein Such-/Optimizer-Thread,
-`nofile=65536`). Dazu kleine Limits für nginx, cloudflared und die CLI-Jobs.
-Importierte Qdrant-Snapshots können eigene Collection-Optimiererwerte mitbringen; diese separat prüfen.
-`memswap_limit` bezeichnet **RAM plus Swap**, nicht zusätzlichen Swap.
+`docker-compose.4gb.yml` contains the limits tested on the small VM:
+backend 1280 MiB (one worker, at most 40 open connections, six chat answers computed at once – further questions wait in line), Neo4j 1152 MiB
+(heap 256–512 MiB, page cache 256 MiB), Qdrant 1024 MiB (one search/optimizer thread,
+`nofile=65536`). Plus small limits for nginx, cloudflared and the CLI jobs.
+Imported Qdrant snapshots may bring their own collection optimizer values; check these separately.
+`memswap_limit` means **RAM plus swap**, not additional swap.
 
-Die Summe der maximalen Limits überschreitet 4 GB: kein Versprechen für parallele Last.
-Uploads/Imports nacheinander, nicht parallel zu starkem Chatbetrieb. Vor größeren Imports Daten sichern.
-Auf dem Host zuerst `free -h`, `swapon --show` und `df -h /` prüfen. Der Pilot nutzt
-**4 GiB persistenten Swap** und `vm.swappiness=10`; vorhandene Swap-Dateien nicht überschreiben.
-Auf neuen VMs Swap bewusst einrichten und nach einem Neustart überprüfen, bevor dieses Profil verwendet wird.
+The sum of the maximum limits exceeds 4 GB: no promise for parallel load.
+Run uploads/imports one after the other, not in parallel with heavy chat use. Back up data before larger imports.
+On the host, first check `free -h`, `swapon --show` and `df -h /`. The pilot uses
+**4 GiB of persistent swap** and `vm.swappiness=10`; do not overwrite existing swap files.
+On new VMs set up swap deliberately and check it after a reboot before using this profile.
 
-Bei einer neuen Installation in `.env` die vollständige Kette wählen:
+For a new installation choose the full chain in `.env`:
 
 ```dotenv
 COMPOSE_FILE=docker-compose.yml:deploy/hetzner/docker-compose.hetzner.yml:deploy/hetzner/docker-compose.4gb.yml
 ```
 
-Das 4-GB-Profil ersetzt **nicht** das Hetzner-Sicherheitsprofil. Danach nur
-`docker compose config --quiet` ausführen, nie die aufgelöste Konfiguration mit Secrets ausgeben.
-Auf einer vorhandenen VM mit `compose.host.yml` nichts automatisch umstellen: Konfiguration sichern,
-Werte vergleichen und die lokale letzte Datei erst bei einer geplanten Umstellung durch das versionierte Profil ersetzen.
-Der PR allein ändert keine laufenden Container. Das Deploy-Skript selbst startet keine Datenbanken neu.
+The 4 GB profile does **not** replace the Hetzner security profile. Afterwards only run
+`docker compose config --quiet`; never print the resolved configuration with secrets.
+On an existing VM with `compose.host.yml` do not switch anything automatically: back up the configuration,
+compare the values and replace the local last file with the versioned profile only during a planned switch.
+The PR alone changes no running containers. The deploy script itself restarts no databases.
 
-## Code-Update
+## Code update
 
-Voraussetzungen: bestehender, gesunder Stack, sauberer Checkout, `.env` mit Modus 0600,
-Docker/Compose >= 2.24.4, Bash, Python 3 und `flock` (Ubuntu: util-linux).
-Vorher Tests ausführen, Änderungen prüfen und Schreibzugriffe/Uploads/Imports pausieren.
-Das Skript ist nur für rückwärtskompatible **Code-Updates**, nicht für Datenmigrationen,
-geänderte DB-Images, neue Netzwerke oder einen neuen Backend-Image-Tag vorgesehen.
-Datenbestände vorher separat/offsite sichern: die folgenden Sicherungen enthalten **keine Datenvolumes**.
+Prerequisites: an existing, healthy stack, a clean checkout, `.env` with mode 0600,
+Docker/Compose >= 2.24.4, Bash, Python 3 and `flock` (Ubuntu: util-linux).
+Run the tests first, review the changes and pause writes/uploads/imports.
+The script is meant only for backwards-compatible **code updates**, not for data migrations,
+changed database images, new networks or a new backend image tag.
+Back up the data separately/off-site beforehand: the backups below contain **no data volumes**.
 
-Auf dem vertrauenswürdigen Arbeitsrechner den gemergten `main` verwenden, nicht einen alten Release-Tag:
+On the trusted workstation use the merged `main`, not an old release tag:
 
 ```bash
 git switch main
@@ -52,35 +52,35 @@ ssh alita 'chmod 700 /opt/alita/deploy.sh'
 ssh alita "cd /opt/alita/app && /opt/alita/deploy.sh '$sha' /opt/alita/deploy.bundle"
 ```
 
-Bei langer Laufzeit in `tmux`/`screen` auf dem Server ausführen. Alternativ genügt der volle SHA
-als einziges Argument, wenn der Commit bereits im Server-Checkout vorhanden ist.
-Das Skript ruft nie `git pull` auf und akzeptiert nur Fast-Forward-Updates; eine Bundle-Datei muss
-lokal sein und ihr `main` exakt dem angegebenen Commit entsprechen. Die VM bleibt absichtlich auf
-diesem exakten Commit (`detached HEAD`), lokale/Remote-Branches werden nicht umgeschrieben.
+For long runs, execute it in `tmux`/`screen` on the server. Alternatively the full SHA alone
+is enough as the only argument if the commit is already in the server checkout.
+The script never calls `git pull` and accepts only fast-forward updates; a bundle file must be
+local and its `main` must match the given commit exactly. The VM deliberately stays on
+this exact commit (`detached HEAD`); local/remote branches are not rewritten.
 
-Ablauf:
-- Exklusive Deploy-Sperre, Access/Port-/Seed-Prüfung und Sicherung der Konfiguration/des vorherigen Images.
-- Quelldateien nach Git-Modus lesbar machen (0644/0755), **nicht** `.env`, `.secrets/` oder Forschungsdaten.
-  `umask 077` gilt für Secrets/Backups; Git-Quellen brauchen 022, sonst scheitert der nicht privilegierte Container.
-- Backend bauen und API-Import als Container-Benutzer ohne Netzwerk testen, bevor der laufende Dienst ersetzt wird.
-- Nur Backend und Frontend mit `--no-deps` starten; Healthcheck abwarten, nginx testen und die API-Liveness durch den Proxy abrufen.
-  nginx wird neu erstellt: ein Reload kann nach Git-Updates einen alten Datei-Bind-Mount behalten.
-- Konfigurationsdateien und Qdrant-/Graph-Zähler vorher/nachher vergleichen; Qdrant muss grün sein.
-- Bei Fehlern Code und Image zurücksetzen, bei unvollständigem Rollback klar abbrechen. Kein `down -v`,
-  kein automatischer Seed, kein Datenbank-Restore und kein Zurückkopieren möglicherweise inzwischen geänderter Secrets.
+Sequence:
+- Exclusive deploy lock, Access/port/seed check and backup of the configuration/the previous image.
+- Make source files readable according to their Git mode (0644/0755), **not** `.env`, `.secrets/` or research data.
+  `umask 077` applies to secrets/backups; Git sources need 022, otherwise the unprivileged container fails.
+- Build the backend and test the API import as the container user without network before the running service is replaced.
+- Start only backend and frontend with `--no-deps`; wait for the health check, test nginx and fetch the API liveness through the proxy.
+  nginx is recreated: a reload can keep an old file bind mount after Git updates.
+- Compare configuration files and Qdrant/graph counters before/after; Qdrant must be green.
+- On errors, reset code and image; abort clearly if the rollback is incomplete. No `down -v`,
+  no automatic seed, no database restore and no copying back of secrets that may have changed in the meantime.
 
-## Status und manuelle Wiederherstellung
+## Status and manual recovery
 
-Standardablage: `/opt/alita/deployments` (0700; mit `ALITA_DEPLOY_STATE_DIR` außerhalb des Checkouts anpassbar).
-`current-backup` zeigt auf die Sicherung des letzten Versuchs: `.env`, optional `compose.host.yml`,
-`revision`, `backend-image`, `image-tag`, Datenzähler und Fehlerdiagnose. Diese Dateien vertraulich behandeln.
-Alte Images/Backups erst nach erfolgreicher Abnahme und separater Datensicherung löschen.
+Default location: `/opt/alita/deployments` (0700; can be moved outside the checkout with `ALITA_DEPLOY_STATE_DIR`).
+`current-backup` points to the backup of the last attempt: `.env`, optionally `compose.host.yml`,
+`revision`, `backend-image`, `image-tag`, data counters and error diagnostics. Treat these files as confidential.
+Delete old images/backups only after a successful acceptance and a separate data backup.
 
-`status` enthält `RUNNING`, `DEPLOYED`, `ROLLBACK_OK` oder `ROLLBACK_NEEDS_ATTENTION`.
-Bei SIGKILL/Stromausfall kann `RUNNING` stehen bleiben; dann manuell prüfen. Das ist kein HA-System.
+`status` contains `RUNNING`, `DEPLOYED`, `ROLLBACK_OK` or `ROLLBACK_NEEDS_ATTENTION`.
+After SIGKILL/power loss `RUNNING` may remain; then check manually. This is not an HA system.
 
-Falls ein späterer öffentlicher Test scheitert, aus einer privaten Admin-Shell wiederherstellen
-(erst laufende Jobs pausieren; aktuelle Secrets nicht blind mit älteren Werten überschreiben):
+If a later public test fails, recover from a private admin shell
+(pause running jobs first; do not blindly overwrite current secrets with older values):
 
 ```bash
 (
@@ -89,7 +89,7 @@ cd /opt/alita/app
 exec 9>/opt/alita/deployments/lock
 flock -n 9 || exit 1
 backup=$(< /opt/alita/deployments/current-backup)
-cmp -s .env "$backup/.env"   # bei Änderungen erst manuell abgleichen
+cmp -s .env "$backup/.env"   # if it differs, reconcile manually first
 if [[ -f "$backup/compose.host.yml" ]]; then
   cmp -s compose.host.yml "$backup/compose.host.yml"
 else
@@ -104,14 +104,14 @@ docker compose up -d --no-deps --force-recreate --wait frontend
 docker compose exec -T frontend nginx -t
 docker compose exec -T frontend wget -q -T 3 -O /dev/null http://127.0.0.1/api/health
 printf 'ROLLBACK_OK\n' > /opt/alita/deployments/status
-)  # Sperre auch bei Fehlern freigeben
+)  # releases the lock even on errors
 ```
 
-Datenmigrationen werden **nicht** zurückgerollt; dafür ist ein separat getestetes Backup-/Restore-Verfahren nötig.
+Data migrations are **not** rolled back; that needs a separately tested backup/restore procedure.
 
-## Öffentliche Abnahme nach jedem Update
+## Public acceptance after every update
 
-Private URL weiterhin hinter Cloudflare Access; Reviewer ohne Code ohne API-/Download-Zugriff.
-Mit bestehendem Code: lesen/herunterladen, keine Uploads/Adminrechte, beide Chats mit eigenem OpenRouter-Key,
-ausloggen und erneuten Zugriff ohne Cookie ablehnen. Frontend-/Backend-Version und Dokumentzahlen prüfen.
-Originaldateien müssen separat auf dem Server liegen, sonst funktionieren Downloads trotz vorhandenem Index nicht.
+The private URL is still behind Cloudflare Access; reviewers without a code have no API/download access.
+With an existing code: read/download, no uploads/admin rights, both chats with their own OpenRouter key,
+log out and check that renewed access without a cookie is refused. Check the front-end/backend version and document counts.
+Original files must be on the server separately, otherwise downloads do not work even though the index exists.

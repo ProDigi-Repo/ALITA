@@ -1,130 +1,130 @@
-# ALITA im Internet: Oracle Cloud (gratis) + Cloudflare Tunnel + Google-Login
+# ALITA on the internet: Oracle Cloud (free) + Cloudflare Tunnel + Google login
 
 ```
-Browser ──https──> Cloudflare Access (Google-Login, nur freigegebene E-Mails)
+Browser ──https──> Cloudflare Access (Google login, admitted e-mails only)
                          │
-                   Cloudflare Tunnel (ausgehende Verbindung, kein offener Port)
+                   Cloudflare Tunnel (outbound connection, no open port)
                          │
-Oracle-VM (ARM, Always Free) ── docker compose: cloudflared → frontend (nginx) → backend → Qdrant, Neo4j
+Oracle VM (ARM, Always Free) ── docker compose: cloudflared → frontend (nginx) → backend → Qdrant, Neo4j
 ```
 
-Der Server öffnet keinen Port. Nur Personen, deren Google-Adresse du freigibst, kommen bis zur Seite.
-Jede Anfrage läuft außerdem nur mit dem OpenRouter-Key, den die Person selbst im Interface einträgt.
+The server opens no port. Only people whose Google address you admit get as far as the page.
+In addition, every request runs only with the OpenRouter key that the person enters in the interface.
 
-**Was du brauchst**
+**What you need**
 
-- Oracle-Cloud-Konto (Always Free). Bei der Anmeldung will Oracle eine Kreditkarte zur Prüfung; belastet wird sie im Free Tier nicht.
-- Cloudflare-Konto (gratis) mit **einer eigenen Domain**. Ohne Domain geht Cloudflare Access nicht. Eine Domain kostet ca. 10 € im Jahr, z. B. direkt bei Cloudflare Registrar.
-- Zero Trust Free Plan: bis 50 Personen gratis. Cloudflare fragt dabei ebenfalls nach einer Zahlungsmethode, berechnet aber nichts.
+- An Oracle Cloud account (Always Free). On sign-up Oracle asks for a credit card for verification; it is not charged on the free tier.
+- A Cloudflare account (free) with **a domain of your own**. Cloudflare Access does not work without a domain. A domain costs about €10 a year, e.g. directly at Cloudflare Registrar.
+- Zero Trust Free plan: free for up to 50 people. Cloudflare also asks for a payment method here but charges nothing.
 
-Rechne mit 1 bis 2 Stunden für das erste Mal.
+Allow 1 to 2 hours for the first time.
 
 ---
 
-## 1. Oracle: VM anlegen
+## 1. Oracle: create the VM
 
-1. Auf cloud.oracle.com ein Free-Tier-Konto anlegen. **Home Region** gut wählen (z. B. Germany Central/Frankfurt), sie lässt sich nicht mehr ändern.
-2. Menü → Compute → Instances → **Create instance**:
-   - Image: **Canonical Ubuntu 24.04** (nicht „Minimal“)
+1. Create a free-tier account on cloud.oracle.com. Choose the **home region** carefully (e.g. Germany Central/Frankfurt); it cannot be changed later.
+2. Menu → Compute → Instances → **Create instance**:
+   - Image: **Canonical Ubuntu 24.04** (not "Minimal")
    - Shape: **Ampere → VM.Standard.A1.Flex**, **2 OCPU, 12 GB RAM**
-     (Oracle hat das Gratis-Kontingent 2026 von 4 OCPU / 24 GB auf 2 OCPU / 12 GB halbiert. Mit 2/12 bleibst du sicher bei 0 €; ALITA reicht das.)
-   - Boot volume: 100 GB (gratis sind zusammen 200 GB)
-   - SSH keys: **Generate a key pair** → privaten Schlüssel herunterladen (z. B. nach `C:\Users\<du>\.ssh\oracle.key`)
-3. Erscheint „Out of capacity“: später erneut versuchen oder eine andere Availability Domain wählen.
-4. Notiere die **Public IP** der Instanz.
+     (In 2026 Oracle halved the free quota from 4 OCPU / 24 GB to 2 OCPU / 12 GB. With 2/12 you safely stay at €0; that is enough for ALITA.)
+   - Boot volume: 100 GB (200 GB in total are free)
+   - SSH keys: **Generate a key pair** → download the private key (e.g. to `C:\Users\<you>\.ssh\oracle.key`)
+3. If "Out of capacity" appears: try again later or choose another availability domain.
+4. Note the **public IP** of the instance.
 
-> Tipp: Always-Free-VMs, die tagelang kaum CPU nutzen, kann Oracle zurückfordern. Ein Upgrade des Kontos auf
-> „Pay As You Go“ verhindert das; innerhalb der Always-Free-Grenzen bleibt es trotzdem kostenlos. Setze dir dann
-> unter Billing → Budgets ein Budget von 1 € mit E-Mail-Alarm.
+> Tip: Oracle may reclaim Always Free VMs that use hardly any CPU for days. Upgrading the account to
+> "Pay As You Go" prevents this; within the Always Free limits it still stays free. Then set
+> a budget of €1 with an e-mail alert under Billing → Budgets.
 
-Verbinden (Windows PowerShell):
+Connect (Windows PowerShell):
 
 ```powershell
 ssh -i $HOME\.ssh\oracle.key ubuntu@<PUBLIC-IP>
 ```
 
-## 2. Index vom eigenen Rechner exportieren
+## 2. Export the index from your own computer
 
-Damit nicht alles neu eingelesen werden muss (kostet Zeit und API-Geld), ziehst du den fertigen Index um.
-Auf deinem PC im Projektordner (PowerShell):
+So that nothing has to be ingested again (which costs time and API money), you move the finished index.
+On your PC in the project folder (PowerShell):
 
 ```powershell
 cd "D:\Programming Projects\research-rag"
 docker compose build backend
-docker compose run --rm migrate export        # schreibt Qdrant-Snapshots + Uploads nach .\migrate\
+docker compose run --rm migrate export        # writes Qdrant snapshots + uploads to .\migrate\
 ```
 
-Dann den ganzen Projektordner (inklusive `migrate`, `research` und `.env`) auf die VM kopieren:
+Then copy the whole project folder (including `migrate`, `research` and `.env`) to the VM:
 
 ```powershell
 scp -i $HOME\.ssh\oracle.key -r "D:\Programming Projects\research-rag" ubuntu@<PUBLIC-IP>:~/
 ```
 
-Der Neo4j-Graph wird nicht kopiert; er wird auf dem Server aus dem Index neu gebaut (ohne LLM-Kosten).
+The Neo4j graph is not copied; it is rebuilt on the server from the index (without LLM costs).
 
-## 3. Cloudflare: Domain, Tunnel, Google-Login
+## 3. Cloudflare: domain, tunnel, Google login
 
-**Domain:** dash.cloudflare.com → Add a domain (oder dort kaufen). Bei einem fremden Registrar die zwei
-Cloudflare-Nameserver eintragen und warten, bis die Domain „Active“ ist.
+**Domain:** dash.cloudflare.com → Add a domain (or buy one there). With another registrar, enter the two
+Cloudflare name servers and wait until the domain is "Active".
 
 **Tunnel:** Zero Trust (one.dash.cloudflare.com) → Networks → **Tunnels** → Create a tunnel → *Cloudflared* →
-Name `alita`. Bei „Install and run connector“ steht ein Befehl mit `--token eyJ…`: **nur den Token** kopieren.
-Weiter zu **Public hostname**:
+name `alita`. Under "Install and run connector" there is a command with `--token eyJ…`: copy **only the token**.
+Continue to **Public hostname**:
 
-| Feld | Wert |
+| Field | Value |
 |---|---|
-| Subdomain / Domain | `alita` / deine Domain |
+| Subdomain / Domain | `alita` / your domain |
 | Service Type | `HTTP` |
 | URL | `frontend:80` |
 
-**Google als Login:** Zero Trust → Settings → Authentication → Login methods → Add new → **Google**.
-Cloudflare zeigt dort eine Kurzanleitung; im Kern:
+**Google as login:** Zero Trust → Settings → Authentication → Login methods → Add new → **Google**.
+Cloudflare shows short instructions there; in essence:
 
-1. console.cloud.google.com → neues Projekt → *APIs & Services* → *OAuth consent screen* (External, App-Name „ALITA“).
+1. console.cloud.google.com → new project → *APIs & Services* → *OAuth consent screen* (External, app name "ALITA").
 2. *Credentials* → Create credentials → **OAuth client ID** → Web application.
    Authorized JavaScript origin: `https://<team-name>.cloudflareaccess.com`
    Authorized redirect URI: `https://<team-name>.cloudflareaccess.com/cdn-cgi/access/callback`
-   (`<team-name>` steht in Zero Trust unter Settings → Custom Pages bzw. Team domain.)
-3. Client ID und Client Secret in Cloudflare eintragen → **Test** klicken.
+   (`<team-name>` is shown in Zero Trust under Settings → Custom Pages or Team domain.)
+3. Enter the client ID and client secret in Cloudflare → click **Test**.
 
-**Zugang sperren:** Zero Trust → Access → **Applications** → Add → *Self-hosted*:
+**Restrict access:** Zero Trust → Access → **Applications** → Add → *Self-hosted*:
 
-- Application domain: `alita.<deine-domain>`
-- Identity providers: nur **Google** anhaken
-- Policy: Action **Allow**, Include → **Emails** → die Google-Adressen, die rein dürfen (oder *Emails ending in* `@deine-uni.de`)
+- Application domain: `alita.<your-domain>`
+- Identity providers: tick only **Google**
+- Policy: Action **Allow**, Include → **Emails** → the Google addresses that may get in (or *Emails ending in* `@your-uni.edu`)
 
-## 4. Auf der VM starten
+## 4. Start on the VM
 
 ```bash
 cd ~/research-rag
-bash deploy/oracle/setup.sh          # installiert Docker, Swap, ergänzt .env
-nano .env                            # CLOUDFLARE_TUNNEL_TOKEN=eyJ… eintragen, speichern
-exit                                 # einmal ab- und wieder anmelden (Docker-Gruppe)
+bash deploy/oracle/setup.sh          # installs Docker and swap, completes .env
+nano .env                            # enter CLOUDFLARE_TUNNEL_TOKEN=eyJ…, save
+exit                                 # log out and in again once (docker group)
 ```
 
 ```bash
 ssh -i … ubuntu@<PUBLIC-IP>
 cd ~/research-rag
-docker compose up -d --build         # erster Build auf ARM: 10–20 Minuten
-docker compose run --rm migrate import   # Index einspielen + Wissensgraph neu bauen
-docker compose ps                    # alles „healthy“, cloudflared „running“
+docker compose up -d --build         # first build on ARM: 10–20 minutes
+docker compose run --rm migrate import   # load the index + rebuild the knowledge graph
+docker compose ps                    # everything "healthy", cloudflared "running"
 ```
 
-Dann `https://alita.<deine-domain>` öffnen → Google-Login → ALITA → oben rechts den OpenRouter-Key eintragen.
+Then open `https://alita.<your-domain>` → Google login → ALITA → enter the OpenRouter key at the top right.
 
-`setup.sh` setzt in `.env` unter anderem `COMPOSE_FILE=docker-compose.yml:deploy/oracle/docker-compose.oracle.yml`.
-Dadurch nutzt jedes `docker compose …` auf dem Server automatisch die Server-Variante: keine offenen Ports,
-Tunnel-Dienst, Speicherlimits für Neo4j.
+Among other things, `setup.sh` sets `COMPOSE_FILE=docker-compose.yml:deploy/oracle/docker-compose.oracle.yml` in `.env`.
+This makes every `docker compose …` on the server use the server variant automatically: no open ports,
+tunnel service, memory limits for Neo4j.
 
-## Betrieb
+## Operation
 
-| Aufgabe | Befehl auf der VM |
+| Task | Command on the VM |
 |---|---|
 | Logs | `docker compose logs -f backend cloudflared` |
-| Neue Version einspielen | geänderte Dateien per `scp` kopieren, dann `docker compose up -d --build` |
-| Neue Dokumente einlesen | Dateien nach `~/research-rag/research/…` kopieren, dann `docker compose run --rm -e OPENROUTER_API_KEY=sk-or-v1-… ingest all /research` |
-| Backup des Index | `docker compose run --rm migrate export` → Ordner `migrate` herunterladen |
-| Testen ohne Cloudflare | lokal `ssh -i … -L 8080:127.0.0.1:8080 ubuntu@<IP>` → http://localhost:8080 |
+| Install a new version | copy the changed files with `scp`, then `docker compose up -d --build` |
+| Ingest new documents | copy files to `~/research-rag/research/…`, then `docker compose run --rm -e OPENROUTER_API_KEY=sk-or-v1-… ingest all /research` |
+| Back up the index | `docker compose run --rm migrate export` → download the `migrate` folder |
+| Test without Cloudflare | locally `ssh -i … -L 8080:127.0.0.1:8080 ubuntu@<IP>` → http://localhost:8080 |
 
-**Grenzen:** Uploads über die Seite gehen bei Cloudflare Free bis 100 MB pro Datei. Größere Projekt-ZIPs per `scp`
-nach `research/` kopieren und mit `ingest` einlesen.
+**Limits:** uploads via the page are limited to 100 MB per file on Cloudflare Free. Copy larger project ZIPs with `scp`
+to `research/` and ingest them with `ingest`.

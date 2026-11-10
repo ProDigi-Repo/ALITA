@@ -15,6 +15,7 @@ router = APIRouter()
 
 
 def unauthorized() -> JSONResponse:
+    """401 response that sends reviewers to the invitation-code page."""
     return JSONResponse({"detail": "Reviewer invitation required", "login_url": "/review-login.html"},
                         status_code=401, headers={"Cache-Control": "no-store"})
 
@@ -35,10 +36,12 @@ def valid_session(request: Request, settings: Settings) -> bool:
 
 
 class Invitation(BaseModel):
+    """Invitation code sent to the reviewer login."""
     code: str = Field(min_length=24, max_length=128)
 
 
 def require_reviewer_host(request: Request) -> None:
+    """404 unless the request came in on the reviewer host."""
     if request.state.auth_mode != "reviewer":
         raise HTTPException(404, "Not found")
 
@@ -64,6 +67,7 @@ def create_session(body: Invitation, request: Request) -> JSONResponse:
 
 @router.post("/api/reviewer/logout")
 def logout(request: Request) -> JSONResponse:
+    """End the reviewer session by deleting its cookie."""
     require_reviewer_host(request)
     response = JSONResponse({"ok": True}, headers={"Cache-Control": "no-store"})
     response.delete_cookie(COOKIE_NAME, secure=True, httponly=True, samesite="strict", path="/")

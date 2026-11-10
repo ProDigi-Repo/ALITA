@@ -4,13 +4,13 @@
 #page-graph .bq-map.cite-on>.cg-legend{display:none}
 #page-graph .bq-map.cite-on .v3-toggle,#page-graph .bq-map.cite-on .v3-reset{opacity:.4;pointer-events:none}   /* map-only controls; the colour mode also colours the citation network */
 .cg-cite[aria-pressed="true"]{background:var(--graph);color:#fff;border-color:var(--graph)}
-.ci-bar{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;padding:6px 12px;border-bottom:1px solid var(--line);font-size:12px}
-.ci-meta{color:var(--muted);margin-right:auto;font-family:var(--f-mono);font-size:11px}
+.ci-bar{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;padding:6px 12px;border-bottom:1px solid var(--line);font-size:calc(12px * var(--fs-scale,1))}
+.ci-meta{color:var(--muted);margin-right:auto;font-family:var(--f-mono);font-size:calc(11px * var(--fs-scale,1))}
 .ci-iso{color:var(--muted);display:inline-flex;align-items:center;gap:4px}
 .ci-stage{position:relative;flex:1;min-height:0;overflow:hidden}
 .ci-stage canvas{display:block;cursor:grab;touch-action:none}
 .ci-tip{max-width:340px}
 .ci-tip .ci-ev{opacity:.8;font-style:italic}
-.ci-empty{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:var(--muted);font-size:13px}
+.ci-empty{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:var(--muted);font-size:calc(13px * var(--fs-scale,1))}
 .ci-legend{flex:none}
 .ci-list{margin:2px 0 8px;padding-left:18px}.ci-list li{margin-bottom:2px}

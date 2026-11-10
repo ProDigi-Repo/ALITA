@@ -1,3 +1,20 @@
+/* ======================================================================
+   CHAT – tile 1
+   ====================================================================== */
+$$('.chip').forEach(c=>c.addEventListener('click',()=>c.setAttribute('aria-pressed',c.getAttribute('aria-pressed')!=='true')));
+$('#ragK').addEventListener('input',e=>$('#ragKOut').textContent=e.target.value);
+$('#gHops').addEventListener('input',e=>$('#gHopsOut').textContent=e.target.value);
+
+function parsePromptFilters(text){const f=[];const clean=text.replace(/@([\wäöüß]+):(?:"([^"]+)"|([^\s,;]+))/gi,(m,k,a,b)=>{f.push(k.toLowerCase()+':'+(a||b));return ''}).replace(/\s{2,}/g,' ').trim();return {clean,f}}
+
+let uid=0;
+function spChip(sp){if(!sp)return '';return `<span class="qsp ${sp.src}" title="${esc((sp.src==='custom'?'Custom':'Default')+' system prompt:\n'+sp.text)}">⚙ ${sp.src==='custom'?'custom':'default'} system prompt</span>`}
+function userMsg(chat,text,filters,meta,sp){
+  const d=document.createElement('div');d.className='msg user';
+  d.innerHTML=`<div class="bubble">${esc(text)}</div>`+(filters.length?`<div class="meta-line">${filters.map(f=>`<span class="applied">@${esc(f)}</span>`).join('')}</div>`:'')+`<div class="qmeta">${metaHtml(meta)}</div>`+(sp?`<div class="qspline">${spChip(sp)}</div>`:'');
+  chat.appendChild(d);chat.scrollTop=chat.scrollHeight;return d;
+}
+
 /* ---------- Question meta: intent + entities ---------- */
 const INTENT_LABEL={progress:'Knowledge progress',find_sources:'Find sources',summarize:'Summarize',explain:'Explain',compare:'Compare',methodology:'Methodology',findings:'Findings',limitations:'Limitations',authorship:'People & authorship',timeline:'Timeline',overview:'Overview',question:'Question'};
 const INTENT_RULES=[['progress',/(erkenntnis(stand|fortschritt|stufe)|knowledge (stage|progress|state)|im zeitverlauf|over time|entwickelt|weiterentwick|evolv|evolution|progress|versionshistorie|version history|stufen|stages|(wie|how)\b.{0,40}\banaly\w*\b.{0,30}(durchgeführt|gemacht|conducted|performed|done|carried out))/],['compare',/\b(compare|comparison|differ|difference|versus|vs\.?|vergleich|unterschied)/],['limitations',/\b(limitation|weakness|shortcoming|limitationen|grenzen|einschränk)/],
@@ -168,7 +185,7 @@ function recordTurn(tile,turn){
   if(!sess.title&&turn.role==='user')sess.title=turn.text.slice(0,120);
   sess.turns.push(turn);sess.updated=Date.now();saveHist();syncMem(tile);
 }
-function historyFor(tile){ // Gedächtnis: der ganze bisherige Verlauf der aktuellen Unterhaltung (neueste 40 Wechsel)
+function historyFor(tile){ // memory: the whole conversation so far of the current chat (newest 40 turns)
   if(!memOn(tile))return[];
   const sess=HIST[tile].find(x=>x.id===CUR[tile]);if(!sess)return[];
   return sess.turns.filter(t=>!t.err).slice(-40).map(t=>{

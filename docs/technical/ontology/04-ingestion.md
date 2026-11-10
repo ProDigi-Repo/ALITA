@@ -1,6 +1,6 @@
 # Ingestion Pipeline
 
-> How documents become DoCO/DEO-annotated chunks and graph nodes. Code: `extract.py`, `deo.py`, `chunking.py`, `deo_classify.py`, `ingest.py`, `graph.py`, `citations.py`.
+> How documents become DoCO/DEO-annotated chunks and graph nodes. Code: `extract.py`, `deo.py`, `chunking.py`, `deo_classify.py`, `ingestion/` (scan, summaries, index, followups, pipeline, cli), `graph.py`, `citations.py`.
 
 ## Steps
 

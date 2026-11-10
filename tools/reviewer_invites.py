@@ -75,6 +75,7 @@ def configure(path: Path, *, origin: str | None, days: int, revoke: str | None) 
 
 
 def main() -> None:
+    """Command line entry point: create or revoke a reviewer invitation in .env."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--env-file", type=Path, default=Path(".env"))
     parser.add_argument("--origin", help="Reviewer HTTPS origin, no trailing slash; required on first use")

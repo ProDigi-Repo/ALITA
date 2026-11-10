@@ -148,7 +148,7 @@ function ciDraw(){
   const lbl=CI.nodes.length<=40||CI.cam.k>1.3;
   CI.nodes.forEach(n=>{
     const dim=f&&!near.has(n.id),iso=!n.cited_by&&!n.cites;g.globalAlpha=dim?.18:iso?.55:1;
-    g.fillStyle=ciCol(n);v3Shape(g,n.kind==='project'?'research_project':n.kind,n.x,n.y,n.r);g.fill();
+    {const t=n.kind==='project'?'research_project':n.kind,fc=ciCol(n);g.fillStyle=fc;if(!seaGlyphCanvas(g,t,n.x,n.y,n.r*3,fc)){v3Shape(g,t,n.x,n.y,n.r);g.fill()}}
     if(CI.hover===n||f===n.id){g.lineWidth=2.4/CI.cam.k;g.strokeStyle=acc;g.stroke()}
     if((lbl&&!iso)||CI.hover===n||f===n.id||n.cited_by>=2){g.font=`${(n.cited_by?12:11)/CI.cam.k}px `+getComputedStyle(document.body).fontFamily;g.textAlign='left';
       g.fillStyle=fg;g.globalAlpha=dim?.25:iso?.6:.95;
@@ -164,15 +164,23 @@ async function ciRender(force){
   if(CI.layoutKey!==k&&CI.data){ciLayout(W,H);CI.layoutKey=k;CI.cam={x:0,y:0,k:1}}
   const s=(CI.data&&CI.data.stats)||{};
   $('#ciMeta').textContent=CI.data&&!CI.data.demo&&!CI.data.error?`${s.edges||0} citation${s.edges===1?'':'s'} · ${s.nodes||0} papers & projects${SEL_DB.length?' · '+dbNames(SEL_DB).join('+'):''}${s.run?' · computed '+String(s.run).slice(0,10):''}`:'';
-  $('#ciLegend').innerHTML=(CG.mode==='db'?`<span>Colour = database</span>`:`<span><i style="--c:var(--t-paper);border-radius:2px"></i>Paper</span><span><i style="--c:var(--t-notes)"></i>Note</span><span><i style="--c:var(--t-project);transform:rotate(45deg);border-radius:1px"></i>Project</span>`)+
+  $('#ciLegend').innerHTML=(CG.mode==='db'?`<span>Colour = database</span>`:seaLegend(['research_paper','research_notes','research_project']))+
     `<span>Arrow = cites (from the reference list) · solid = DOI or title with author · dashed = title only · size = cited by · left → right = year · click a node to open it, drag to pan, wheel to zoom</span>`;
   ciDraw();
 }
 
+async function ciWaitJob(job){
+  toast('Recompute queued – another job is running on the server');
+  for(;;){await new Promise(r=>setTimeout(r,2500));
+    const j=await fetch('api/jobs/'+job.id).then(r=>r.json());
+    if(j.status==='done')return j.result;
+    if(j.status==='error'||j.status==='interrupted')throw new Error(j.error||j.status)}
+}
 async function ciRebuild(){
   const b=$('#ciRebuild');if(!LIVE){toast('Needs the running backend');return}
   b.disabled=true;b.textContent='⟳ Recomputing …';
-  try{const r=await fetch('api/citations/rebuild',{method:'POST'});const j=await r.json();if(!r.ok)throw new Error(j.detail||r.status);
+  try{const r=await fetch('api/citations/rebuild',{method:'POST'});let j=await r.json();if(!r.ok)throw new Error(j.detail||r.status);
+    if(r.status===202)j=await ciWaitJob(j);      // REQ-83: still waiting in the queue behind an upload
     toast(`Citation network: ${j.citations} citations from ${j.citing} documents to ${j.targets} papers`);await ciRender(true)}
   catch(e){toast('Recompute failed: '+e.message)}
   b.disabled=false;b.textContent='⟳ Recompute';
@@ -189,9 +197,8 @@ function ciToggle(on){
 (function wireCitations(){
   const btn=$('#cgCite');if(!btn)return;
   btn.addEventListener('click',()=>ciToggle(!CI.on));
-  // database selection, colour mode and resizing redraw the network as well
-  const base=window.renderClusterPage;
-  if(typeof base==='function')window.renderClusterPage=function(){const r=base.apply(this,arguments);if(CI.on)ciRender();return r};
+  // every redraw of the B page (database selection, colour mode) and resizing redraw the network as well
+  Store.on('cluster-page',()=>{if(CI.on)ciRender()},20);
   if(window.ResizeObserver){let t;new ResizeObserver(()=>{clearTimeout(t);t=setTimeout(()=>{if(CI.on)ciRender()},120)}).observe($('#cgCiteView'))}
   try{if(localStorage.getItem('ci_on')==='1')setTimeout(()=>ciToggle(true),0)}catch(e){}
 })();

@@ -7,27 +7,31 @@
 <title>ALITA Prototype</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/databases.css">
 <link rel="stylesheet" href="css/tiles.css">
+<link rel="stylesheet" href="css/uploads.css">
+<link rel="stylesheet" href="css/party.css">
 <link rel="stylesheet" href="css/cluster-profile.css">
 <link rel="stylesheet" href="css/space3d.css">
 <link rel="stylesheet" href="css/clusters.css">
-<link rel="stylesheet" href="css/desert.css">
-<link rel="stylesheet" href="css/outside.css">
 <link rel="stylesheet" href="css/progress.css">
 <link rel="stylesheet" href="css/citations.css">
 <link rel="stylesheet" href="css/legal.css">
 <link rel="stylesheet" href="css/pages.css">
 <link rel="stylesheet" href="css/tour.css">
+<link rel="stylesheet" href="css/layout.css">
 </head>
 <body><!--BODY-->
+<a class="skip-link" href="#content">Skip to the content</a>
 <div class="app">
   <header class="top">
     <div class="brand">
       <h1>ALITA PROTOTYPE</h1>
-      <button class="ver" id="appVersion" type="button" title="Open release notes">v3.12.0</button>
+      <button class="ver" id="appVersion" type="button" title="Open release notes">v3.13.0</button>
       <span class="mode" id="mode" title="">Demo</span>
       <button class="tour-btn" id="tourBtn" type="button" title="A step-by-step walk through ALITA with example questions">▶ Guided tour</button>
     </div>
+    <p class="ai-notice" id="aiNotice" role="note" title="Transparency notice under Art. 50(1) of the EU AI Act (Regulation (EU) 2024/1689)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="5" y="7" width="14" height="11" rx="3"/><path d="M12 3.5V7M9.5 12h.01M14.5 12h.01M9.5 15.2h5M3 12v2M21 12v2"/></svg><span><b>You are interacting with an AI system.</b> <span lang="de">Sie interagieren mit einem KI-System.</span></span></p>
     <nav class="nav" role="tablist" aria-label="Sections">
       <button role="tab" aria-selected="true" data-page="graph" id="tab-graph" title="B only: cluster graph and Graph Chat">B Interaction Interface</button>
       <button role="tab" aria-selected="false" data-page="chat" id="tab-chat" title="A: Document Chat · B: Graph Chat, side by side">A/B Interaction Interface</button>
@@ -46,17 +50,18 @@
       </div>
       <label for="dbPass">Password</label>
       <div class="field">
-        <input id="dbPass" type="password" placeholder="show all databases" spellcheck="false" autocomplete="off" title="Without the password only the databases EU AI Act and Wachter are shown (and not the release notes, compliance and technical documentation)">
+        <select id="dbUser" class="db-user" aria-label="User name" title="User name – each user sees only their own database" hidden></select>
+        <input id="dbPass" type="password" placeholder="show all databases" spellcheck="false" autocomplete="off" title="Without the password only the public databases (EU AI Act, Wachter, ALITA, TEST) are shown (and not the release notes, compliance and technical documentation)">
       </div>
-      <button type="button" class="btn" id="dbLock" hidden title="Hide the other databases again (only EU AI Act and Wachter stay visible)">Lock</button>
+      <button type="button" class="btn" id="dbLock" hidden title="Hide the other databases again (only the public databases stay visible)">Lock</button>
       <span class="pill model-fixed" id="modelInfo" title="The language model of ALITA (fixed): OpenAI GPT-6 Luna via OpenRouter">Model: GPT-6 Luna</span>
       <button class="btn primary" type="submit">Save</button>
       <span class="pill" id="keyStatus"><span class="dot"></span>no key</span>
       <button type="button" class="mini" id="logout" hidden>Log out</button>
     </form>
   </header>
+  <div id="content" tabindex="-1"></div>
 
-  <!-- REQ-62: three boxes side by side – database bar, and on the B page "Window to the outside" and the B explainer -->
   <div class="bar-row">
   <section class="dbbar" aria-label="Databases">
     <div class="avatar" id="avatar" role="img" aria-label="ALITA avatar: cyberpunk girl with rainbow hair and seashell earrings who follows your cursor">
@@ -151,7 +156,20 @@
     <span class="unas" id="dbUnassigned"></span>
     <button class="clear" id="dbClear" type="button" hidden title="Deselect all databases and clusters">Clear selection</button>
   </section>
-  <div class="b-top" id="bTop" hidden><button type="button" class="b-outside-btn" id="bOutsideBtn" aria-haspopup="dialog" aria-controls="bOutside" title="Window to the outside – external challenge (planned, REQ-20). Click to open."><span class="bo-scene" id="bOutsideScene" aria-hidden="true"></span><span class="bo-label"><span aria-hidden="true">🚧</span> Window to the outside</span></button><div class="chat-why cw-b b-why"><button type="button" class="cw-tag" title="Say hello to ALITA" aria-label="Say hello to ALITA">i</button><p><b>B searches the knowledge graph</b> – the connections between people, projects, methods, clusters and document parts (Graph RAG). Ask it <i>how</i> things are connected – e.g. <q>Who worked with whom on project X?</q> Answers follow paths in the graph and show them. <span class="cw-alt">For what a document says in detail use <b>A</b>.</span></p></div></div>
+  <!-- REQ-87: activity on the server – own uploads/chats with progress, the other users' anonymously -->
+  <section class="dbbar acttile" id="actTile" aria-label="Activity" hidden>
+    <div class="up-head"><span class="up-ic" aria-hidden="true">≋</span><b>Activity</b><span class="act-load" id="actLoad"></span></div>
+    <div class="act-sec"><span class="act-h">You</span><ul class="act-list" id="actYou" aria-live="polite"></ul></div>
+    <div class="act-sec"><span class="act-h">Other users</span><ul class="act-list" id="actOthers"></ul></div>
+  </section>
+  <!-- REQ-84: every user uploads their own data – own tile at the right of the database bar -->
+  <section class="dbbar uptile" id="upTile" aria-label="Upload new data" hidden>
+    <div class="up-head"><span class="up-ic" aria-hidden="true">⇪</span><b>Upload new data</b></div>
+    <p class="up-target" id="upTarget"></p>
+    <button type="button" class="up-btn" id="upOpen">+ Upload new data</button>
+    <button type="button" class="up-btn2" id="upRecluster" title="Compute the clusters completely anew – uploads only sort new documents into the existing clusters">↻ Recompute clusters</button>
+    <p class="up-hint">Progress of your uploads: see Activity</p>
+  </section>
   </div>
 
   <!-- ============ PAGE: CHAT ============ -->
@@ -238,11 +256,11 @@
       <div class="chat" id="ragChat"></div>
       <form class="composer" id="ragForm">
         <div class="chat-scope" id="ragScope" aria-live="polite"></div>
-        <textarea id="ragInput" rows="1" placeholder="Ask your documents …"></textarea>
+        <textarea id="ragInput" rows="1" placeholder="Ask the AI system about your documents …" aria-describedby="aiNotice"></textarea>
         <button class="send" type="submit">Send</button>
       </form>
       <div class="hint">Prompt filters: <code>@type:paper</code> <code>@year:2019-2021</code> <code>@method:survey</code> <code>@role:manuscript</code> <code>@version:latest</code> <code>@db:Magnolia,Orchid</code> <code>@cluster:3</code></div>
-      <p class="ainote"><b>AI system</b> Answers are generated by a language model and can be wrong. Check every statement against its sources.</p>
+      <p class="ainote"><b>AI system</b> You are interacting with an AI system (EU AI Act, Art. 50(1)). Answers are generated by a language model and can be wrong. Check every statement against its sources.</p>
     </section>
 
     <section class="tile acollapsed t-graph" aria-label="Graph chat">
@@ -299,19 +317,18 @@
       <div class="chat" id="graphChat" data-empty="Answers of the Graph Chat appear here – ask a question below."></div>
       <form class="composer" id="graphForm">
         <div class="chat-scope" id="graphScope" aria-live="polite"></div>
-        <textarea id="graphInput" rows="1" placeholder="Ask the knowledge graph …"></textarea>
+        <textarea id="graphInput" rows="1" placeholder="Ask the AI system along the knowledge graph …" aria-describedby="aiNotice"></textarea>
         <button class="send" type="submit">Send</button>
       </form>
       <div class="hint">Narrow the graph under <b>Advanced settings → Parameters</b>: entities, relation, period, hops · e.g. <code>Who worked with whom on project X?</code> <code>Which methods appear in the Dahlia notes?</code></div>
-      <p class="ainote"><b>AI system</b> Answers are generated by a language model along the knowledge graph and can be wrong. Check every statement against its sources.</p>
+      <p class="ainote"><b>AI system</b> You are interacting with an AI system (EU AI Act, Art. 50(1)). Answers are generated by a language model along the knowledge graph and can be wrong. Check every statement against its sources.</p>
     </section>
   </main>
   </div>
 
   <!-- ============ PAGE: CLUSTER GRAPH ============ -->
   <div class="page" id="page-graph" hidden>
-    <!-- REQ-01: workspace in four areas – knowledge map | project/cluster view
-                                          window to the outside | chat -->
+    <!-- REQ-01: workspace – knowledge map | project/cluster view | chat -->
     <div class="cgwrap bgrid">
       <div class="cg-max-scrim" id="cgMaxScrim" hidden></div>
       <section class="cg-main t-graph bq-map" aria-label="Knowledge map: all clusters">
@@ -334,97 +351,6 @@
           <div class="cpdock" id="cgProjCard" hidden aria-live="polite"></div>
           <div class="cpdock" id="cgDock" hidden aria-live="polite"></div>
           <aside class="cg-side" id="cgSide" aria-label="Cluster details"></aside>
-        </div>
-      </section>
-      <div class="b-outside-scrim" id="bOutsideScrim" hidden></div>
-      <section class="bq bq-outside" id="bOutside" role="dialog" aria-modal="true" hidden aria-label="Window to the outside: external challenge (planned)">
-        <div class="bq-head"><h3>Window to the outside</h3><span class="meta">External challenge · 🚧 planned · REQ-20</span><button type="button" class="icon-btn b-outside-close" id="bOutsideClose" aria-label="Close" title="Close (Esc)">✕</button></div>
-        <div class="bq-body desert" aria-hidden="false">
-          <svg class="dz" viewBox="0 0 800 420" preserveAspectRatio="xMidYMax slice" role="img" aria-label="Animated desert construction site: the window to the outside is still being built">
-            <defs>
-              <linearGradient id="dzSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7cc4e8"/><stop offset=".55" stop-color="#cfe6ee"/><stop offset="1" stop-color="#fbe3b8"/></linearGradient>
-              <radialGradient id="dzSun" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff6c8"/><stop offset=".45" stop-color="#ffd86b"/><stop offset="1" stop-color="#ffd86b" stop-opacity="0"/></radialGradient>
-              <linearGradient id="dzDune1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3cf8e"/><stop offset="1" stop-color="#e2b06a"/></linearGradient>
-              <linearGradient id="dzDune2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eebd72"/><stop offset="1" stop-color="#d79a52"/></linearGradient>
-              <linearGradient id="dzDune3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e3a95c"/><stop offset="1" stop-color="#c98940"/></linearGradient>
-              <pattern id="dzStripe" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="16" fill="#e8423a"/><rect x="8" width="8" height="16" fill="#fff"/></pattern>
-              <pattern id="dzHazard" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="14" fill="#1b1b1b"/><rect x="7" width="7" height="14" fill="#ffc21a"/></pattern>
-              <filter id="dzHeat" x="-5%" y="-20%" width="110%" height="140%"><feTurbulence type="fractalNoise" baseFrequency="0.012 0.09" numOctaves="1" seed="3" result="n"><animate attributeName="seed" values="3;9;3" dur="4s" repeatCount="indefinite"/></feTurbulence><feDisplacementMap in="SourceGraphic" in2="n" scale="5"/></filter>
-            </defs>
-
-            <rect width="800" height="420" fill="url(#dzSky)"/>
-            <g class="dz-sun"><circle cx="640" cy="88" r="70" fill="url(#dzSun)"/><circle cx="640" cy="88" r="26" fill="#fff3b0"/></g>
-            <!-- clouds -->
-            <g class="dz-cloud" opacity=".85"><ellipse cx="120" cy="70" rx="46" ry="12" fill="#fff"/><ellipse cx="148" cy="62" rx="26" ry="12" fill="#fff"/></g>
-            <g class="dz-cloud dz-cloud2" opacity=".7"><ellipse cx="420" cy="48" rx="36" ry="9" fill="#fff"/><ellipse cx="440" cy="42" rx="20" ry="9" fill="#fff"/></g>
-            <!-- birds -->
-            <g class="dz-birds" fill="none" stroke="#5a4a3a" stroke-width="2" stroke-linecap="round"><path d="M0 0q6-6 12 0q6-6 12 0"/><path d="M34 10q5-5 10 0q5-5 10 0"/></g>
-
-            <!-- far mesas, shimmering in the heat -->
-            <g filter="url(#dzHeat)">
-              <path d="M0 250 L60 250 L80 214 L170 214 L188 250 L330 250 L350 226 L410 226 L424 250 L560 250 L590 200 L700 200 L722 250 L800 250 L800 290 L0 290Z" fill="#d79a6a" opacity=".55"/>
-            </g>
-            <!-- dunes (drifting slowly) -->
-            <g class="dz-dune dz-d1"><path d="M-60 268 C60 238 160 240 260 262 S470 290 580 258 S760 236 860 262 L860 420 L-60 420Z" fill="url(#dzDune1)"/></g>
-            <g class="dz-dune dz-d2"><path d="M-60 300 C80 270 200 286 320 304 S540 322 660 292 S800 280 860 300 L860 420 L-60 420Z" fill="url(#dzDune2)"/></g>
-
-            <!-- cacti -->
-            <g fill="#4f8a4b" stroke="#3b6d38" stroke-width="2" stroke-linejoin="round">
-              <path d="M88 300 v-74 a10 10 0 0 1 20 0 v74Z"/><path d="M88 262 h-14 a8 8 0 0 1 -8 -8 v-20 a6 6 0 0 1 12 0 v16 h10Z"/><path d="M108 248 h12 v-16 a6 6 0 0 1 12 0 v20 a8 8 0 0 1 -8 8 h-16Z"/>
-              <path d="M735 296 v-44 a7 7 0 0 1 14 0 v44Z"/><path d="M749 270 h8 v-10 a4 4 0 0 1 8 0 v14 a6 6 0 0 1 -6 6 h-10Z"/>
-            </g>
-
-            <!-- construction pit -->
-            <path d="M300 336 C330 322 420 320 470 336 Z" fill="#b97a37"/>
-            <g class="dz-pile"><path d="M480 338 C500 300 540 300 560 338Z" fill="#c98a45"/><path d="M500 334 C514 316 532 316 546 334Z" fill="#d89c56"/></g>
-
-            <!-- excavator -->
-            <g class="dz-exc" transform="translate(330 262)">
-              <rect x="0" y="52" width="120" height="22" rx="11" fill="#2b2b2b"/>
-              <g fill="#555"><circle cx="14" cy="63" r="7"/><circle cx="38" cy="63" r="7"/><circle cx="62" cy="63" r="7"/><circle cx="86" cy="63" r="7"/><circle cx="106" cy="63" r="7"/></g>
-              <rect x="10" y="30" width="96" height="24" rx="3" fill="#ffc21a" stroke="#c99406" stroke-width="2"/>
-              <path d="M54 30 v-30 h40 l12 30Z" fill="#ffc21a" stroke="#c99406" stroke-width="2"/>
-              <path d="M62 6 h26 l8 20 h-34Z" fill="#9fd3ec" stroke="#c99406" stroke-width="1.5"/>
-              <rect x="10" y="44" width="96" height="6" fill="url(#dzHazard)"/>
-              <circle class="dz-beacon" cx="74" cy="-4" r="4" fill="#ff7a1a"/>
-              <g class="dz-boom">
-                <path d="M54 34 L4 -22" stroke="#ffc21a" stroke-width="10" stroke-linecap="round"/>
-                <path d="M54 34 L4 -22" stroke="#c99406" stroke-width="2" stroke-linecap="round" fill="none"/>
-                <g class="dz-stick">
-                  <path d="M4 -22 L-30 26" stroke="#ffc21a" stroke-width="8" stroke-linecap="round"/>
-                  <g class="dz-bucket"><path d="M-30 26 l-16 2 l-6 14 l22 4 l8 -10Z" fill="#7a7a7a" stroke="#4a4a4a" stroke-width="1.5"/><path d="M-50 42 l-3 5 M-44 43 l-2 5 M-38 44 l-1 5" stroke="#4a4a4a" stroke-width="2"/></g>
-                </g>
-              </g>
-            </g>
-            <!-- dust puffs from the bucket -->
-            <g class="dz-dust" fill="#e9c58b"><circle cx="292" cy="328" r="6"/><circle cx="304" cy="324" r="4"/><circle cx="284" cy="322" r="3"/></g>
-
-            <!-- barrier + cones + sign -->
-            <g transform="translate(560 300)">
-              <path d="M6 44 l10 -36 M70 44 l-10 -36" stroke="#8a8a8a" stroke-width="4"/>
-              <rect x="0" y="6" width="76" height="12" rx="2" fill="url(#dzStripe)" stroke="#9b2b25" stroke-width="1"/>
-              <rect x="0" y="24" width="76" height="10" rx="2" fill="url(#dzStripe)" stroke="#9b2b25" stroke-width="1"/>
-              <circle class="dz-blink" cx="6" cy="2" r="4" fill="#ffb21a"/><circle class="dz-blink dz-blink2" cx="70" cy="2" r="4" fill="#ffb21a"/>
-            </g>
-            <g class="dz-cone" transform="translate(250 330)"><path d="M0 18 L8 -14 L16 18Z" fill="#ff6a1a"/><path d="M3 6 h10 l-1.5 -6 h-7Z" fill="#fff"/><rect x="-4" y="16" width="24" height="5" rx="1" fill="#e5560f"/></g>
-            <g class="dz-cone" transform="translate(660 340)"><path d="M0 18 L8 -14 L16 18Z" fill="#ff6a1a"/><path d="M3 6 h10 l-1.5 -6 h-7Z" fill="#fff"/><rect x="-4" y="16" width="24" height="5" rx="1" fill="#e5560f"/></g>
-            <g transform="translate(180 236)">
-              <rect x="27" y="40" width="6" height="74" fill="#8a6a4a"/>
-              <g class="dz-sign"><path d="M30 0 L62 32 L30 64 L-2 32Z" fill="#ffc21a" stroke="#1b1b1b" stroke-width="3" stroke-linejoin="round"/>
-                <g fill="#1b1b1b"><circle cx="28" cy="20" r="3.5"/><path d="M27 25 l-6 12 l4 2 l3 -6 l4 4 v8 h4 v-10 l-4 -5 l2 -4 l5 3 l2 -3 l-7 -4Z"/><path d="M36 44 l8 -3 v4 l-8 2Z"/></g></g>
-            </g>
-
-            <!-- tumbleweed rolling through -->
-            <g class="dz-tumble"><g class="dz-roll" fill="none" stroke="#9b7444" stroke-width="1.6" stroke-linecap="round">
-              <circle cx="0" cy="0" r="13"/><path d="M-12 -4 C-4 -14 8 -10 12 2 M-10 8 C-2 -2 6 4 10 10 M-6 -12 C2 -4 -2 6 -8 12 M2 -13 C8 -4 4 6 -2 13"/>
-            </g></g>
-            <!-- blowing sand -->
-            <g class="dz-sand" fill="#f6dba5"><circle cx="0" cy="360" r="1.6"/><circle cx="40" cy="378" r="1.2"/><circle cx="90" cy="350" r="1.4"/><circle cx="150" cy="384" r="1.1"/><circle cx="210" cy="366" r="1.5"/></g>
-          </svg>
-          <div class="dz-card"><b>🚧 External challenge – under construction</b>
-            <span>Selected content – a cluster, a chat answer or a document – can be <b>checked and questioned against external databases</b>. The results will appear here, next to your own knowledge.</span>
-            <ol class="dz-steps"><li>Select content in the map, the cluster view or the chat</li><li>Challenge it against external databases</li><li>See confirmations, contradictions and gaps here</li></ol>
-            <small>REQ-20 · concept part of the proposal / call; implementation follows later.</small></div>
         </div>
       </section>
       <div class="bslot bq-chat" id="bTileSlot"></div>
@@ -488,6 +414,7 @@
           <th data-sort="v">Version <span class="arr"></span></th>
           <th>Methods</th>
           <th data-sort="ix">Index <span class="arr"></span></th>
+          <th class="dact"><span class="sr-only">Delete</span></th>
         </tr></thead>
         <tbody id="dbody"></tbody>
       </table>
@@ -511,50 +438,48 @@
   <div class="dr-head"><h3 id="histTitle">Chat history</h3><button class="icon-btn" id="histClose" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   <div class="dr-body" id="histBody"></div>
 </aside>
-<div class="modal" id="upload" hidden>
-  <form class="box" id="uploadForm">
-    <h3>Upload documents</h3>
-    <div class="seg" role="radiogroup" aria-label="Data type">
-      <label><input type="radio" name="utype" value="research_project" checked> Research Project</label>
-      <label><input type="radio" name="utype" value="research_paper"> Research Paper</label>
-      <label><input type="radio" name="utype" value="research_notes"> Research Notes</label>
-      <label><input type="radio" name="utype" value="legal_project"> Legal Project</label>
-      <label><input type="radio" name="utype" value="legal_guideline"> Guideline</label>
-      <label><input type="radio" name="utype" value="standard"> Standard</label>
-      <label><input type="radio" name="utype" value="guidance"> Guidance &amp; FAQ</label>
-    </div>
-    <p id="uHint">Upload the project folder as a ZIP. The folder name becomes the project name, and every file inside is linked to the project. The "Literatur" folder is skipped.</p>
-    <label id="uProjWrap" hidden>Link to project (optional)<input type="text" id="uProject" list="projList" placeholder="e.g. 11-MentalModelProcesses"></label>
-    <datalist id="projList"></datalist>
-    <label>File(s)<input type="file" id="uFiles" multiple accept=".zip"></label>
-    <div><p style="margin-bottom:6px">Database(s)</p><div class="dbpick" id="uDbs"></div></div>
-    <label class="check" style="flex-direction:row;color:var(--fg)"><input type="checkbox" id="uLlm" checked> Generate summary and methods with the LLM</label>
-    <div class="row"><button type="button" class="btn" id="uCancel">Cancel</button><button class="btn primary" type="submit">Upload</button></div>
-  </form>
-</div>
-<!-- "Add new data" (database bar): database · data type · overall date · files -->
+<!-- "Upload new data" (REQ-84; tile next to the database bar and Documents → + Upload): database · data type · overall date · files -->
 <div class="modal adddata" id="addData" hidden>
   <form class="box" id="addForm" aria-labelledby="adTitle">
-    <div class="ad-head"><h3 id="adTitle">Add new data</h3><button type="button" class="ad-x" data-adclose aria-label="Close">✕</button></div>
+    <div class="ad-head"><h3 id="adTitle">Upload new data</h3><button type="button" class="ad-x" data-adclose aria-label="Close">✕</button></div>
     <fieldset class="ad-step"><legend><b>1</b> Which database should the documents go to?</legend>
       <div class="ad-dbs" id="adDbs" role="radiogroup" aria-label="Database"></div></fieldset>
     <fieldset class="ad-step"><legend><b>2</b> What kind of data is it?</legend>
-      <div class="ad-types" role="radiogroup" aria-label="Data type">
-        <label class="ad-type"><input type="radio" name="adtype" value="research_project"><i aria-hidden="true">◆</i><b>Research project</b><span>a project folder as ZIP – manuscripts, data, analyses, submissions</span></label>
-        <label class="ad-type"><input type="radio" name="adtype" value="research_paper"><i aria-hidden="true">■</i><b>Research papers</b><span>published or own papers, one or more files</span></label>
-        <label class="ad-type"><input type="radio" name="adtype" value="research_notes"><i aria-hidden="true">●</i><b>Research notes</b><span>notes, minutes, idea collections, web articles</span></label>
-        <label class="ad-type"><input type="radio" name="adtype" value="legal_project"><i aria-hidden="true" style="color:var(--t-legal)">▲</i><b>Legal project</b><span>a ZIP with the versions of a law (proposal, adopted, consolidated) – add _legal.yaml for dates</span></label>
-        <label class="ad-type"><input type="radio" name="adtype" value="legal_guideline"><i aria-hidden="true" style="color:var(--t-guideline)">▲</i><b>Legal guidelines</b><span>formally adopted guidelines of authorities, e.g. Commission guidelines C(2025) …</span></label>
-        <label class="ad-type"><input type="radio" name="adtype" value="guidance"><i aria-hidden="true" style="color:var(--t-guidance)">▲</i><b>Guidance &amp; FAQ</b><span>Q&amp;A pages, FAQs, factsheets and explanations of authorities (not binding)</span></label>
-        <label class="ad-type"><input type="radio" name="adtype" value="standard"><i aria-hidden="true" style="color:var(--t-standard)">▲</i><b>Standards</b><span>ISO, IEC, CEN, DIN … one file per standard</span></label>
+      <div class="ad-typesel">
+        <select id="adType" aria-label="Data type" aria-describedby="adTypeDesc">
+          <option value="">Choose the kind of data …</option>
+          <optgroup label="Research">
+            <option value="research_paper">Research papers</option>
+            <option value="research_notes">Research notes</option>
+            <option value="research_project">Research project (ZIP)</option>
+          </optgroup>
+          <optgroup label="Law and regulation">
+            <option value="legal_project">Legal project – versions of a law (ZIP)</option>
+            <option value="legal_guideline">Legal guidelines</option>
+            <option value="guidance">Guidance &amp; FAQ</option>
+            <option value="standard">Standards</option>
+          </optgroup>
+        </select>
+        <p class="ad-typedesc" id="adTypeDesc"></p>
+      </div>
+      <div class="ad-mode" id="adMode" hidden role="radiogroup" aria-label="New or existing project">
+        <label class="check"><input type="radio" name="admode" value="new" checked> <span><b>New project</b> – one ZIP per project folder</span></label>
+        <label class="check"><input type="radio" name="admode" value="add"> <span><b>Add to an existing project</b> – new documents or new versions</span></label>
+        <div class="ad-add" id="adAdd" hidden>
+          <label>Project<select id="adExProj" aria-label="Existing project"></select></label>
+          <label id="adVerWrap" hidden>The file is<select id="adVersionOf" aria-label="New document or new version"></select></label>
+          <p class="ad-addhint">Earlier versions stay: the project's version history and knowledge stages then show how the insights developed from version to version. A file with the same name as one in the project becomes its next version automatically.</p>
+        </div>
       </div></fieldset>
     <fieldset class="ad-step"><legend><b>3</b> <span id="adDateQ">Which overall date should the data get?</span></legend>
       <div class="ad-date"><input type="date" id="adDate" aria-describedby="adDateHint"><button type="button" class="mini" id="adDateClear">no date</button></div>
       <p id="adDateHint">Optional. Leave empty to take the dates from the files.</p></fieldset>
     <fieldset class="ad-step"><legend><b>4</b> Files</legend>
       <label class="ad-drop" id="adDrop"><input type="file" id="adFiles" multiple><span id="adDropText">Drop files here or <u>choose files</u></span></label>
-      <label id="adProjWrap" hidden>Link to an existing project (optional)<input type="text" id="adProject" list="projList" placeholder="e.g. 11-MentalModelProcesses"></label>
+      <label id="adProjWrap" hidden>Link to an existing project (optional)<input type="text" id="adProject" list="projList" placeholder="e.g. 11-MentalModelProcesses"></label><datalist id="projList"></datalist>
       <label class="check" style="flex-direction:row;color:var(--fg)"><input type="checkbox" id="adLlm" checked> Generate summary and methods with the LLM</label></fieldset>
+    <p class="ad-pipe" id="adPipe"></p>
+    <p class="ad-key" id="adKey" hidden></p>
     <p class="ad-sum" id="adSum" aria-live="polite"></p>
     <div class="row"><button type="button" class="btn" data-adclose>Cancel</button><button class="btn primary" type="submit" id="adGo" disabled>Add data</button></div>
   </form>
@@ -564,6 +489,22 @@
       <div id="adcBody"></div>
       <div class="row"><button type="button" class="btn" id="adcBack">Back</button><button type="button" class="btn primary" id="adcGo">Upload</button></div>
     </div>
+  </div>
+</div>
+<!-- REQ-92: confirm a complete new clustering -->
+<div class="ad-confirm" id="rcConfirm" hidden role="alertdialog" aria-modal="true" aria-labelledby="rcTitle">
+  <div class="box">
+    <h3 id="rcTitle">Recompute clusters</h3>
+    <div id="rcBody"></div>
+    <div class="row"><button type="button" class="btn" id="rcBack">Cancel</button><button type="button" class="btn primary" id="rcGo">Recompute</button></div>
+  </div>
+</div>
+<!-- REQ-90: confirm a deletion in the Documents tab -->
+<div class="ad-confirm" id="delConfirm" hidden role="alertdialog" aria-modal="true" aria-labelledby="delTitle">
+  <div class="box">
+    <h3 id="delTitle">Delete data</h3>
+    <div id="delBody"></div>
+    <div class="row"><button type="button" class="btn" id="delBack">Cancel</button><button type="button" class="btn danger" id="delGo">Delete</button></div>
   </div>
 </div>
 <div class="toast" id="toast" role="status"></div>
@@ -592,17 +533,29 @@
 </div>
 <script src="js/data.js"></script>
 <script src="js/core.js"></script>
+<script src="js/sea-glyphs.js"></script>
+<script src="js/state.js"></script>
 <script src="js/databases.js"></script>
+<script src="js/header-access.js"></script>
 <script src="js/release-compliance.js"></script>
-<script src="js/clusters.js"></script>
+<script src="js/cluster-core.js"></script>
+<script src="js/cluster-3d.js"></script>
+<script src="js/cluster-map2d.js"></script>
+<script src="js/cluster-page.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/herring.js"></script>
+<script src="js/database-info.js"></script>
 <script src="js/cluster-compare.js"></script>
 <script src="js/map-window.js"></script>
-<script src="js/outside.js"></script>
 <script src="js/cluster-profile.js"></script>
 <script src="js/chat-tools.js"></script>
 <script src="js/info-alita.js"></script>
 <script src="js/docs-nav.js"></script>
 <script src="js/documents.js"></script>
+<script src="js/upload-project.js"></script>
+<script src="js/upload.js"></script>
+<script src="js/delete.js"></script>
+<script src="js/party.js"></script>
 <script src="js/chat.js"></script>
 <script src="js/people.js"></script>
 <script src="js/progress.js"></script>
@@ -616,6 +569,7 @@
 <script src="js/voxel.js"></script>
 <script>window.syncPuppy&&syncPuppy();window.syncVoxel&&syncVoxel()</script>
 <script src="js/tour.js"></script>
+<script src="js/activity.js"></script>
 <script src="js/start.js"></script>
 <!--APP-END-->
 </body>

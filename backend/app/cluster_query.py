@@ -1,16 +1,16 @@
-"""Fragen zu dem, was die Wissenskarte zeigt (3.9.0, REQ-67): Zusammenhänge zwischen Clustern im Graph Chat.
+"""Questions about what the knowledge map shows (3.9.0, REQ-67): relations between clusters in the Graph Chat.
 
-Die Karte zeigt Cluster und ihre Beziehungen (Brücken, über Datenbanken hinweg die violetten Linien). Fragt man nach
-„C8“, „C9“ oder „dem Zusammenhang zwischen C8 und C9“, führt der Weg über die Ontologie zu den Textstellen:
+The map shows clusters and their relations (bridges; across databases the violet lines). Asking about
+"C8", "C9" or "the relation between C8 and C9" leads via the ontology to the passages:
 
-    Cluster ──hat Mitglied──▶ Dokument ──enthält──▶ Abschnitt (DoCO, Rolle nach DEO bzw. Bestandteil eines Gesetzes)
-            ──enthält──▶ Textstelle
+    cluster ──has member──▶ document ──contains──▶ section (DoCO, role after DEO or component of a law)
+            ──contains──▶ passage
 
-1. Cluster in der Frage erkennen (`named_clusters`) – sie werden zum Suchraum, auch wenn gerade ein Projekt gewählt ist.
-2. Je Cluster die passenden Textstellen suchen (graphrag.retrieve_across).
-3. Brücken-Stellen (`bridge_passages`): zu den besten Stellen eines Clusters die ähnlichste Stelle im anderen Cluster
-   (Kosinus der Text-Vektoren) – die Belege für die Linie in der Karte.
-4. Dem Sprachmodell Cluster-Profile, Beziehung und Stellenpaare mitgeben; der Graphpfad zeigt den Weg über die Ontologie.
+1. Recognise clusters in the question (`named_clusters`) – they become the search space, even when a project is selected.
+2. Search the matching passages per cluster (retrieval.retrieve_across).
+3. Bridge passages (`bridge_passages`): for the best passages of one cluster the most similar passage in the other cluster
+   (cosine of the text vectors) – the evidence for the line in the map.
+4. Give the language model cluster profiles, relation and passage pairs; the graph path shows the way via the ontology.
 """
 from __future__ import annotations
 
@@ -18,13 +18,13 @@ import re
 from collections import Counter, defaultdict
 
 CLUSTER_RX = re.compile(r"(?<![\w.§/])(?:c|cluster\s*#?\s*)(\d{1,3})(?!\w|\.\d)", re.I)
-MAX_PAIRS = 3          # Clusterpaare, für die Brücken-Stellen gesucht werden
-SEEDS = 3              # beste Stellen je Cluster, zu denen der Partner gesucht wird
-MAX_BRIDGES = 4        # Stellenpaare in Prompt und Antwort
+MAX_PAIRS = 3          # cluster pairs for which bridge passages are searched
+SEEDS = 3              # best passages per cluster for which the partner is searched
+MAX_BRIDGES = 4        # passage pairs in prompt and answer
 
 
 def named_clusters(text: str, known: set[int]) -> list[int]:
-    """Cluster-IDs, die in der Frage genannt sind („C8“, „c9“, „cluster 8“) und im Index existieren."""
+    """Cluster ids named in the question ("C8", "c9", "cluster 8") that exist in the index."""
     out = []
     for m in CLUSTER_RX.finditer(text or ""):
         c = int(m.group(1))
@@ -34,7 +34,7 @@ def named_clusters(text: str, known: set[int]) -> list[int]:
 
 
 def profiles(cluster_ids: list[int], docs: list[dict], db_name=lambda d: d) -> dict[int, dict]:
-    """Titel, Beschreibung, Erkenntnisse, Datenbank und Mitglieder je Cluster aus den Dokument-Payloads."""
+    """Title, description, insights, database and members per cluster from the document payloads."""
     out: dict[int, dict] = {}
     votes: dict[int, Counter] = defaultdict(Counter)
     wanted = set(cluster_ids)
@@ -56,6 +56,7 @@ def profiles(cluster_ids: list[int], docs: list[dict], db_name=lambda d: d) -> d
 
 
 def profiles_context(prof: dict[int, dict]) -> str:
+    """Prompt section describing the clusters a question names or selects (members, description, insights)."""
     if not prof:
         return ""
     lines = []
@@ -68,7 +69,7 @@ def profiles_context(prof: dict[int, dict]) -> str:
 
 
 def _role(payload: dict) -> str:
-    """Ontologische Rolle einer Textstelle: DEO-Rolle (Paper, Notizen) oder Bestandteil eines Rechtstexts."""
+    """Ontological role of a passage: DEO role (papers, notes) or component of a legal text."""
     deo = [r for r in payload.get("deo") or [] if r]
     if deo:
         return f"deo:{deo[0]}"
@@ -82,8 +83,8 @@ def _short(payload: dict) -> str:
 
 
 async def bridge_passages(hits: list, cluster_ids: list[int], by_db: dict[str, list[int]], top_k: int = MAX_BRIDGES) -> list[dict]:
-    """Stellenpaare über die Grenze zweier gewählter Cluster: zu den besten Treffern eines Clusters die ähnlichste Stelle
-    im anderen (Text-Vektor als Anfrage, Filter auf Cluster und Datenbank). Ergebnis nach Ähnlichkeit, Dubletten einmal."""
+    """Passage pairs across the border of two selected clusters: for the best hits of one cluster the most similar passage
+    in the other (text vector as query, filter on cluster and database). Result by similarity, duplicates once."""
     from qdrant_client import models as qm
 
     from . import store
@@ -122,7 +123,7 @@ async def bridge_passages(hits: list, cluster_ids: list[int], by_db: dict[str, l
 
 
 def bridges_context(bridges: list[dict], number_of) -> str:
-    """Prompt-Abschnitt: Stellenpaare mit Quellennummern ([n] ↔ [m]) und ontologischer Rolle."""
+    """Prompt section: passage pairs with source numbers ([n] ↔ [m]) and ontological role."""
     if not bridges:
         return ""
     lines = [f"- [{number_of(x['left'])}] C{x['a']} {_role(x['left'].payload)} „{_short(x['left'].payload)}“ ↔ "
@@ -133,7 +134,7 @@ def bridges_context(bridges: list[dict], number_of) -> str:
 
 
 def bridge_path(bridge: dict, prof: dict[int, dict]) -> list:
-    """Graphpfad im Format des Frontends: Cluster → Dokument → Abschnitt ↔ Abschnitt → Dokument → Cluster."""
+    """Graph path in the format of the front end: cluster → document → section ↔ section → document → cluster."""
     def cl(c):
         p = prof.get(c) or {}
         return [f"C{c} {p.get('title') or ''}".strip()[:60], "Cluster"]

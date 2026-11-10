@@ -89,3 +89,4 @@ function wireTeam(box,rerender){
   });
 }
 loadPeople();
+Store.on('databases',()=>loadPeople(),70);

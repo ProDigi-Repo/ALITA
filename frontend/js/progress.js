@@ -4,7 +4,7 @@
    project card and a stage table under chat answers about a project's development.
    Every file links to its document (REQ-18).
    ====================================================================== */
-const PG_KIND={start:['first version','#495057'],substantive:['substantive change','#d9480f'],reword:['rewording','#868e96'],
+const PG_KIND={start:['first version','#495057'],substantive:['substantive change','#1d5fd1'],reword:['rewording','#868e96'],
   resubmission:['resubmission','#7048e8'],format:['formatting only','#adb5bd'],identical:['identical copy','#ced4da'],unknown:['not comparable (no text)','#ced4da']};
 const PG_ROLE={analysis_output:'analysis output',analysis_script:'analysis script',model_file:'model',data:'data'};
 const PG_CACHE=new Map();
@@ -36,7 +36,7 @@ function progressTimelineSvg(p){
   const step=Math.max(10,Math.min(26,520/vs.length)),L=66,W=L+step*(vs.length-1)+24,yV=52,yA=100,H=126;
   const X=n=>L+(n-1)*step;
   const bands=st.map((s,i)=>{const x0=X(s.from)-step/2,x1=X(s.to)+step/2;
-    return `<rect x="${x0}" y="14" width="${x1-x0}" height="${H-20}" rx="6" class="pg-band${i%2?' alt':''}"/><text x="${x0+5}" y="27" class="pg-bl">Stage ${s.n}</text>`}).join('');
+    return `<rect x="${x0}" y="14" width="${x1-x0}" height="${H-20}" rx="6" class="pg-band${i%2?' alt':''}"/>${x1-x0>=46?`<text x="${x0+5}" y="27" class="pg-bl">Stage ${s.n}</text>`:x1-x0>=12?`<text x="${(x0+x1)/2}" y="27" text-anchor="middle" class="pg-bl"><title>Stage ${s.n}</title>${s.n}</text>`:''}`}).join('');   /* narrow band: only the number, no overlapping labels */
   const line=`<line x1="${X(1)}" y1="${yV}" x2="${X(vs.length)}" y2="${yV}" class="pg-spine"/>`;
   const dots=vs.map(v=>{const k=PG_KIND[v.kind]||PG_KIND.unknown,big=v.kind==='substantive'||v.kind==='start',x=X(v.n);
     const t=`<title>${esc(`${v.n} · ${v.filename}${v.date?' · '+v.date:''}\n${k[0]}${v.why&&v.kind!=='start'?': '+v.why:''}${v.venue?'\njournal: '+v.venue:''}`)}</title>`;

@@ -1,13 +1,13 @@
-# Methoden-Glossar (VORLÄUFIG)
+# Methods glossary (PROVISIONAL)
 # --------------------------------------------------------------
-# Dieses Glossar steuert die Methoden-Klassifikation der Dokumente.
-# Es wird später durch das fachliche Glossar ersetzt. Format je Eintrag:
-#   id:          stabiler Schlüssel (wird im Index gespeichert und gefiltert)
+# This glossary drives the method classification of the documents.
+# It will later be replaced by the domain glossary. Format per entry:
+# id:          stable key (stored in the index and used for filtering)
 #   label:       Anzeigename
-#   category:    Oberkategorie (für Gruppierung / Facetten)
-#   description: Erläuterung (geht als Kontext an das LLM)
-#   synonyms:    Begriffe für die schnelle Stichwort-Erkennung (klein, de + en)
-# Nach Änderungen: `python -m app.ingest reclassify` aufrufen.
+# category:    top category (for grouping / facets)
+# description: explanation (goes to the LLM as context)
+# synonyms:    terms for the quick keyword detection (lower case, de + en)
+# after changes: re-ingest the documents (`python -m app.ingestion …`) so the method tags are recomputed.
 version: 0.1
 methods:
   - id: lab_experiment

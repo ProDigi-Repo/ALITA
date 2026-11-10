@@ -2,7 +2,7 @@
 function clusterTag(d,big){if(d.ci==null)return '<span class="srcnote">–</span>';return `<span class="ctag ${big?'big':''}" style="--h:${(d.ci*67)%360}" title="Cluster ${d.ci}: ${esc(d.cl||'')}"><b>C${d.ci}</b><span>${esc(d.cl||'')}</span></span>`}
 function CLUSTER_NOTE(){const c=(!LIVE&&DEMO&&DEMO.clusters)||null;const model=c&&c.model?` (${c.model}, ${c.dim} dimensions)`:'';return `Semantic clustering: k-means on the embeddings${model} of the structured summaries (title, purpose, design/methodology/approach, findings, research limitations/implications, originality/value); cluster count chosen by silhouette. Data points: one per research paper, one per research note and one per research project. Files inside a project inherit the project's cluster. Person names in cluster labels are replaced by Pokémon pseudonyms.`}
 
-/* ---------- Release notes (Quelle: CHANGELOG.md; live über /api/release-notes) ---------- */
+/* ---------- Release notes (source: CHANGELOG.md; live via /api/release-notes) ---------- */
 function mdInline(t){return esc(t).replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')}
 const REL_ORDER=['Requirements','Added','Changed','Deprecated','Removed','Fixed','Security','Open points'];
 function relSections(r){const sec=r.sections&&Object.keys(r.sections).length?r.sections:{Changed:r.changes||[]};

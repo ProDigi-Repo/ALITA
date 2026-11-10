@@ -1,11 +1,16 @@
-"""Graph RAG für Kachel B (Graph Chat): Frage -> Plan (DEO-Rolle + Entitäten) -> Neo4j-Pfad -> Vektorsuche
-nur in den Textstellen dieses Pfads -> gestreamte Antwort mit Graphpfad.
+"""Graph RAG for tile B (Graph Chat): question -> plan (DEO role + entities) -> Neo4j path -> vector search
+only in the passages of this path -> streamed answer with the graph path.
 
-Ohne erreichbaren Graphen fällt der Dienst auf die Vektorsuche mit DEO-Filter zurück (kein Abbruch).
+Without a reachable graph the service falls back to the vector search with the DEO filter (no failure).
+
+One question runs through the steps of ``answer_stream`` on a ``GraphTurn`` (the state of this question):
+plan → graph documents → filters and scope → passages (+ cluster relations/bridges, + paper → provision links) →
+graph path → meta → prompt → streamed answer. Each step is a small function; extras never block the answer.
 """
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass, field
 
 from pydantic import BaseModel, Field
 
@@ -20,27 +25,28 @@ log = logging.getLogger("graphrag")
 
 
 class GraphRequest(BaseModel):
+    """Request of the GraphRAG chat: the question plus the scope selected in the map/graph (databases, clusters, persons, projects, DEO roles, relation, years)."""
     message: str
     history: list[ChatTurn] = []
     system_prompt: str | None = None
     model: str | None = None
     databases: list[str] = []
-    clusters: list[int] = []                  # ausgewählte Cluster (Klick in Karte/Graph); leer = alle
-    persons: list[str] = []                   # REQ-19: nur Daten dieser Person(en)
-    projects: list[str] = []                  # REQ-12: ausgewähltes Projekt (Klick in der Karte) – nur dieses Projekt
-    overview: bool = False                    # REQ-12: nichts ausgewählt (Landkarte) – Überblick über alle Projekte/Cluster mitgeben
-    deo: list[str] = []                       # aus dem UI („Discourse element“); leer = aus der Frage ableiten
+    clusters: list[int] = []                  # selected clusters (click in map/graph); empty = all
+    persons: list[str] = []                   # REQ-19: only data of these person(s)
+    projects: list[str] = []                  # REQ-12: selected project (click in the map) – only this project
+    overview: bool = False                    # REQ-12: nothing selected (whole map) – add an overview of all projects/clusters
+    deo: list[str] = []                       # from the UI ("Discourse element"); empty = derived from the question
     entity_types: list[str] = ["person", "organization", "project", "method"]
     relation: str | None = None               # authored | uses_method | cites | in_cluster | contains
     year_from: int | None = None
     year_to: int | None = None
     hops: int = Field(2, ge=1, le=4)
-    as_of: str | None = None                  # REQ-37: Stichtag für Rechtstexte (YYYY-MM-DD); leer = aus der Frage, sonst heute
+    as_of: str | None = None                  # REQ-37: reference date for legal texts (YYYY-MM-DD); empty = from the question, else today
     top_k: int = Field(6, ge=1, le=20)
 
 
 def plan_question(req: GraphRequest, vocab: dict, filters_meta=None) -> dict:
-    """Welche DEO-Rollen und Entitäten spricht die Frage an? (regelbasiert, ohne LLM)"""
+    """Which DEO roles and entities does the question address? (rule-based, no LLM)"""
     from .query_meta import analyze
 
     meta = analyze(req.message, vocab, filters_meta)
@@ -68,7 +74,7 @@ def plan_question(req: GraphRequest, vocab: dict, filters_meta=None) -> dict:
 
 
 def path_for(plan: dict, doc: dict | None) -> list:
-    """Graphpfad für die Anzeige: [[Wert, Typ], "relation", …] (Format des Frontends)."""
+    """Graph path for display: [[value, type], "relation", …] (format of the front end)."""
     if not doc:
         return [[r, "DEO"] for r in plan.get("deo", [])[:2]]
     p: list = []
@@ -88,208 +94,262 @@ def path_for(plan: dict, doc: dict | None) -> list:
     return p
 
 
-def _interleave(lists: list[list]) -> list:
-    """Treffer mehrerer Suchen abwechselnd zusammenführen (beste zuerst je Liste), Dubletten einmal."""
-    out, seen = [], set()
-    for k in range(max((len(x) for x in lists), default=0)):
-        for x in lists:
-            if k < len(x) and str(x[k].id) not in seen:
-                seen.add(str(x[k].id))
-                out.append(x[k])
-    return out
+NOTHING_FOUND = "I found nothing in the knowledge graph or the documents that answers this question with the current settings."
 
 
-async def retrieve_across(query: str, creq, key: str, groups: dict[str, list[int]], by_id: dict[str, dict],
-                          per_cluster: bool = False) -> list:
-    """REQ-59: ausgewählte Cluster aus mehreren Datenbanken – je Datenbank in ihren Clustern suchen und die Treffer
-    abwechselnd zusammenführen, damit eine große Datenbank (z. B. ein Gesetz mit Tausenden Stellen) eine kleine
-    (zwei Paper) nicht verdrängt. per_cluster=True (REQ-67, Frage nach genannten Clustern): je Cluster einzeln."""
-    from .rag import retrieve
+@dataclass
+class GraphTurn:
+    """State of one Graph Chat question while it moves through the steps."""
+    req: GraphRequest
+    key: str
+    model_name: str
+    memory: list
+    search_q: str
+    all_docs: list[dict]
+    plan: dict
+    named: list[int] = field(default_factory=list)            # clusters named in the question (REQ-67)
+    groups: dict[str, list[int]] = field(default_factory=dict)  # database -> selected clusters
+    cluster_mode: bool = False
+    graph_docs: list[dict] = field(default_factory=list)
+    neighbours: list[dict] = field(default_factory=list)
+    graph_ok: bool = False
+    filters: SearchFilters | None = None
+    temporal: dict | None = None
+    legal_head: str = ""
+    legal_table: dict | None = None
+    hits: list = field(default_factory=list)
+    rel_head: str = ""
+    rel_links: list = field(default_factory=list)
+    bridges: list = field(default_factory=list)
+    prov: dict = field(default_factory=lambda: {"links": []})
+    prov_head: str = ""
+    prof_head: str = ""
+    sources: list = field(default_factory=list)
+    top: dict | None = None
+    path: list = field(default_factory=list)
 
-    scopes = [(db, [c]) for db, cs in groups.items() for c in cs] if per_cluster else list(groups.items())
-    per = max(2, -(-creq.top_k // len(scopes)))
-    lists = []
-    for db, cids in scopes:
-        f = creq.filters
-        ids = [i for i in f.doc_ids if db in ((by_id.get(i) or {}).get("databases") or [])]
-        f = f.model_copy(update={"cluster": cids, "database": [db], "doc_ids": ids})
-        sub = creq.model_copy(update={"filters": f, "top_k": per})
-        hits = await retrieve(query, sub, key)
-        if not hits and (f.deo or f.doc_ids):     # Rolle/Graphpfad zu eng: nur in den Clustern suchen
-            hits = await retrieve(query, sub.model_copy(update={"filters": f.model_copy(update={"deo": [], "doc_ids": []})}), key)
-        lists.append(hits)
-    return _interleave(lists)[: max(creq.top_k, per * len(scopes))]
+    @property
+    def by_id(self) -> dict[str, dict]:
+        """Documents of the scope by doc_id."""
+        return {d["doc_id"]: d for d in self.all_docs}
+
+    def positions(self) -> dict[str, int]:
+        """1-based source number of every retrieved hit, by point id."""
+        return {str(h.id): i + 1 for i, h in enumerate(self.hits)}
 
 
-async def answer_stream(req: GraphRequest, api_key: str | None = None):
-    from pydantic_ai import Agent
-
-    meter = usage.start()                     # was Frage und Antwort gekostet haben
-
-    from . import store
-    from .config import get_settings
-    from .llm import chat_model, resolve_key
-    from .memory import select_memory
-    from .prompts import resolve as resolve_prompt
-    from .prompts import system_prompt
-    from .query_meta import vocab_from_documents
-    from .rag import retrieve, standalone_query, to_sources
-    from .ranking import cited_numbers
-    from .schemas import ChatRequest
-
-    key = resolve_key(api_key)
-    s = get_settings()
-    model_name = s.chat_model          # festes Modell (CHAT_MODEL)
-    memory = select_memory(req.history, s.memory_max_turns, s.memory_max_chars)
-    search_q = await standalone_query(req.message, memory, model_name, key, s.memory_rewrite)
-    all_docs = store.scroll_documents(limit=5000)
-    plan = plan_question(req.model_copy(update={"message": search_q}), vocab_from_documents(all_docs, s.databases))
-    # REQ-67: clusters named in the question ("C8", "between C8 and C9") become the search space – also when a project
-    # is selected – and clusters from several databases are searched cluster by cluster
-    from .cluster_query import bridge_passages, bridge_path, bridges_context, named_clusters, profiles, profiles_context
-    from .cluster_relations import group_by_database, relations_context
-    from .config import db_name
-    visible = set(plan["databases"] or [])
-    known = {int(d["cluster_id"]) for d in all_docs if d.get("cluster_id") is not None
+def _cluster_scope(t: GraphTurn) -> None:
+    """REQ-67: clusters named in the question ("C8", "between C8 and C9") become the search space – also when a project
+    is selected – and clusters from several databases are searched cluster by cluster."""
+    from .cluster_query import named_clusters
+    from .cluster_relations import group_by_database
+    visible = set(t.plan["databases"] or [])
+    known = {int(d["cluster_id"]) for d in t.all_docs if d.get("cluster_id") is not None
              and (not visible or visible & set(d.get("databases") or []))}
-    named = named_clusters(req.message, known)
-    if named:
-        plan["clusters"] = named
-    groups = group_by_database(plan["clusters"], all_docs) if plan["clusters"] else {}
-    cluster_mode = bool(named) or len(groups) > 1
-    if cluster_mode:
-        plan["projects"] = []
-        plan["databases"] = sorted(set(plan["databases"] or []) | set(groups)) if plan["databases"] else []
+    t.named = named_clusters(t.req.message, known)
+    if t.named:
+        t.plan["clusters"] = t.named
+    t.groups = group_by_database(t.plan["clusters"], t.all_docs) if t.plan["clusters"] else {}
+    t.cluster_mode = bool(t.named) or len(t.groups) > 1
+    if t.cluster_mode:
+        t.plan["projects"] = []
+        t.plan["databases"] = sorted(set(t.plan["databases"] or []) | set(t.groups)) if t.plan["databases"] else []
 
-    graph_docs, neighbours, graph_ok = [], [], False
-    if s.graph_enabled:
-        try:
-            from . import graph
-            found = graph.find(plan, limit=12)
-            graph_docs, neighbours, graph_ok = found["documents"], found["neighbours"], True
-        except Exception as e:
-            log.warning("Graph-Abfrage fehlgeschlagen, nur Vektorsuche: %s", e)
-    doc_ids = [d["doc_id"] for d in graph_docs] + [n["doc_id"] for n in neighbours]
-    from .rag import legal_note, legal_scope
-    lf, temporal, legal_head, legal_table = legal_scope(req.message, SearchFilters(database=plan["databases"], as_of=req.as_of), all_docs)  # REQ-37
-    filters = SearchFilters(database=plan["databases"], cluster=plan["clusters"], project=[] if cluster_mode else list(req.projects), person=list(req.persons), deo=plan["deo"] if graph_docs or not graph_ok else [],
-                            doc_ids=doc_ids, year_from=plan["year_from"], year_to=plan["year_to"], as_of=lf.as_of,
-                            legal_stage=lf.legal_stage, legal_from=lf.legal_from, legal_all_versions=lf.legal_all_versions)
-    creq = ChatRequest(message=search_q, filters=filters, top_k=req.top_k, model=model_name)
-    bridges, prof, prof_head = [], {}, ""
-    if cluster_mode and len(plan["clusters"]) > 1:     # REQ-59/67: Cluster gemeinsam befragen, je Cluster suchen
-        hits = await retrieve_across(search_q, creq, key, groups, {d["doc_id"]: d for d in all_docs}, per_cluster=bool(named))
-        try:
-            rel_head, rel_links = relations_context(plan["clusters"], list(groups), db_name)
-        except Exception as e:                         # Beziehungen sind Zusatz: nie die Antwort blockieren
-            log.warning("Cluster-Beziehungen nicht verfügbar: %s", e)
-            rel_head, rel_links = "", []
-        try:                                           # REQ-67: Brücken-Stellen über die Clustergrenze
-            bridges = await bridge_passages(hits, plan["clusters"], groups)
-        except Exception as e:
-            log.warning("Brücken-Stellen nicht verfügbar: %s", e)
-        have = {str(h.id) for h in hits}
-        for b in bridges:                              # Partner-Stellen, die die Suche nicht fand, kommen dazu
-            for h in (b["left"], b["right"]):
-                if str(h.id) not in have:
-                    have.add(str(h.id))
-                    hits.append(h)
-    elif cluster_mode:                                 # REQ-67: ein genannter Cluster
-        hits = await retrieve(search_q, creq, key)
-        if not hits and (filters.deo or filters.doc_ids):
-            hits = await retrieve(search_q, creq.model_copy(update={"filters": filters.model_copy(update={"deo": [], "doc_ids": []})}), key)
-        rel_head, rel_links = "", []
-    else:
-        hits = await retrieve(search_q, creq, key)
-        if not hits and filters.deo:                   # DEO-Filter zu eng: ohne Rolle erneut
-            hits = await retrieve(search_q, creq.model_copy(update={"filters": filters.model_copy(update={"deo": []})}), key)
-        rel_head, rel_links = "", []
-    prov, prov_head = {"links": []}, ""
-    try:                                               # REQ-68: Paper -[:DISCUSSES]-> Artikel eines Gesetzes
-        from .provisions import chat_passages, chat_scope
-        prov = chat_scope(req.message, all_docs, plan["clusters"] if cluster_mode else [], plan["databases"], db_name)
-        if prov["links"]:
-            hits += await chat_passages(prov, search_q, key, {str(h.id) for h in hits})
-            prov_head = prov["context"]
-    except Exception as e:                             # Zusatz: nie die Antwort blockieren
-        log.warning("Bestimmungen nicht verfügbar: %s", e)
-    sources = to_sources(hits)
-    top = next((d for d in graph_docs if any(h.payload["doc_id"] == d["doc_id"] for h in hits)), graph_docs[0] if graph_docs else None)
-    path = path_for(plan, top)
-    if cluster_mode:
-        prof = profiles(plan["clusters"], all_docs, db_name)
-        prof_head = profiles_context(prof)
-        pos = {str(h.id): i + 1 for i, h in enumerate(hits)}
-        prof_head += bridges_context(bridges, lambda h: pos.get(str(h.id), "?"))
-        if bridges:
-            path = bridge_path(bridges[0], prof)       # Weg über die Ontologie: Cluster → Dokument → Abschnitt ↔ …
-    if prov["links"] and (not bridges or any(x["law_clusters"] for x in prov["links"]) or prov.get("asked")):
-        path = prov["path"]                            # Paper → diskutiert → Artikel → Teil von → Gesetz → Cluster
-    from .citations import CITE_Q_RX, short_label
-    from .citations import chat_context as citation_context
-    by_id = {d["doc_id"]: d for d in all_docs}
-    if top and (req.relation == "cites" or CITE_Q_RX.search(req.message)):   # REQ-35: Zitat im Graphpfad zeigen
-        cited = next((by_id.get(c["doc_id"]) for c in (by_id.get(top["doc_id"]) or {}).get("cites") or [] if by_id.get(c["doc_id"])), None)
-        if cited:
-            path += ["cites", [short_label(cited), "Paper"]]
-    sp_source, _, sp_id = resolve_prompt(req.system_prompt, "graph")
-    meta = {"sources": [r.model_dump() for r in sources], "path": path, "plan": {k: plan[k] for k in ("deo", "persons", "methods", "projects", "databases", "clusters", "hops")},
-            "graph": {"available": graph_ok, "documents": len(graph_docs), "neighbours": len(neighbours)},
-            "model": model_name, "memory_turns": len(memory), "retrieval_query": search_q,
-            "system_prompt_source": sp_source, "system_prompt_id": sp_id}
-    if cluster_mode:
-        pos = {str(h.id): i + 1 for i, h in enumerate(hits)}
-        meta["cluster_scope"] = {"by_database": groups, "relations": rel_links, "named": named,
-                                 "bridges": [{"a": b["a"], "b": b["b"], "similarity": b["similarity"],
-                                              "left": pos.get(str(b["left"].id)), "right": pos.get(str(b["right"].id))} for b in bridges]}
-    if prov["links"]:
-        meta["provisions"] = prov["links"]
-    if temporal:
-        meta["temporal"] = temporal
-    if legal_table:
-        meta["legal"] = legal_table
-    if temporal and not legal_head and any(h.payload.get("ctv_id") or h.payload.get("action_id") for h in hits):
-        legal_head = f"Legal texts – temporal scope: {temporal['label']}. Say which version/date your answer refers to.\n\n"
-    prog_head = ""
-    if plan["intent"] == "progress":                 # REQ-15/16: Erkenntnisstufen als Tabelle unter der Antwort
-        prog, prog_head = progress_chat_context(req.message, SearchFilters(project=list(req.projects) or plan["projects"][:1]),
-                                           [Entity(**e) for e in plan["entities"]], plan["databases"])
-        if prog:
-            meta["progress"] = prog
-    yield "meta", meta
-    overview = ""
-    if req.overview:
-        from .rag import scope_overview
-        overview = scope_overview(plan["databases"])
-    if not sources and not graph_docs and not overview and not prog_head and not legal_head and not rel_head and not prof_head and not prov_head:
-        text = "I found nothing in the knowledge graph or the documents that answers this question with the current settings."
-        yield "delta", {"t": text}
-        yield "done", {**meta, "answer": text, "sources": [], "intent": plan["intent"], "entities": plan["entities"], "usage": await usage.summary_async(meter)}
+
+def _graph_documents(t: GraphTurn, graph_enabled: bool) -> None:
+    """Documents (and neighbours) on the Neo4j path of the plan; without the graph: vector search only."""
+    if not graph_enabled:
         return
+    try:
+        from . import graph, visibility
+        found = graph.find(t.plan, limit=12)
+        t.graph_docs, t.neighbours, t.graph_ok = found["documents"], found["neighbours"], True
+        if visibility.allowed() is not None:      # REQ-77: Neo4j knows every database – keep only visible documents
+            seen = {d["doc_id"] for d in t.all_docs}
+            t.graph_docs = [d for d in t.graph_docs if d.get("doc_id") in seen]
+            t.neighbours = [n for n in t.neighbours if n.get("doc_id") in seen]
+    except Exception as e:
+        log.warning("Graph query failed, vector search only: %s", e)
+
+
+def _filters(t: GraphTurn) -> None:
+    """Search filters from plan, graph path and the temporal scope of legal texts (REQ-37)."""
+    from .chat_common import legal_scope
+    plan, req = t.plan, t.req
+    lf, t.temporal, t.legal_head, t.legal_table = legal_scope(req.message, SearchFilters(database=plan["databases"], as_of=req.as_of), t.all_docs)
+    doc_ids = [d["doc_id"] for d in t.graph_docs] + [n["doc_id"] for n in t.neighbours]
+    t.filters = SearchFilters(database=plan["databases"], cluster=plan["clusters"], project=[] if t.cluster_mode else list(req.projects),
+                              person=list(req.persons), deo=plan["deo"] if t.graph_docs or not t.graph_ok else [],
+                              doc_ids=doc_ids, year_from=plan["year_from"], year_to=plan["year_to"], as_of=lf.as_of,
+                              legal_stage=lf.legal_stage, legal_from=lf.legal_from, legal_all_versions=lf.legal_all_versions)
+
+
+async def _passages(t: GraphTurn) -> None:
+    """Search the scope; a cluster question may drop graph path and role when they leave nothing, a plain one only the role."""
+    from .retrieval import Scope
+    from .schemas import ChatRequest
+    creq = ChatRequest(message=t.search_q, filters=t.filters, top_k=t.req.top_k, model=t.model_name)
+    scope = Scope.build(t.filters, t.all_docs, t.named)      # REQ-61 stage 2: one scope, split by database/cluster when needed
+    t.hits = await scope.retrieve(t.search_q, creq, t.key, t.all_docs, relax=("deo", "doc_ids") if t.cluster_mode else ("deo",))
+
+
+async def _cluster_relations(t: GraphTurn) -> None:
+    """REQ-59/67: several clusters together – how they relate, and passages that bridge the cluster border."""
+    if not (t.cluster_mode and len(t.plan["clusters"]) > 1):
+        return
+    from .cluster_query import bridge_passages
+    from .cluster_relations import relations_context
+    from .config import db_name
+    try:
+        t.rel_head, t.rel_links = relations_context(t.plan["clusters"], list(t.groups), db_name)
+    except Exception as e:                         # relations are an extra: never block the answer
+        log.warning("Cluster relations not available: %s", e)
+    try:
+        t.bridges = await bridge_passages(t.hits, t.plan["clusters"], t.groups)
+    except Exception as e:
+        log.warning("Bridge passages not available: %s", e)
+    have = {str(h.id) for h in t.hits}
+    for b in t.bridges:                            # partner passages the search did not find are added
+        for h in (b["left"], b["right"]):
+            if str(h.id) not in have:
+                have.add(str(h.id))
+                t.hits.append(h)
+
+
+async def _provisions(t: GraphTurn) -> None:
+    """REQ-68: Paper -[:DISCUSSES]-> article of a law – the links the question asks about, with their passages."""
+    try:
+        from .config import db_name
+        from .provisions import chat_passages, chat_scope
+        t.prov = chat_scope(t.req.message, t.all_docs, t.plan["clusters"] if t.cluster_mode else [], t.plan["databases"], db_name)
+        if t.prov["links"]:
+            t.hits += await chat_passages(t.prov, t.search_q, t.key, {str(h.id) for h in t.hits})
+            t.prov_head = t.prov["context"]
+    except Exception as e:                         # an extra: never block the answer
+        log.warning("Provisions not available: %s", e)
+
+
+def _graph_path(t: GraphTurn) -> None:
+    """The path shown with the answer: graph document → clusters/bridge → provision → citation."""
+    from .citations import CITE_Q_RX, short_label
+    from .cluster_query import bridge_path, bridges_context, profiles, profiles_context
+    from .config import db_name
+    t.top = next((d for d in t.graph_docs if any(h.payload["doc_id"] == d["doc_id"] for h in t.hits)),
+                 t.graph_docs[0] if t.graph_docs else None)
+    t.path = path_for(t.plan, t.top)
+    if t.cluster_mode:
+        prof = profiles(t.plan["clusters"], t.all_docs, db_name)
+        pos = t.positions()
+        t.prof_head = profiles_context(prof) + bridges_context(t.bridges, lambda h: pos.get(str(h.id), "?"))
+        if t.bridges:
+            t.path = bridge_path(t.bridges[0], prof)   # via the ontology: cluster → document → section ↔ …
+    if t.prov["links"] and (not t.bridges or any(x["law_clusters"] for x in t.prov["links"]) or t.prov.get("asked")):
+        t.path = t.prov["path"]                        # paper → discusses → article → part of → law → cluster
+    if t.top and (t.req.relation == "cites" or CITE_Q_RX.search(t.req.message)):   # REQ-35: the citation in the path
+        by_id = t.by_id
+        cited = next((by_id.get(c["doc_id"]) for c in (by_id.get(t.top["doc_id"]) or {}).get("cites") or [] if by_id.get(c["doc_id"])), None)
+        if cited:
+            t.path += ["cites", [short_label(cited), "Paper"]]
+
+
+def _meta(t: GraphTurn) -> dict:
+    from .prompts import resolve as resolve_prompt
+    sp_source, _, sp_id = resolve_prompt(t.req.system_prompt, "graph")
+    meta = {"sources": [r.model_dump() for r in t.sources], "path": t.path,
+            "plan": {k: t.plan[k] for k in ("deo", "persons", "methods", "projects", "databases", "clusters", "hops")},
+            "graph": {"available": t.graph_ok, "documents": len(t.graph_docs), "neighbours": len(t.neighbours)},
+            "model": t.model_name, "memory_turns": len(t.memory), "retrieval_query": t.search_q,
+            "system_prompt_source": sp_source, "system_prompt_id": sp_id}
+    if t.cluster_mode:
+        pos = t.positions()
+        meta["cluster_scope"] = {"by_database": t.groups, "relations": t.rel_links, "named": t.named,
+                                 "bridges": [{"a": b["a"], "b": b["b"], "similarity": b["similarity"],
+                                              "left": pos.get(str(b["left"].id)), "right": pos.get(str(b["right"].id))} for b in t.bridges]}
+    if t.prov["links"]:
+        meta["provisions"] = t.prov["links"]
+    if t.temporal:
+        meta["temporal"] = t.temporal
+    if t.legal_table:
+        meta["legal"] = t.legal_table
+    return meta
+
+
+def _progress(t: GraphTurn, meta: dict) -> str:
+    """REQ-15/16: stages of insight as a table below the answer."""
+    if t.plan["intent"] != "progress":
+        return ""
+    prog, head = progress_chat_context(t.req.message, SearchFilters(project=list(t.req.projects) or t.plan["projects"][:1]),
+                                       [Entity(**e) for e in t.plan["entities"]], t.plan["databases"])
+    if prog:
+        meta["progress"] = prog
+    return head
+
+
+def _prompt(t: GraphTurn, overview: str, prog_head: str) -> str:
+    from .chat_common import OVERVIEW_HEAD, legal_note
+    from .citations import chat_context as citation_context
+    plan, req = t.plan, t.req
     graph_ctx = "\n".join(
         f"- {d.get('title')} ({d.get('doc_type')}, {d.get('year') or 'n.d.'}); authors: {', '.join(d.get('authors') or []) or '–'}; "
         f"DEO roles found: {', '.join(d.get('roles') or []) or '–'}; sections: {', '.join(h for h in d.get('headings') or [] if h) or '–'}"
         + "".join(f"\n    {x['field']}: {x['text'][:400]}" for x in (d.get("summary") or [])[:2])
-        for d in graph_docs[:6])
-    ctx = "\n\n".join(f"[{r.n}] {r.title} ({r.doc_type}{', ' + r.locator if r.locator else ''}{legal_note(h.payload)}; DEO: {', '.join(h.payload.get('deo') or []) or '–'})\n{h.payload['text']}"
-                      for r, h in zip(sources, hits))
-    cite_ctx = citation_context(req.message if req.relation != "cites" else req.message + " cites", all_docs,
-                                [d["doc_id"] for d in graph_docs], plan["databases"])
-    who = people_context([r.project_name for r in sources] + list(req.projects), plan["persons"] if req.persons else None)
-    prompt = (f"Overview of the whole knowledge map (all projects and clusters in scope):\n{overview}\n\n" if overview else "") + rel_head + prof_head + prov_head + who + prog_head + cite_ctx + legal_head + (f"Graph path: {' '.join(x if isinstance(x, str) else f'{x[0]} [{x[1]}]' for x in path) or '–'}\n"
-              f"Discourse elements asked for: {', '.join(plan['deo']) or 'any'}\n\n"
+        for d in t.graph_docs[:6])
+    ctx = "\n\n".join(f"[{r.n}] {r.title} ({r.doc_type}{', ' + r.locator if r.locator else ''}{legal_note(h.payload)}; "
+                       f"DEO: {', '.join(h.payload.get('deo') or []) or '–'})\n{h.payload['text']}"
+                       for r, h in zip(t.sources, t.hits))
+    cite_ctx = citation_context(req.message if req.relation != "cites" else req.message + " cites", t.all_docs,
+                                [d["doc_id"] for d in t.graph_docs], plan["databases"])
+    who = people_context([r.project_name for r in t.sources] + list(req.projects), plan["persons"] if req.persons else None)
+    path = " ".join(x if isinstance(x, str) else f"{x[0]} [{x[1]}]" for x in t.path) or "–"
+    return ((f"{OVERVIEW_HEAD}{overview}\n\n" if overview else "") + t.rel_head + t.prof_head + t.prov_head + who + prog_head
+            + cite_ctx + t.legal_head
+            + f"Graph path: {path}\nDiscourse elements asked for: {', '.join(plan['deo']) or 'any'}\n\n"
               f"Knowledge graph context:\n{graph_ctx or '–'}\n\nSources for this question:\n{ctx or '–'}\n\nQuestion: {req.message}")
-    from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
-    history = [ModelRequest(parts=[UserPromptPart(content=t.content)]) if t.role == "user"
-               else ModelResponse(parts=[TextPart(content=t.content)]) for t in memory]
-    agent = Agent(chat_model(model_name, key), output_type=str, instructions=system_prompt(req.system_prompt, "graph"))
-    text = ""
-    async with agent.run_stream(prompt, message_history=history or None) as result:
-        async for delta in result.stream_text(delta=True):
-            if delta:
-                text += delta
-                yield "delta", {"t": delta}
-        usage.add_run(result, model_name)
-    used = set(cited_numbers(text, len(sources))) or {r.n for r in sources}
-    yield "done", {**meta, "answer": text, "sources": [r.model_dump() for r in sources if r.n in used],
+
+
+async def answer_stream(req: GraphRequest, api_key: str | None = None):
+    """Answer a GraphRAG question as a stream of events: scope, graph context, sources, text deltas, usage and the final answer."""
+    from . import store
+    from .chat_common import StreamedAnswer, scope_overview, standalone_query, temporal_head, to_sources
+    from .config import get_settings
+    from .llm import resolve_key
+    from .memory import model_history, select_memory
+    from .prompts import system_prompt
+    from .query_meta import vocab_from_documents
+    from .ranking import cited_numbers
+
+    meter = usage.start()                     # what question and answer cost
+    key = resolve_key(api_key)
+    s = get_settings()
+    memory = select_memory(req.history, s.memory_max_turns, s.memory_max_chars)
+    search_q = await standalone_query(req.message, memory, s.chat_model, key, s.memory_rewrite)
+    all_docs = store.scroll_documents(limit=5000)
+    plan = plan_question(req.model_copy(update={"message": search_q}), vocab_from_documents(all_docs, s.databases))
+    t = GraphTurn(req, key, s.chat_model, memory, search_q, all_docs, plan)
+
+    _cluster_scope(t)
+    _graph_documents(t, s.graph_enabled)
+    _filters(t)
+    await _passages(t)
+    await _cluster_relations(t)
+    await _provisions(t)
+    t.sources = to_sources(t.hits)
+    _graph_path(t)
+    meta = _meta(t)
+    t.legal_head = temporal_head(t.temporal, t.legal_head, t.hits)
+    prog_head = _progress(t, meta)
+    yield "meta", meta
+
+    overview = scope_overview(plan["databases"]) if req.overview else ""
+    if not (t.sources or t.graph_docs or overview or prog_head or t.legal_head or t.rel_head or t.prof_head or t.prov_head):
+        yield "delta", {"t": NOTHING_FOUND}
+        yield "done", {**meta, "answer": NOTHING_FOUND, "sources": [], "intent": plan["intent"], "entities": plan["entities"],
+                       "usage": await usage.summary_async(meter)}
+        return
+    streamed = StreamedAnswer()
+    async for event in streamed.events(_prompt(t, overview, prog_head), model_history(memory), t.model_name, key,
+                                       system_prompt(req.system_prompt, "graph")):
+        yield event
+    used = set(cited_numbers(streamed.text, len(t.sources))) or {r.n for r in t.sources}
+    yield "done", {**meta, "answer": streamed.text, "sources": [r.model_dump() for r in t.sources if r.n in used],
                    "intent": plan["intent"], "entities": plan["entities"], "usage": await usage.summary_async(meter)}

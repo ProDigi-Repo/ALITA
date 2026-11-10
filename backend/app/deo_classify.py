@@ -1,6 +1,6 @@
-"""DEO-Klassifikation von Textstellen ohne erkennbare Überschrift (z. B. Notes, PDFs ohne Gliederung).
+"""DEO classification of passages without a recognisable heading (e.g. notes, PDFs without an outline).
 
-Das Sprachmodell darf nur Klassen aus DEO_CLASSES vergeben; mehrere Textstellen gehen in einer Anfrage.
+The language model may only assign classes from DEO_CLASSES; several passages go in one request.
 """
 from __future__ import annotations
 
@@ -22,16 +22,18 @@ INSTRUCTIONS = (
 
 
 class Label(BaseModel):
+    # DEO classes the language model assigns to one numbered passage. (comment, not a docstring: it would enter the LLM output schema)
     i: int = Field(description="Number of the passage")
     deo: list[str] = Field(default=[], description="DEO classes, at most two")
 
 
 class Labels(BaseModel):
+    # Structured output of the DEO classification: one Label per passage. (comment, not a docstring: it would enter the LLM output schema)
     labels: list[Label]
 
 
 async def classify(texts: list[str], api_key: str, model: str, batch: int = 16) -> list[list[str]]:
-    """Eine Liste DEO-Klassen je Text (gleiche Reihenfolge). Fehler einer Anfrage -> [] für diese Texte."""
+    """A list of DEO classes per text (same order). A failed request -> [] for these texts."""
     from pydantic_ai import Agent
 
     from .llm import chat_model
@@ -47,6 +49,6 @@ async def classify(texts: list[str], api_key: str, model: str, batch: int = 16) 
             for lab in res.output.labels:
                 if 1 <= lab.i <= len(part):
                     out[start + lab.i - 1] = valid(lab.deo)[:2]
-        except Exception as e:  # Klassifikation ist optional
-            log.warning("DEO-Klassifikation fehlgeschlagen: %s", e)
+        except Exception as e:  # classification is optional
+            log.warning("DEO classification failed: %s", e)
     return out

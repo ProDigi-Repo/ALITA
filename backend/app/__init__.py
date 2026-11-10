@@ -1,1 +1,3 @@
-__version__ = "3.12.0"
+"""ALITA backend package; `__version__` is the release shown in the UI and the API."""
+
+__version__ = "3.13.0"

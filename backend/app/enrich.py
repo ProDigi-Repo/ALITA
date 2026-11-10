@@ -1,8 +1,8 @@
-"""Anreicherung: Structured Summary (Purpose, Design/Methodology/Approach, Findings,
-Research limitations/implications, Originality/value) und Methoden-Klassifikation.
+"""Enrichment: Structured Summary (Purpose, Design/Methodology/Approach, Findings,
+Research limitations/implications, Originality/value) and method classification.
 
-1. Liegt der Text schon als Emerald-Structured-Abstract vor, wird er direkt geparst (kein LLM).
-2. Sonst erzeugt ein Pydantic-AI-Agent die Felder und wählt Methoden aus dem Glossar.
+1. If the text already contains an Emerald structured abstract, it is parsed directly (no LLM).
+2. Otherwise a Pydantic AI agent creates the fields and chooses methods from the glossary.
 """
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ _STOP = re.compile(r"^\s*(keywords?|paper type|schlüsselwörter|jel)\b", re.I |
 
 
 def parse_structured_abstract(text: str) -> StructuredSummary | None:
-    """Erkennt Absätze wie 'Purpose – …', 'Findings: …'. Braucht mindestens 3 Felder."""
+    """Recognises paragraphs like 'Purpose – …', 'Findings: …'. Needs at least 3 fields."""
     head = text[:20000]
     matches = list(_HEAD.finditer(head))
     if len(matches) < 3:
@@ -52,6 +52,7 @@ def parse_structured_abstract(text: str) -> StructuredSummary | None:
 
 
 def parse_keywords(text: str) -> list[str]:
+    """Author keywords from a "Keywords:" line near the start of the text (at most 15)."""
     m = re.search(r"^\s*(?:keywords?|schlüsselwörter)\s*[:–—-]?\s*(.+)$", text[:20000], re.I | re.M)
     if not m:
         return []
@@ -66,6 +67,7 @@ class _MethodChoice(BaseModel):
 
 
 class LlmEnrichment(BaseModel):
+    # Structured output the language model fills for a document: structured summary, keywords and methods. (comment, not a docstring: it would enter the LLM output schema)
     title: str | None = Field(None, description="Titel des Dokuments, falls erkennbar")
     purpose: str | None = None
     design_methodology_approach: str | None = None
@@ -92,7 +94,7 @@ Glossary:
 def _context(text: str, limit: int = 24000) -> str:
     if len(text) <= limit:
         return text
-    # Anfang (Abstract, Einleitung, Methodik) + Ende (Diskussion, Limitationen)
+    # beginning (abstract, introduction, methodology) + end (discussion, limitations)
     return text[: int(limit * 0.7)] + "\n\n[…]\n\n" + text[-int(limit * 0.3) :]
 
 
@@ -106,6 +108,7 @@ async def llm_enrich(
     api_key: str,
     project_name: str | None = None,
 ) -> tuple[StructuredSummary, list[MethodTag], list[str], str | None]:
+    """Ask the language model for the structured summary, method tags, keywords and title of a document."""
     from pydantic_ai import Agent
 
     from .llm import chat_model

@@ -1,16 +1,19 @@
-"""Qdrant-Zugriff: drei Collections.
+"""Qdrant access: three collections.
 
-- {prefix}documents : ein Punkt pro Datei, Payload = alle Metadaten, Vektor "summary" (optional)
-- {prefix}chunks    : Textabschnitte mit Vektor "text" + denormalisierten Filterfeldern
-- {prefix}projects  : ein Punkt pro research project, Vektor "summary" (Projekt-Summary, optional)
+- {prefix}documents : one point per file, payload = all metadata, vector "summary" (optional)
+- {prefix}chunks    : text passages with vector "text" + denormalised filter fields
+- {prefix}projects  : one point per research project, vector "summary" (project summary, optional)
 """
 from __future__ import annotations
 
+import threading
+import time
 from functools import lru_cache
 
 from qdrant_client import QdrantClient
 from qdrant_client import models as qm
 
+from . import visibility
 from .config import get_settings
 from .schemas import Chunk, DocumentRecord, ProjectRecord, make_project_id
 
@@ -20,7 +23,7 @@ KEYWORD_FIELDS = ["doc_id", "content_hash", "cluster_label", "databases", "deo",
 BOOL_FIELDS = ["is_latest", "archived", "indexed"]
 INT_FIELDS = ["year", "date_ts", "cluster_id"]
 
-# Felder, die jeder Chunk für die Filterung mitbekommt
+# fields every chunk gets for filtering
 CHUNK_PAYLOAD_FIELDS = [
     "databases", "doc_type", "project_name", "filetype", "role", "method_ids", "venue", "stage",
     "is_latest", "archived", "year", "date_ts", "title", "filename", "language",
@@ -29,10 +32,47 @@ CHUNK_PAYLOAD_FIELDS = [
 
 @lru_cache
 def client() -> QdrantClient:
+    """Qdrant client for QDRANT_URL (server URL or local folder); every write through it clears the document cache."""
     s = get_settings()
     if s.qdrant_url.startswith(("http://", "https://")):
-        return QdrantClient(url=s.qdrant_url, api_key=s.qdrant_api_key or None)
-    return QdrantClient(path=s.qdrant_url)  # lokaler Dateimodus, z. B. QDRANT_URL=./data/qdrant
+        c = QdrantClient(url=s.qdrant_url, api_key=s.qdrant_api_key or None)
+    else:
+        c = QdrantClient(path=s.qdrant_url)  # local file mode, e.g. QDRANT_URL=./data/qdrant
+    return _invalidating(c)
+
+
+# ----------------------------------------------------------------- document cache (REQ-83)
+# Both chats read the whole visible document list for every question. With many users this list is cached for a few
+# seconds per visibility and collection. Any write through client() clears it (generation counter), so changes made in
+# this process are visible at once; writes by other processes (CLI, seed) show up after DOC_CACHE_SECONDS at the latest.
+_WRITES = ("upsert", "delete", "set_payload", "overwrite_payload", "delete_payload", "clear_payload", "update_vectors",
+           "delete_vectors", "batch_update_points", "upload_points", "upload_collection", "create_collection",
+           "delete_collection", "recreate_collection")
+_CACHE: dict[tuple, tuple[int, float, list[dict]]] = {}
+_CACHE_LOCK = threading.Lock()
+_GEN = [0]
+
+
+def invalidate_cache() -> None:
+    """Forget cached document lists (called after every write through client())."""
+    with _CACHE_LOCK:
+        _GEN[0] += 1
+        _CACHE.clear()
+
+
+def _invalidating(c: QdrantClient) -> QdrantClient:
+    for name in _WRITES:
+        orig = getattr(c, name, None)
+        if orig is None:
+            continue
+
+        def wrapped(*a, _orig=orig, **kw):
+            try:
+                return _orig(*a, **kw)
+            finally:
+                invalidate_cache()
+        setattr(c, name, wrapped)
+    return c
 
 
 def _indexes(name: str, text_fields: list[str] = ()) -> None:
@@ -50,7 +90,7 @@ def _indexes(name: str, text_fields: list[str] = ()) -> None:
 
 
 def _check_dim(name: str, vector: str, dim: int) -> None:
-    """Klare Fehlermeldung statt kryptischer Qdrant-Fehler, wenn das Embedding-Modell gewechselt wurde."""
+    """A clear error message instead of cryptic Qdrant errors when the embedding model was changed."""
     c = client()
     if not c.collection_exists(name):
         return
@@ -63,6 +103,7 @@ def _check_dim(name: str, vector: str, dim: int) -> None:
 
 
 def ensure_collections() -> None:
+    """Create the three collections and their payload indexes if missing; check the vector size."""
     s, c = get_settings(), client()
     vec = qm.VectorParams(size=s.embedding_dim, distance=qm.Distance.COSINE)
     _check_dim(s.col_chunks, "text", s.embedding_dim)
@@ -79,7 +120,7 @@ def ensure_collections() -> None:
 
 
 def _migrate_projects(vec) -> None:
-    """Ältere Installationen: projects-Collection ohne Vektor → mit Vektor "summary" neu anlegen, Payloads behalten."""
+    """Older installations: projects collection without a vector → recreate it with vector "summary", keep the payloads."""
     s, c = get_settings(), client()
     vectors = c.get_collection(s.col_projects).config.params.vectors
     if isinstance(vectors, dict) and "summary" in vectors:
@@ -91,8 +132,9 @@ def _migrate_projects(vec) -> None:
         c.upsert(s.col_projects, [qm.PointStruct(id=p.id, vector={}, payload=p.payload) for p in pts])
 
 
-# ----------------------------------------------------------------- Schreiben
+# ----------------------------------------------------------------- writing
 def upsert_project(p: ProjectRecord) -> None:
+    """Store or replace a project record."""
     client().upsert(
         get_settings().col_projects,
         [qm.PointStruct(id=p.project_id, vector={}, payload=p.model_dump(mode="json"))],
@@ -100,17 +142,34 @@ def upsert_project(p: ProjectRecord) -> None:
 
 
 def upsert_document(d: DocumentRecord, summary_vector: list[float] | None = None) -> None:
+    """Store or replace a document record, optionally with its summary vector."""
     client().upsert(
         get_settings().col_documents,
         [qm.PointStruct(id=d.doc_id, vector={"summary": summary_vector} if summary_vector else {}, payload=d.payload())],
     )
 
 
+def set_document_fields(doc_id: str, fields: dict) -> None:
+    """REQ-96: change single payload fields of a document (and of its chunks, for the chunk fields) – vectors,
+    summaries and clusters stay."""
+    s, c = get_settings(), client()
+    c.set_payload(s.col_documents, fields, points=[doc_id])
+    chunk = {k: v for k, v in fields.items() if k in CHUNK_PAYLOAD_FIELDS}
+    if chunk:
+        c.set_payload(s.col_chunks, chunk, points=qm.Filter(must=[qm.FieldCondition(key="doc_id", match=qm.MatchValue(value=doc_id))]))
+
+
+def set_project_fields(name: str, fields: dict) -> None:
+    """REQ-96: change single payload fields of a project record (e.g. keep its cluster after new files)."""
+    if fields:
+        client().set_payload(get_settings().col_projects, fields, points=[make_project_id(name)])
+
+
 _LEGAL_IDX = False
 
 
 def ensure_legal_indexes() -> None:
-    """Indizes für die Stichtag-Filter (REQ-37) – auch in bestehenden Installationen nachrüsten (idempotent)."""
+    """Indexes for the reference-date filters (REQ-37) – also added to existing installations (idempotent)."""
     global _LEGAL_IDX
     if _LEGAL_IDX:
         return
@@ -129,7 +188,7 @@ def ensure_legal_indexes() -> None:
 
 
 def existing_vectors(ids: list[str]) -> dict[str, list[float]]:
-    """Vektoren bereits gespeicherter Text Units (unveränderte Fassungen werden nicht neu eingebettet)."""
+    """Vectors of Text Units already stored (unchanged versions are not embedded again)."""
     s, c = get_settings(), client()
     out: dict[str, list[float]] = {}
     for i in range(0, len(ids), 256):
@@ -141,7 +200,7 @@ def existing_vectors(ids: list[str]) -> dict[str, list[float]]:
 
 
 def replace_legal_units(norm_id: str, units: list[dict], vectors: list[list[float]]) -> None:
-    """Alle Text Units einer Norm ersetzen (Bestandteil-Fassungen und Änderungs-Texte, REQ-38)."""
+    """Replace all Text Units of a norm (component versions and texts of changes, REQ-38)."""
     s, c = get_settings(), client()
     ensure_legal_indexes()
     c.delete(s.col_chunks, qm.FilterSelector(filter=qm.Filter(must=[qm.FieldCondition(key="norm_id", match=qm.MatchValue(value=norm_id))])))
@@ -151,6 +210,11 @@ def replace_legal_units(norm_id: str, units: list[dict], vectors: list[list[floa
 
 
 def scroll_legal_units(norm_id: str, unit_kind: str | None = None) -> list[dict]:
+    """Text Units of a norm (optionally of one kind), only when the norm is visible to the current account."""
+    if visibility.allowed() is not None:      # REQ-77: units of a law only when its model is visible
+        from .legal_ingest import load_model
+        if load_model(norm_id) is None:
+            return []
     s, c = get_settings(), client()
     must = [qm.FieldCondition(key="norm_id", match=qm.MatchValue(value=norm_id))]
     if unit_kind:
@@ -164,6 +228,7 @@ def scroll_legal_units(norm_id: str, unit_kind: str | None = None) -> list[dict]
 
 
 def replace_chunks(d: DocumentRecord, chunks: list[Chunk], vectors: list[list[float]]) -> None:
+    """Replace all chunks of a document with the given chunks and vectors."""
     s, c = get_settings(), client()
     c.delete(s.col_chunks, qm.FilterSelector(filter=qm.Filter(must=[qm.FieldCondition(key="doc_id", match=qm.MatchValue(value=d.doc_id))])))
     if not chunks:
@@ -183,21 +248,24 @@ def replace_chunks(d: DocumentRecord, chunks: list[Chunk], vectors: list[list[fl
 
 
 def delete_document(doc_id: str) -> None:
+    """Delete a document and its chunks from Qdrant."""
     s, c = get_settings(), client()
     flt = qm.Filter(must=[qm.FieldCondition(key="doc_id", match=qm.MatchValue(value=doc_id))])
     c.delete(s.col_chunks, qm.FilterSelector(filter=flt))
     c.delete(s.col_documents, qm.PointIdsList(points=[doc_id]))
 
 
-# ------------------------------------------------------------------- Lesen
+# ------------------------------------------------------------------- reading
 def search_chunks(vector: list[float], flt: qm.Filter | None, limit: int):
+    """Vector search over the chunks, restricted to the visible databases."""
     return client().query_points(
-        get_settings().col_chunks, query=vector, using="text", query_filter=flt, limit=limit, with_payload=True
+        get_settings().col_chunks, query=vector, using="text", query_filter=visibility.qdrant_filter(flt), limit=limit,
+        with_payload=True,
     ).points
 
 
 def chunk_vectors(ids: list) -> dict[str, list[float]]:
-    """REQ-67: Text-Vektoren gegebener Textstellen (für die Suche nach ähnlichen Stellen in einem anderen Cluster)."""
+    """REQ-67: text vectors of given passages (to search for similar passages in another cluster)."""
     if not ids:
         return {}
     pts = client().retrieve(get_settings().col_chunks, ids=list(ids), with_payload=False, with_vectors=["text"])
@@ -210,10 +278,29 @@ def chunk_vectors(ids: list) -> dict[str, list[float]]:
 
 
 def scroll_documents(flt: qm.Filter | None = None, limit: int = 10_000) -> list[dict]:
+    """Payloads of all visible documents matching the filter (at most `limit`); unfiltered lists come from a short cache."""
+    s = get_settings()
+    if flt is not None or s.doc_cache_seconds <= 0:
+        return _scroll_documents(flt, limit)
+    allowed = visibility.allowed()
+    key = (s.qdrant_url, s.col_documents, None if allowed is None else tuple(sorted(allowed)), limit)
+    with _CACHE_LOCK:
+        gen = _GEN[0]
+        hit = _CACHE.get(key)
+    if hit and hit[0] == gen and time.monotonic() - hit[1] < s.doc_cache_seconds:
+        return [dict(d) for d in hit[2]]          # copies: callers may add keys to the dicts
+    rows = _scroll_documents(None, limit)
+    with _CACHE_LOCK:
+        if _GEN[0] == gen:                         # no write happened while reading
+            _CACHE[key] = (gen, time.monotonic(), rows)
+    return [dict(d) for d in rows]
+
+
+def _scroll_documents(flt: qm.Filter | None, limit: int) -> list[dict]:
     s, c = get_settings(), client()
     out, offset = [], None
     while True:
-        pts, offset = c.scroll(s.col_documents, scroll_filter=flt, limit=min(512, limit), offset=offset,
+        pts, offset = c.scroll(s.col_documents, scroll_filter=visibility.qdrant_filter(flt), limit=min(512, limit), offset=offset,
                                with_payload=True, with_vectors=False)
         out += [p.payload for p in pts]
         if offset is None or len(out) >= limit:
@@ -221,7 +308,7 @@ def scroll_documents(flt: qm.Filter | None = None, limit: int = 10_000) -> list[
 
 
 def ensure_provision_indexes() -> None:
-    """REQ-68: Filter „Passagen, die Art. X diskutieren“ (chunks.provisions) – in bestehenden Installationen nachrüsten."""
+    """REQ-68: filter "passages that discuss Art. X" (chunks.provisions) – added to existing installations."""
     s, c = get_settings(), client()
     for col in (s.col_chunks,):
         try:
@@ -231,7 +318,7 @@ def ensure_provision_indexes() -> None:
 
 
 def scroll_chunk_provisions() -> dict[str, list[str]]:
-    """chunk_id -> ["eu-ai-act#art_31", …] für alle Passagen mit Verweisen auf Bestimmungen (REQ-68)."""
+    """chunk_id -> ["eu-ai-act#art_31", …] for all passages with references to provisions (REQ-68)."""
     s, c = get_settings(), client()
     flt = qm.Filter(must_not=[qm.IsEmptyCondition(is_empty=qm.PayloadField(key="provisions"))])
     out, offset = {}, None
@@ -243,7 +330,9 @@ def scroll_chunk_provisions() -> dict[str, list[str]]:
 
 
 def scroll_chunks(doc_id: str) -> list[dict]:
-    """Alle Chunks eines Dokuments (Payload inkl. Text, DEO, Abschnitt), sortiert nach Reihenfolge."""
+    """All chunks of a document (payload incl. text, DEO, section), sorted by their order."""
+    if visibility.allowed() is not None and get_document(doc_id) is None:   # REQ-77: not visible -> no text
+        return []
     s, c = get_settings(), client()
     flt = qm.Filter(must=[qm.FieldCondition(key="doc_id", match=qm.MatchValue(value=doc_id))])
     out, offset = [], None
@@ -255,28 +344,32 @@ def scroll_chunks(doc_id: str) -> list[dict]:
 
 
 def find_by_content(content_hash: str) -> list[dict]:
+    """Documents with the same text fingerprint."""
     flt = qm.Filter(must=[qm.FieldCondition(key="content_hash", match=qm.MatchValue(value=content_hash))])
     return scroll_documents(flt, limit=10)
 
 
 def get_document(doc_id: str) -> dict | None:
+    """Payload of a visible document, else None."""
     pts = client().retrieve(get_settings().col_documents, [doc_id], with_payload=True)
-    return pts[0].payload if pts else None
+    return pts[0].payload if pts and visibility.visible(pts[0].payload) else None
 
 
 def list_projects() -> list[dict]:
+    """Payloads of all visible projects."""
     pts, _ = client().scroll(get_settings().col_projects, limit=1000, with_payload=True)
-    return [p.payload for p in pts]
+    return [p.payload for p in pts if visibility.visible(p.payload)]
 
 
 def get_project(name: str) -> dict | None:
+    """Payload of a visible project by name, else None."""
     pts = client().retrieve(get_settings().col_projects, [make_project_id(name)], with_payload=True)
-    return pts[0].payload if pts else None
+    return pts[0].payload if pts and visibility.visible(pts[0].payload) else None
 
 
 def set_project_team(name: str, team: list[str]) -> dict[str, list[str]]:
-    """REQ-19: Team als Autor:innen des Projekts und aller seiner Dateien; bisherige Metadaten-Namen bleiben als editors.
-    Liefert doc_id -> editors (für den Graphen)."""
+    """REQ-19: the team as authors of the project and of all its files; previous metadata names stay as editors.
+    Returns doc_id -> editors (for the graph)."""
     from .people import clean_people
 
     s, c = get_settings(), client()
@@ -286,7 +379,7 @@ def set_project_team(name: str, team: list[str]) -> dict[str, list[str]]:
     editors: dict[str, list[str]] = {}
     groups: dict[tuple, list[str]] = {}
     for d in scroll_documents(flt):
-        ed = clean_people(d["editors"] if "editors" in d else d.get("authors"))   # alte Einträge: authors waren Metadaten
+        ed = clean_people(d["editors"] if "editors" in d else d.get("authors"))   # old entries: authors were metadata
         editors[d["doc_id"]] = ed
         groups.setdefault(tuple(ed), []).append(d["doc_id"])
     for ed, ids in groups.items():
@@ -295,7 +388,7 @@ def set_project_team(name: str, team: list[str]) -> dict[str, list[str]]:
 
 
 def clean_document_authors() -> int:
-    """REQ-19: Autor:innen von Papern/Notizen um Metadaten-Müll bereinigen ('M', 'Microsoft Office User', …)."""
+    """REQ-19: clean the authors of papers/notes from metadata junk ('M', 'Microsoft Office User', …)."""
     from .people import clean_people
 
     s, c = get_settings(), client()
@@ -310,7 +403,7 @@ def clean_document_authors() -> int:
 
 
 def set_databases(databases: list[str], *, doc_ids: list[str] | None = None, project_name: str | None = None) -> int:
-    """Datenbank-Zuordnung nachträglich ändern – in documents, chunks (und ggf. projects)."""
+    """Change the database assignment afterwards – in documents, chunks (and projects, if given)."""
     s, c = get_settings(), client()
     if project_name:
         flt = qm.Filter(must=[qm.FieldCondition(key="project_name", match=qm.MatchValue(value=project_name))])
@@ -329,7 +422,7 @@ def set_databases(databases: list[str], *, doc_ids: list[str] | None = None, pro
 
 # ------------------------------------------------------------- Clustering
 def summary_vectors(kind: str) -> dict[str, tuple[list[float], str | None]]:
-    """id -> (Summary-Vektor, summary_key) für kind = "documents" | "projects"; Punkte ohne Vektor fehlen."""
+    """id -> (summary vector, summary_key) for kind = "documents" | "projects"; points without a vector are missing."""
     s, c = get_settings(), client()
     col = s.col_projects if kind == "projects" else s.col_documents
     out, offset = {}, None
@@ -344,6 +437,7 @@ def summary_vectors(kind: str) -> dict[str, tuple[list[float], str | None]]:
 
 
 def set_summary_vector(kind: str, point_id: str, vector: list[float], key: str) -> None:
+    """Store the summary vector of a document or project together with the hash of its text."""
     s, c = get_settings(), client()
     col = s.col_projects if kind == "projects" else s.col_documents
     c.update_vectors(col, [qm.PointVectors(id=point_id, vector={"summary": vector})])
@@ -352,13 +446,14 @@ def set_summary_vector(kind: str, point_id: str, vector: list[float], key: str) 
 
 CLUSTER_FIELDS = ["cluster_id", "cluster_label", "cluster_score", "cluster_k", "cluster_run", "cluster_basis",
                   "cluster_x", "cluster_y", "cluster_alt_id", "cluster_alt_score", "cluster_title", "cluster_title_source", "cluster_description",
-                  "cluster_insights", "cluster_analyses", "cluster_theories", "cluster_contribution", "cluster_anchor"]
+                  "cluster_insights", "cluster_analyses", "cluster_theories", "cluster_contribution", "cluster_anchor",
+                  "cluster_classified"]   # REQ-92: True = assigned to an existing cluster after an upload
 
 
 def set_cluster_payload(assigned: dict[str, dict], run: str, projects: dict[str, dict] | None = None,
                         scope: tuple[set[str], set[str]] | None = None) -> None:
-    """Schreibt Cluster-Metadaten an Dokumente, deren Chunks und Projekte; alles ohne Cluster wird geleert.
-    scope = (doc_ids, Projektnamen): nur innerhalb dieser Auswahl leeren (Clustering einer einzelnen Datenbank)."""
+    """Writes cluster metadata to documents, their chunks and projects; everything without a cluster is cleared.
+    scope = (doc_ids, project names): clear only within this selection (clustering of a single database)."""
     s, c = get_settings(), client()
     for p in list_projects():
         if scope is not None and p["name"] not in scope[1]:

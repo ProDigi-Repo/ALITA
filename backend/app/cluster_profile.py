@@ -1,10 +1,10 @@
-"""Profil eines Clusters für die Hover-Karte: zentrale Erkenntnisse, verwendete Analysen, Theorien.
+"""Profile of a cluster for the hover card: central insights, analyses used, theories.
 
-Zwei Quellen, die sich ergänzen:
-- LLM (beim Clustern mit API-Key): cluster_insights / cluster_analyses / cluster_theories am Dokument
-- Heuristik aus den Structured Summaries (immer verfügbar): Methoden-IDs, Analyse- und Theorie-Begriffe,
-  erster Satz der Findings der typischsten Dokumente
-Das Frontend hat dieselbe Heuristik für die Demo ohne Backend (index.html, clusterProfileLocal).
+Two sources that complement each other:
+- LLM (when clustering with an API key): cluster_insights / cluster_analyses / cluster_theories on the document
+- heuristics from the Structured Summaries (always available): method ids, analysis and theory terms,
+  first sentence of the findings of the most typical documents
+The front end has the same heuristics for the demo without a backend (cluster-profile.js, clusterProfileLocal).
 """
 from __future__ import annotations
 
@@ -87,6 +87,7 @@ def _text(d: dict) -> str:
 
 
 def first_sentence(t: str, n: int = 170) -> str:
+    """First sentence of a text, shortened to at most n characters at a word boundary."""
     t = re.sub(r"\s+", " ", t or "").strip()
     m = re.match(r"(.+?[.!?])(\s|$)", t)
     s = m.group(1) if m else t
@@ -94,6 +95,7 @@ def first_sentence(t: str, n: int = 170) -> str:
 
 
 def heuristic(members: list[dict], method_labels: dict[str, str] | None = None) -> dict:
+    """Cluster profile without a language model: most frequent analysis methods and theories among the members."""
     method_labels = method_labels or {}
     an, th = Counter(), Counter()
     for d in members:
@@ -127,7 +129,7 @@ def heuristic(members: list[dict], method_labels: dict[str, str] | None = None) 
 
 
 def profile(members: list[dict], llm: dict | None = None, method_labels: dict[str, str] | None = None) -> dict:
-    """Heuristik + (falls vorhanden) LLM-Aussagen. LLM-Erkenntnisse stehen vorn, Analysen/Theorien werden vereinigt."""
+    """Heuristics + (if present) LLM statements. LLM insights come first, analyses/theories are merged."""
     p = heuristic(members, method_labels)
     llm = llm or {}
     if llm.get("insights"):

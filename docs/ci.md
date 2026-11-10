@@ -1,35 +1,35 @@
 # GitHub Actions: CI
 
-Der Workflow [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) startet bei PRs gegen `main`,
-bei Pushes auf `main` und nach dem Merge auch manuell über **Actions → CI → Run workflow**.
-Ein GitHub-gehosteter Ubuntu-24.04-Runner nutzt Python 3.12 (wie das Backend-Image) und Node 24.
-Überholte Läufe desselben Branches werden abgebrochen, jeder Lauf ist auf 15 Minuten begrenzt.
+The workflow [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on PRs against `main`,
+on pushes to `main` and, after the merge, also manually via **Actions → CI → Run workflow**.
+A GitHub-hosted Ubuntu 24.04 runner uses Python 3.12 (like the backend image) and Node 24.
+Superseded runs of the same branch are cancelled; every run is limited to 15 minutes.
 
-## Prüfungen
+## Checks
 
-- Gitleaks-CLI: aktueller versionierter Dateibaum und neue PR-/Push-Commits, Ausgabe mit redigierten Secrets.
-  Manuelle Läufe bzw. nicht verfügbare Basis-Commits prüfen zusätzlich zum Dateibaum nur den letzten Commit;
-  das ist kein erneuter vollständiger Audit der alten Git-Historie.
-- Ruff für Backend und Einladungs-CLI; Bash-Syntax und ShellCheck für das Deploy-Skript.
-- Syntax aller Frontend-JavaScript-Dateien und nginx-Konfiguration im Container.
-- Gesamte pytest-Suite einschließlich Authentifizierung, Reviewer-Rechten, Deploy-/Rollback-Fehlerfällen
-  und tatsächlich aufgelösten Compose-Profilen für beide VM-Größen. Keine Produktions-DB oder Modellaufrufe.
-- Neu erzeugte Frontend-Fallbackdaten müssen mit der versionierten Datei übereinstimmen.
+- Gitleaks CLI: current versioned file tree and new PR/push commits, output with redacted secrets.
+  Manual runs, or runs whose base commit is unavailable, check only the latest commit in addition to the file tree;
+  this is not a fresh full audit of the old Git history.
+- Ruff for the backend and the invitation CLI; Bash syntax and ShellCheck for the deploy script.
+- Syntax of all front-end JavaScript files and the nginx configuration inside the container.
+- The whole pytest suite, including authentication, reviewer permissions, deploy/rollback failure cases
+  and the actually resolved Compose profiles for both VM sizes. No production database and no model calls.
+- Freshly generated front-end fallback data must match the versioned file.
 
-Python-Abhängigkeiten kommen aus `backend/requirements.txt`; deren bestehende Versionsbereiche werden
-nicht durch diesen Workflow eingefroren. uv, Ruff und ShellCheck sind für CI versioniert, Actions per
-Commit und das Gitleaks-Image per Digest fixiert. Werkzeugpins bei Updates bewusst überprüfen.
-uv-Caches werden in PRs nur gelesen und bei Pushes auf `main` gespeichert.
+Python dependencies come from `backend/requirements.txt`; their existing version ranges are
+not frozen by this workflow. uv, Ruff and ShellCheck are versioned for CI, actions are pinned by
+commit and the Gitleaks image by digest. Review tool pins deliberately when updating.
+uv caches are only read in PRs and saved on pushes to `main`.
 
-## Sicherheit und Betrieb
+## Security and operation
 
-Keine einzutragenden Repository-Secrets, keine OpenRouter-Keys, keine SSH-/Cloudflare-/Hetzner-Zugangsdaten.
-Der GitHub-Token hat nur `contents: read`; Checkout-Zugangsdaten werden nicht im Arbeitsverzeichnis behalten.
-Kein `pull_request_target`, Self-hosted Runner, Paket-Upload oder Produktiv-Deployment. Gitleaks läuft als
-lokale CLI im Container und benötigt keine Organisationslizenz der separaten Gitleaks-Action.
-Normale GitHub-Actions-Minuten für private Repositories werden gemäß Kontingent abgerechnet;
-der kleine Hetzner-Server wird nicht für CI verwendet.
+No repository secrets to enter, no OpenRouter keys, no SSH/Cloudflare/Hetzner credentials.
+The GitHub token only has `contents: read`; checkout credentials are not kept in the working directory.
+No `pull_request_target`, self-hosted runner, package upload or production deployment. Gitleaks runs as a
+local CLI in a container and needs no organisation licence for the separate Gitleaks action.
+Normal GitHub Actions minutes for private repositories are billed according to the quota;
+the small Hetzner server is not used for CI.
 
-Der Produktiv-Deploy bleibt bewusst [manuell mit Healthcheck/Rollback](../deploy/hetzner/operations.md).
-Optional kann ein Repo-Admin den erfolgreichen Check **CI / Tests and checks** für `main` verpflichtend
-machen. Dieser PR ändert keine Branch-Regeln, Secrets, Firewall oder Serverkonfiguration.
+The production deploy deliberately stays [manual with health check/rollback](../deploy/hetzner/operations.md).
+Optionally, a repo admin can make the successful check **CI / Tests and checks** required for `main`.
+This PR changes no branch rules, secrets, firewall or server configuration.

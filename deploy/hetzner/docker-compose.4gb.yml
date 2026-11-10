@@ -7,7 +7,9 @@ services:
     environment:
       OPENBLAS_NUM_THREADS: "1"
       OMP_NUM_THREADS: "1"
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--workers", "1", "--limit-concurrency", "8"]
+      CHAT_THREADS: "6"           # REQ-83: chats answered at once; more wait in line instead of being refused
+    # one worker: the job queue lives in this process. 40 connections leave room for ~30 open chat streams.
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--workers", "1", "--limit-concurrency", "40"]
   neo4j:
     mem_limit: 1152m
     memswap_limit: 1536m

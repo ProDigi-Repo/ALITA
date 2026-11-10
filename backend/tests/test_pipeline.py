@@ -1,4 +1,4 @@
-"""Tests ohne Netz: Metadaten-Regeln, Filter, Parser und Projekt-Scan auf einem Mini-Projekt."""
+"""Tests without network: metadata rules, filters, parsers and project scan on a mini project."""
 from pathlib import Path
 
 import docx
@@ -8,7 +8,7 @@ from app.chunking import chunk_segments
 from app.enrich import parse_structured_abstract
 from app.extract import Segment
 from app.filters import parse_prompt_filters
-from app.ingest import scan_project
+from app.ingestion.scan import scan_project
 from app.project_meta import detect_role, detect_venue, parse_version
 from app.schemas import DocType, SearchFilters
 
@@ -96,7 +96,7 @@ def test_databases_prompt_and_normalize():
 
 
 def test_detect_database_from_folder(tmp_path: Path):
-    from app.ingest import detect_databases
+    from app.ingestion.scan import detect_databases
     p = tmp_path / "research" / "LDK" / "11-Projekt"
     p.mkdir(parents=True)
     assert detect_databases(p) == ["LDK"]
@@ -104,7 +104,7 @@ def test_detect_database_from_folder(tmp_path: Path):
 
 
 def test_curated_summary(tmp_path: Path):
-    from app.ingest import apply_curated_summary, build_record
+    from app.ingestion.scan import apply_curated_summary, build_record
     folder = tmp_path / "LDK" / "notes"
     _docx(folder / "Note A.docx", "Some note text " * 50)
     (folder / "_summaries.yaml").write_text("Note A.docx:\n  purpose: P\n  findings: F\n", encoding="utf-8")
@@ -130,7 +130,7 @@ def test_clustering_separates_topics():
     a = ["internet of things adoption sme sensors devices"] * 6
     b = ["trust generative ai decision makers chatbot"] * 6
     texts = [t + f" extra{i}" for i, t in enumerate(a + b)]
-    rng = np.random.default_rng(3)          # Embedding-ähnliche Vektoren: zwei Themenrichtungen + Rauschen
+    rng = np.random.default_rng(3)          # embedding-like vectors: two topic directions + noise
     X = np.vstack([np.r_[1.0, 0, 0] + rng.normal(0, .05, 3) for _ in a] + [np.r_[0, 1.0, 0] + rng.normal(0, .05, 3) for _ in b])
     res = cluster_vectors(X, texts)
     labels = res["labels"]
@@ -146,7 +146,7 @@ def test_cluster_labels_pseudonymize_names():
     assert {"müller", "schmidt", "jane", "doe", "lilian", "khac"} <= names
     out = pseudonymize_terms(["khac", "trust", "müller"], names)
     assert out[1] == "trust" and out[0] in POKEMON and out[2] in POKEMON
-    assert pseudonymize_terms(["khac"], names) == [out[0]]   # stabil
+    assert pseudonymize_terms(["khac"], names) == [out[0]]   # stable
 
 
 def test_changelog_follows_keepachangelog_and_semver():
@@ -158,9 +158,9 @@ def test_changelog_follows_keepachangelog_and_semver():
     assert versions and all(SEMVER.match(v) for v in versions)
     assert versions[0] == __version__ == (ROOT / "VERSION").read_text().strip()
     keys = [tuple(int(x) for x in v.split(".")) for v in versions]
-    assert keys == sorted(keys, reverse=True)           # neueste zuerst, streng absteigend
+    assert keys == sorted(keys, reverse=True)           # newest first, strictly descending
     assert all(r["date"] for r in rel if r["version"] != "Unreleased")
-    assert all(set(r["sections"]) <= {"Requirements", "Added", "Changed", "Deprecated", "Removed", "Fixed", "Security", "Open points"} for r in rel)  # + offene Punkte für den Anforderer
+    assert all(set(r["sections"]) <= {"Requirements", "Added", "Changed", "Deprecated", "Removed", "Fixed", "Security", "Open points"} for r in rel)  # + open points for the requirement owner
 
 
 def _summ(topic):
@@ -221,18 +221,18 @@ def test_recompute_clusters_summary_vectors_and_inherits(monkeypatch=None):
     assert res["k"] == 2 and res["units"] == 7 and res["basis"] == "summary"
     assert len({d[f"d{i}"]["cluster_id"] for i in range(3)}) == 1
     assert d["d0"]["cluster_id"] != d["d3"]["cluster_id"]
-    assert p["P"]["cluster_id"] == d["d3"]["cluster_id"]                  # Projekt landet bei "teams"
+    assert p["P"]["cluster_id"] == d["d3"]["cluster_id"]                  # the project ends up with "teams"
     assert d["f1"]["cluster_id"] == p["P"]["cluster_id"] and d["f1"]["cluster_basis"] == "project" and d["f1"]["cluster_score"] is None
-    assert all(-1 <= d[f"d{i}"][a] <= 1 for i in range(6) for a in ("cluster_x", "cluster_y"))   # Position für die Karte
-    assert d["f1"]["cluster_x"] is None                                                     # Projektdateien erscheinen nicht einzeln
-    assert d["d0"]["cluster_alt_id"] == d["d3"]["cluster_id"]                              # zweitnächster Cluster = Brücke
+    assert all(-1 <= d[f"d{i}"][a] <= 1 for i in range(6) for a in ("cluster_x", "cluster_y"))   # position for the map
+    assert d["f1"]["cluster_x"] is None                                                     # project files do not appear individually
+    assert d["d0"]["cluster_alt_id"] == d["d3"]["cluster_id"]                              # second-nearest cluster = bridge
     from app.clustering import cluster_links
     links = cluster_links([*[v for v in d.values() if v["cluster_basis"] == "summary"], p["P"]])
     assert links and links[0]["bridges"] == 7 and {links[0]["source"], links[0]["target"]} == {1, 2}
 
 
 def test_recompute_single_database_keeps_other_clusters():
-    """--db JSW: nur JSW-Dokumente clustern, IDs schließen an bestehende an, andere Datenbanken bleiben unberührt."""
+    """--db JSW: cluster only JSW documents, ids continue from the existing ones, other databases stay untouched."""
     import asyncio
     import sys
     import types
@@ -264,12 +264,12 @@ def test_recompute_single_database_keeps_other_clusters():
         else: sys.modules.pop("app.store"); del app.store
     d = written["docs"]
     assert res["units"] == 6 and res["databases"] == ["JSW"]
-    assert set(d) == {f"j{i}" for i in range(6)}                                   # LDK-Dokument nicht angefasst
-    assert {m["cluster_id"] for m in d.values()} == {5, 6}                           # IDs nach dem bestehenden C4
-    assert all(m["cluster_label"].startswith("Jasmine · ") for m in d.values())     # Blumenname als Präfix (seit 1.8.0)
+    assert set(d) == {f"j{i}" for i in range(6)}                                   # LDK document not touched
+    assert {m["cluster_id"] for m in d.values()} == {5, 6}                           # ids after the existing C4
+    assert all(m["cluster_label"].startswith("Jasmine · ") for m in d.values())     # flower name as prefix (since 1.8.0)
     assert all(m["cluster_title"] and not m["cluster_title"].startswith("Cluster ") for m in d.values())   # REQ-04
     assert all(m["cluster_alt_id"] in (5, 6) for m in d.values())
-    assert written["scope"] == ({f"j{i}" for i in range(6)}, set())                  # Leeren nur innerhalb von JSW
+    assert written["scope"] == ({f"j{i}" for i in range(6)}, set())                  # clear only within JSW
     from app.graph import build_cluster_statements
     stmts = build_cluster_statements(d, {}, {}, scope_docs=written["scope"][0])
     assert "WHERE d.doc_id IN $docs" in stmts[0][0] and "NOT ()-[:IN_CLUSTER]->(c)" in stmts[1][0]
@@ -277,7 +277,7 @@ def test_recompute_single_database_keeps_other_clusters():
 
 
 def test_project_files_as_cluster_units():
-    """--files: aktuelle Projektdateien mit Summary sind eigene Einheiten, das Projekt als Ganzes nicht."""
+    """--files: current project files with a summary are units of their own, the project as a whole is not."""
     from app.clustering import select_units
     summ = {"purpose": "Purpose text", "findings": "Findings text"}
     docs = [{"doc_id": "m1", "doc_type": "research_project", "project_name": "P", "title": "Manuscript", "summary": summ, "is_latest": True},
@@ -291,7 +291,7 @@ def test_project_files_as_cluster_units():
 
 
 def test_helper_files_join_content_cluster_with_contribution():
-    """Hilfsdateien ohne Summary übernehmen den Cluster des nächstgelegenen Inhaltsdokuments mit ihrem Beitragswert."""
+    """Supporting files without a summary take the cluster of the nearest content document, with their contribution value."""
     from app.clustering import associate_project_files
     docs = [{"doc_id": "m1", "doc_type": "research_project", "project_name": "P", "rel_path": "Paper A/manuscript.docx"},
             {"doc_id": "m2", "doc_type": "research_project", "project_name": "P", "rel_path": "Paper B/manuscript.docx"},
@@ -306,7 +306,7 @@ def test_helper_files_join_content_cluster_with_contribution():
     assert meta["v1"]["cluster_id"] == 1 and meta["v1"]["cluster_contribution"] == "version"
     assert meta["s1"]["cluster_contribution"] == "analysis" and meta["s1"]["cluster_basis"] == "contribution"
     assert meta["s1"]["cluster_score"] is None and meta["s1"]["cluster_x"] is None
-    assert "x1" not in meta                                                    # anderes Projekt ohne Inhaltsdokument
+    assert "x1" not in meta                                                    # another project without a content document
 
 
 def test_name_lists_in_summaries_are_detected():
@@ -331,7 +331,7 @@ def test_custom_system_prompt_keeps_source_rules():
     from app.prompts import SOURCE_RULES, SYSTEM, VOICE_SYSTEM, prompt_id, resolve, system_prompt
     assert system_prompt(None).startswith(SYSTEM) and SOURCE_RULES in system_prompt(None)
     assert resolve("   ") == ("default", SYSTEM, prompt_id(SYSTEM))
-    assert resolve(SYSTEM + "\n")[0] == "default"                     # unveränderter Standard zählt als Standard
+    assert resolve(SYSTEM + "\n")[0] == "default"                     # an unchanged default counts as the default
     src, text, pid = resolve("  You answer like a strict reviewer.  ")
     assert src == "custom" and text == "You answer like a strict reviewer." and pid == prompt_id(text)
     p = system_prompt("You answer like a strict reviewer.")
@@ -451,11 +451,11 @@ def test_graph_plan_and_path():
     assert p[0] == ["Leyer", "Person"] and p[1] == "authored" and ["2 Method", "deo:Methods"] in p and p[-1] == ["Trust", "Cluster"]
 
 
-def test_delete_database(tmp_path):
-    """ingest delete --db JSW: nur-JSW-Dokumente weg, gemischte verlieren nur die Zuordnung."""
+def test_delete_database(tmp_path, monkeypatch):
+    """ingest delete --db JSW: JSW-only documents gone, mixed ones only lose the assignment."""
     import sys
     import types
-    if "qdrant_client" not in sys.modules:   # ohne installiertes qdrant-client: minimaler Ersatz
+    if "qdrant_client" not in sys.modules:   # without qdrant-client installed: a minimal stand-in
         qc = types.ModuleType("qdrant_client")
         m = types.SimpleNamespace(Filter=lambda **k: ("F", k), FieldCondition=lambda **k: k, MatchValue=lambda **k: k,
                                   FilterSelector=lambda **k: ("S", k), PointIdsList=lambda **k: ("P", k))
@@ -483,10 +483,10 @@ def test_delete_database(tmp_path):
         col_documents, col_chunks, col_projects = "d", "c", "p"
 
     deleted = []
-    purge.get_settings = lambda: S
-    purge.store = types.SimpleNamespace(client=lambda: FakeClient(), scroll_documents=lambda: docs,
+    monkeypatch.setattr(purge, "get_settings", lambda: S)        # restored afterwards (REQ-90 tests use the real purge)
+    monkeypatch.setattr(purge, "store", types.SimpleNamespace(client=lambda: FakeClient(), scroll_documents=lambda: docs,
                                         delete_document=deleted.append, make_project_id=lambda n: n,
-                                        list_projects=lambda: [{"name": "P1", "databases": ["JSW"]}])
+                                        list_projects=lambda: [{"name": "P1", "databases": ["JSW"]}]))
     res = purge.delete_database("JSW")
     assert deleted == ["a"] and res["documents_untagged"] == 1 and res["projects_deleted"] == ["P1"]
     assert ("set", "d", {"databases": ["LDK"]}) in calls and not up.exists()
@@ -494,7 +494,7 @@ def test_delete_database(tmp_path):
 
 def test_literature_folders_excluded():
     from app.config import Settings
-    from app.ingest import _excluded
+    from app.ingestion.scan import is_excluded as _excluded
     pats = Settings().project_exclude
     assert _excluded("Projekt Gamification/Literatur/x.pdf", pats)
     assert _excluded("SET/1-Literatur/Literatur Olli/y.pdf", pats)
@@ -547,7 +547,7 @@ def _named_texts():
 
 
 def test_cluster_names_are_descriptive_without_llm():
-    """REQ-04: ohne LLM bekommt jeder Cluster einen beschreibenden Namen aus seinen prägnantesten Wortpaaren."""
+    """REQ-04: without an LLM every cluster gets a descriptive name from its most distinctive word pairs."""
     import re
 
     import numpy as np
@@ -598,7 +598,7 @@ def test_excluded_files_are_counted_per_pattern():
     """REQ-08: files skipped by PROJECT_EXCLUDE (e.g. literature folders) are counted with their pattern."""
     import tempfile
 
-    from app.ingest import count_excluded
+    from app.ingestion.scan import count_excluded
     with tempfile.TemporaryDirectory() as d:
         root = Path(d)
         for rel in ["paper/main.docx", "Literatur/a.pdf", "Literatur/b.pdf", "x/Literatur zum Thema/c.bib", "paper/~$main.docx"]:
@@ -624,12 +624,13 @@ def test_scope_overview_lists_projects_and_clusters_of_the_selected_databases():
     try:
         import importlib
 
-        from app import rag
-        importlib.reload(rag)
-        text = rag.scope_overview(["ML"])
+        from app import chat_common
+        importlib.reload(chat_common)
+        text = chat_common.scope_overview(["ML"])
     finally:
         if old: sys.modules["app.store"] = old; app.store = old
         else: sys.modules.pop("app.store"); del app.store
+        importlib.reload(chat_common)          # back to the real store for later tests
     assert "Lean-Agile: Lean and job satisfaction. Why lean matters." in text and "284 files" in text
     assert "C19: Lean and Job Satisfaction (1 documents)" in text
     assert "Other" not in text and "Templates" not in text
@@ -692,7 +693,7 @@ def test_graph_request_person_scope():
 
 
 def _prog_docs():
-    """Artikel v1..v6: v3 bringt neue Ergebnisse, v5 eine neue Methode; v2/v4 umformuliert, v6 nur Wiedereinreichung."""
+    """Article v1..v6: v3 brings new results, v5 a new method; v2/v4 reworded, v6 only a resubmission."""
     import random
     random.seed(1)
     words = [f"w{i}" for i in range(400)]
@@ -755,7 +756,7 @@ def test_overall_date_keeps_document_dates():
     from datetime import datetime, timezone
     from types import SimpleNamespace as NS
 
-    from app.ingest import apply_overall_date
+    from app.ingestion.scan import apply_overall_date
     old = datetime(2021, 3, 1, tzinfo=timezone.utc)
     items = [NS(record=NS(date=old, date_source="doc_properties", year=2021)),
              NS(record=NS(date=datetime(2026, 10, 10, tzinfo=timezone.utc), date_source="file_mtime", year=2026)),
@@ -790,3 +791,37 @@ def test_upload_usage_meter_and_cost():
     assert s["price_source"] == "settings (estimate)"
     assert s["question_tokens"] == 1200 and s["answer_tokens"] == 200                 # chat: question = input + embedding, answer = output
     assert abs(s["question_eur"] + s["answer_eur"] - s["eur"]) < 1e-5
+
+
+def test_ingest_all_catches_up_what_the_seed_ingested_without_a_key():
+    """REQ-109: the automatic seed at start-up has no key – files and projects stay without vectors. A later
+    `ingest all` with a key must not skip them as "already ingested"."""
+    from app.ingestion.options import IngestOptions
+    from app.ingestion.pipeline import _done
+    with_key, without = IngestOptions(api_key="sk-x"), IngestOptions()
+    seeded = {"indexed": False}
+    assert not _done(seeded, with_key) and _done(seeded, without)
+    assert _done({"indexed": True}, with_key) and _done({"duplicate_of": "d1"}, with_key)
+    assert _done({"indexed": False, "summary_key": "k"}, with_key)       # no text, but summarised already
+    assert not _done({"indexed_count": 0}, with_key, field="indexed_count")
+    assert _done({"indexed_count": 12}, with_key, field="indexed_count") and not _done(None, with_key)
+
+
+def test_cli_rejects_the_placeholder_key_before_starting():
+    """REQ-110: `OPENROUTER_API_KEY=sk-or-v1-…` copied from the instructions crashed deep in the HTTP library."""
+    from app.ingestion.cli import key_problem
+    assert "placeholder" in key_problem("sk-or-v1-…")
+    assert "placeholder" in key_problem("sk-or-v1-<your key>")
+    assert key_problem("sk-or-v1-abc def" + "x" * 40)
+    assert key_problem("hello")
+    assert key_problem(None) is None and key_problem("sk-or-v1-" + "a1b2" * 16) is None
+
+
+def test_ingest_all_summary_line_accepts_both_result_shapes():
+    """REQ-112: `ingest all` crashed at its very end with KeyError 'documents' – the classification (REQ-92) returns
+    other keys than a full clustering, and citations/provisions were then skipped."""
+    from app.ingestion.pipeline import cluster_summary
+    assert cluster_summary({"k": 4, "documents": 31}) == "Clustering: 31 documents in 4 clusters"
+    assert "5 new documents" in cluster_summary({"classified": 5, "clustered": []})
+    assert "4 clusters" in cluster_summary({"classified": 2, "clustered": ["ALITA"], "k": 4, "documents": 33})
+    assert cluster_summary({"classified": 0, "clustered": []}) == "Clustering: nothing to cluster"

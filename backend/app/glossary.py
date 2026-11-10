@@ -1,7 +1,7 @@
-"""Methoden-Glossar laden und Dokumente per Stichwort klassifizieren.
+"""Load the methods glossary and classify documents by keyword.
 
-Die LLM-Klassifikation (enrich.py) bekommt dieselbe Liste als erlaubte Werte,
-so bleiben alle Methoden-IDs im Index konsistent mit dem Glossar.
+The LLM classification (enrich.py) gets the same list as allowed values,
+so all method ids in the index stay consistent with the glossary.
 """
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from .schemas import MethodTag
 
 
 class GlossaryEntry(BaseModel):
+    """One research method of the glossary (glossary/methods.yaml)."""
     id: str
     label: str
     category: str | None = None
@@ -24,18 +25,22 @@ class GlossaryEntry(BaseModel):
 
 
 class Glossary(BaseModel):
+    """The methods glossary used for method tagging."""
     version: str | float | None = None
     methods: list[GlossaryEntry] = []
 
     def by_id(self) -> dict[str, GlossaryEntry]:
+        """Glossary entries by id."""
         return {m.id: m for m in self.methods}
 
     def as_prompt(self) -> str:
+        """Glossary as a bullet list for language-model prompts."""
         return "\n".join(f"- {m.id}: {m.label} – {m.description or ''}" for m in self.methods)
 
 
 @lru_cache(maxsize=4)
 def load_glossary(path: str | Path) -> Glossary:
+    """Load the glossary YAML file; an empty glossary when the file is missing."""
     p = Path(path)
     if not p.is_file():
         return Glossary()
@@ -43,7 +48,7 @@ def load_glossary(path: str | Path) -> Glossary:
 
 
 def keyword_classify(text: str, glossary: Glossary, min_hits: int = 2, max_tags: int = 6) -> list[MethodTag]:
-    """Zählt Synonym-Treffer. Ein Treffer im ersten Textteil (Abstract/Methodik) zählt doppelt."""
+    """Counts synonym hits. A hit in the first part of the text (abstract/methodology) counts double."""
     if not text or not glossary.methods:
         return []
     low = text.lower()
@@ -64,6 +69,7 @@ def keyword_classify(text: str, glossary: Glossary, min_hits: int = 2, max_tags:
 
 
 def merge_tags(*groups: list[MethodTag]) -> list[MethodTag]:
+    """Merge method tags from several sources, keeping the highest confidence per method."""
     out: dict[str, MethodTag] = {}
     for g in groups:
         for t in g:

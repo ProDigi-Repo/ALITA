@@ -1,4 +1,4 @@
-"""REQ-35: Zitationsnetz und BIBO – ohne Qdrant/Neo4j testbar (reine Funktionen)."""
+"""REQ-35: citation network and BIBO – testable without Qdrant/Neo4j (pure functions)."""
 from app import citations as C
 from app.graph import BIBO_TYPE, ONTOLOGIES, build_cites_statement, build_document_statements, build_neighbour_query
 
@@ -33,8 +33,8 @@ def test_surname_forms():
 def test_reference_region_follows_running_headers():
     chs = [chunk(0, "Intro text without many years. " * 20, ["Introduction"]),
            chunk(1, REFS, ["BibliographicReference"], "References"),
-           chunk(2, "L. T. DO KHAC ET AL.", [], "L. T. DO KHAC ET AL."),        # Kopfzeile: übersprungen
-           chunk(3, TAIL, [], "L. T. DO KHAC ET AL."),                           # Fortsetzung ohne DEO
+           chunk(2, "L. T. DO KHAC ET AL.", [], "L. T. DO KHAC ET AL."),        # running head: skipped
+           chunk(3, TAIL, [], "L. T. DO KHAC ET AL."),                           # continuation without DEO
            chunk(4, "Appendix table " * 40, ["Appendix"], "Appendix")]
     text, cont = C.reference_region(chs)
     assert "Divisional perspectives" in text and "Appendix table" not in text
@@ -75,8 +75,8 @@ def test_find_citations_by_doi_and_no_self_or_future_citation():
                                "authors": ["A B"], "year": 2025})
     chs = [chunk(1, TAIL, ["BibliographicReference"], "References")]
     assert C.find_citations({"doc_id": "x", "year": 2026}, chs, [t])[0][0]["via"] == "doi"
-    assert C.find_citations({"doc_id": "x", "year": 2020}, chs, [t])[0] == []          # Ziel jünger als das zitierende Dokument
-    assert C.find_citations({"doc_id": "d", "year": 2026}, chs, [t])[0] == []          # zitiert sich nicht selbst
+    assert C.find_citations({"doc_id": "x", "year": 2020}, chs, [t])[0] == []          # target younger than the citing document
+    assert C.find_citations({"doc_id": "d", "year": 2026}, chs, [t])[0] == []          # does not cite itself
 
 
 def test_build_and_network_aggregate_projects():
@@ -90,7 +90,7 @@ def test_build_and_network_aggregate_projects():
               "f2": [chunk(1, TAIL, ["BibliographicReference"], "References")]}
     res = C.build(docs, lambda i: chunks[i])
     assert [c["doc_id"] for c in res["documents"]["f1"]["cites"]] == ["p1"]
-    assert "f2" not in res["documents"]                       # ältere Version zitiert nicht doppelt
+    assert "f2" not in res["documents"]                       # an older version does not cite twice
     assert res["documents"]["p1"]["cited_by"] == ["f1"]
     for d in docs:
         d.update(res["documents"].get(d["doc_id"], {}))
@@ -98,7 +98,7 @@ def test_build_and_network_aggregate_projects():
     assert net["edges"][0]["source"] == "project:Lean-Agile" and net["edges"][0]["target"] == "p1"
     p = next(n for n in net["nodes"] if n["id"] == "p1")
     assert p["cited_by"] == 1 and p["label"] == "Leyer & Wollersheim 2013"
-    assert C.network(docs, ["JSW"])["edges"] == []            # Auswahl JSW: das zitierende Projekt (ML) liegt außerhalb
+    assert C.network(docs, ["JSW"])["edges"] == []            # selection JSW: the citing project (ML) lies outside
 
 
 def test_chat_context_only_for_citation_questions():
@@ -121,3 +121,13 @@ def test_graph_bibo_and_citations():
     assert "bibo:cites" in cyp and [r["dst"] for r in params["rows"]] == ["b"]
     assert "bibo" in ONTOLOGIES
     assert "CITES" in build_neighbour_query(["a"], 2)[0]
+
+
+def test_ontologies_bundled_offline():
+    from app.graph.db import ONTOLOGY_DIR
+
+    assert set(ONTOLOGIES) == {"doco", "deo", "fabio", "cito", "po", "bibo", "eli"}
+    for name, (filename, fmt) in ONTOLOGIES.items():
+        text = (ONTOLOGY_DIR / filename).read_text(encoding="utf-8")
+        assert fmt in ("Turtle", "RDF/XML") and len(text) > 10_000, name
+        assert ("@prefix" in text) if fmt == "Turtle" else ("<rdf:RDF" in text), name

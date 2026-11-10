@@ -6,6 +6,9 @@
   if(await detectBackend()===false)return;
   await loadSysDefaults();
   await loadDocs();
+  resumeJobs();        // REQ-83: uploads still queued or running on the server
+  renderUpTile();      // REQ-84: the upload tile next to the database bar
+  activityTick();      // REQ-87: activity tile (own and other users' uploads and chats)
   if(!LIVE&&DOCS.length){
     const a={...demoAnswer('Which methods does the project use?',ragFilters()),applied_filters:ragFilters()};
     const im=analyzeQuery('Which methods does the project use?',ragFilters());

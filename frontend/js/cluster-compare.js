@@ -58,11 +58,9 @@ function xcTipHtml(l,info){
 }
 /* click on a relation: both clusters become the search space of the chats (across both databases) */
 function xcSelect(l){
-  CV.sels=new Set([l.a,l.b]);const r=$('#rCluster');if(r)r.value='';
+  CV.sels=new Set([l.a,l.b]);
   if(typeof CG!=='undefined'){CG.sel=null;CG.proj=null}   // a project scope would hide the other database
-  try{syncParams('rag');syncParams('graph')}catch(e){}
-  if(typeof cvPruneSel==='function'){}   // selection stays: both databases are selected by the comparison
-  renderClusterViz();renderClusterPage();
+  cvChanged();renderClusterPage();   // both databases stay selected by the comparison
   try{toast(`C${l.a} and C${l.b} selected – the Graph Chat now searches both clusters`)}catch(e){}
 }
 function xcAsk(l,info){
