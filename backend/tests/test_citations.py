@@ -121,3 +121,13 @@ def test_graph_bibo_and_citations():
     assert "bibo:cites" in cyp and [r["dst"] for r in params["rows"]] == ["b"]
     assert "bibo" in ONTOLOGIES
     assert "CITES" in build_neighbour_query(["a"], 2)[0]
+
+
+def test_ontologies_bundled_offline():
+    from app.graph.db import ONTOLOGY_DIR
+
+    assert set(ONTOLOGIES) == {"doco", "deo", "fabio", "cito", "po", "bibo", "eli"}
+    for name, (filename, fmt) in ONTOLOGIES.items():
+        text = (ONTOLOGY_DIR / filename).read_text(encoding="utf-8")
+        assert fmt in ("Turtle", "RDF/XML") and len(text) > 10_000, name
+        assert ("@prefix" in text) if fmt == "Turtle" else ("<rdf:RDF" in text), name

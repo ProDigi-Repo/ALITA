@@ -126,7 +126,7 @@ class Settings(BaseSettings):
     neo4j_user: str = "neo4j"
     neo4j_password: str = ""
     neo4j_database: str = "neo4j"
-    graph_import_ontologies: bool = True  # load DoCO/DEO/FaBiO/CiTO/BIBO from the web via neosemantics (n10s)
+    graph_import_ontologies: bool = True  # load DoCO/DEO/FaBiO/CiTO/PO/BIBO/ELI from app/graph/ontologies via neosemantics (n10s)
     auto_cluster: bool = True     # re-cluster after every ingestion
     auto_citations: bool = True   # REQ-35: recompute the citation network after every ingestion (no LLM/embeddings)
     auto_provisions: bool = True  # REQ-68: after every ingestion link papers to the provisions they discuss

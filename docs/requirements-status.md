@@ -120,6 +120,7 @@ Each request since 2.0.0 is also logged in `requirements-log.xlsx` (original wor
 | REQ-114 | Tutorial videos: no AI notice on screen, ALITA says "I am an AI system" at the start; clusters and recomputing explained | ✅ done | 3.13.0 | Outside the repo; notice hidden only in the filmed interface; new scenes on clusters and Recompute clusters. |
 | REQ-115 | User guide as separate German and English docs | ✅ done | 3.13.0 | Outside the repo (Docs). |
 | REQ-116 | AI notice overlapped header controls | ✅ fixed | 3.13.0 | `layout.css`: own strip at the top right (`.top{padding-top:46px}` ≥ 1101 px). |
+| REQ-117 | Ontologies (DoCO, DEO, FaBiO, CiTO, PO, ELI) failed to load on new servers | ✅ fixed | 3.13.0 | Files bundled in `backend/app/graph/ontologies/`, imported offline with `n10s.onto.import.inline`; purl.org redirects http → https, which n10s does not follow. All 7 OK (4395 triples). `tests/test_citations.py::test_ontologies_bundled_offline`. |
 
 ## Open points for the requirement owners
 - REQ-10, REQ-15 – REQ-18: main document chain per project, inferred links between versions and analyses, threshold for "substantive", AI stage texts automatic or on demand, versions without full text.

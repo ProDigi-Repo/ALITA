@@ -3,22 +3,28 @@ from __future__ import annotations
 
 import logging
 from functools import lru_cache
+from pathlib import Path
 
 from ..deo import DEO_CLASSES, DEO_NS
 
 log = logging.getLogger("graph")
 
 
+# The ontologies ship with the code (folder ontologies/) and are imported offline. Fetching them from
+# purl.org failed: the URLs redirect http -> https, which neosemantics does not follow.
+# Sources (downloaded 2026-11-10):
+#   doco, deo, fabio, cito, po  https://sparontologies.github.io/<name>/current/<name>.ttl
+#   bibo                        https://www.dublincore.org/specifications/bibo/bibo/bibo.rdf.xml
+#   eli (REQ-38, version 1.5)   http://publications.europa.eu/resource/distribution/eli/owl/owl/eli.owl
+ONTOLOGY_DIR = Path(__file__).parent / "ontologies"
 ONTOLOGIES = {
-    "doco": "http://purl.org/spar/doco",
-    "deo": "http://purl.org/spar/deo",
-    "fabio": "http://purl.org/spar/fabio",
-    "cito": "http://purl.org/spar/cito",
-    "po": "http://www.essepuntato.it/2008/12/pattern",
-    # BIBO: purl.org via content negotiation, otherwise the RDF/XML file maintained by DCMI
-    "bibo": ["http://purl.org/ontology/bibo/", "https://www.dublincore.org/specifications/bibo/bibo/bibo.rdf.xml"],
-    # ELI (European Legislation Identifier) – legal ontology (REQ-38)
-    "eli": ["http://data.europa.eu/eli/ontology"],
+    "doco": ("doco.ttl", "Turtle"),
+    "deo": ("deo.ttl", "Turtle"),
+    "fabio": ("fabio.ttl", "Turtle"),
+    "cito": ("cito.ttl", "Turtle"),
+    "po": ("po.ttl", "Turtle"),
+    "bibo": ("bibo.rdf", "RDF/XML"),
+    "eli": ("eli.owl", "RDF/XML"),
 }
 
 
@@ -106,7 +112,7 @@ def setup(import_ontologies: bool | None = None) -> dict:
 
 
 def import_spar_ontologies() -> dict:
-    """Load DoCO, DEO, FaBiO, CiTO, Pattern Ontology with neosemantics (n10s); needs the network and the n10s plugin."""
+    """Load DoCO, DEO, FaBiO, CiTO, Pattern Ontology, BIBO and ELI from the bundled files with neosemantics (n10s)."""
     out = {}
     try:
         run("CREATE CONSTRAINT n10s_unique_uri IF NOT EXISTS FOR (r:Resource) REQUIRE r.uri IS UNIQUE")
@@ -114,19 +120,14 @@ def import_spar_ontologies() -> dict:
             run("CALL n10s.graphconfig.init({handleVocabUris: 'MAP'})")
     except Exception as e:
         return {"error": f"neosemantics (n10s) not available: {e}"}
-    for name, urls in ONTOLOGIES.items():
-        for url in [urls] if isinstance(urls, str) else urls:
-            for fmt in ("Turtle", "RDF/XML"):
-                try:
-                    r = run("CALL n10s.onto.import.fetch($url, $fmt) YIELD terminationStatus, triplesLoaded "
-                            "RETURN terminationStatus AS status, triplesLoaded AS triples", url=url, fmt=fmt)
-                    out[name] = r[0] if r else {"status": "?"}
-                    if out[name].get("triples"):
-                        break
-                except Exception as e:
-                    out[name] = {"status": "error", "error": str(e)[:200]}
-            if (out.get(name) or {}).get("triples"):
-                break
+    for name, (filename, fmt) in ONTOLOGIES.items():
+        try:
+            rdf = (ONTOLOGY_DIR / filename).read_text(encoding="utf-8")
+            r = run("CALL n10s.onto.import.inline($rdf, $fmt) YIELD terminationStatus, triplesLoaded "
+                    "RETURN terminationStatus AS status, triplesLoaded AS triples", rdf=rdf, fmt=fmt)
+            out[name] = r[0] if r else {"status": "?"}
+        except Exception as e:
+            out[name] = {"status": "error", "error": str(e)[:200]}
     try:
         run("MATCH (d:DEOClass), (c:Class {uri: d.uri}) MERGE (d)-[:SAME_AS]->(c)")
     except Exception:
