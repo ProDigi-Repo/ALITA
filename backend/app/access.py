@@ -97,7 +97,7 @@ async def protect_request(request: Request, call_next: Callable[[Request], Await
 
 def apply_account(request: Request, s) -> list[str] | None:
     """REQ-77: with accounts configured, the login decides what a request sees: one database, all of them ("*"),
-    or – without a login – the public databases (admins of Cloudflare Access still see everything).
+    or – without a login – the public databases (Cloudflare Access admins too: only the "*" account sees everything).
     Without accounts nothing changes (None = no restriction)."""
     request.state.accounts_enabled = accounts.enabled(s)
     request.state.account = None
@@ -112,8 +112,8 @@ def apply_account(request: Request, s) -> list[str] | None:
             return None
         request.state.is_admin = False
         return [acc.database]
-    if s.access_enabled and request.state.is_admin:
-        return None
+    # only an account with all databases ("*") sees everything; a Cloudflare Access admin without that login
+    # sees the public databases like everyone else (admin rights for uploads and maintenance stay)
     if not s.access_enabled:
         request.state.is_admin = False            # local instance with accounts: anonymous visitors only read
     return list(s.public_databases)
