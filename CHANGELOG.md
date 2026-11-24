@@ -8,6 +8,10 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 
 ## [Unreleased]
 
+### Requirements
+- **REQ-118 Every logged-in account can upload** – ✅ fixed: the all-databases account (e.g. the supervisors' admin login) saw the upload tile greyed out ("Log in with your user name …") unless its Cloudflare e-mail was also in `ADMIN_EMAILS`, although the backend already accepted its uploads. The upload tile and Documents → + Upload are now open for every logged-in account: group accounts upload into their own database, the all-databases account into any database.
+- **REQ-119 "Describe stages with AI" for every logged-in account** – ✅ fixed: the button on the project card was admin-only, so group accounts got "Admin access required" although the user guide tells them to use it. Describing and recomputing the stages of the progress of knowledge is now open to every logged-in account – a group account for projects of its own database only; visitors without a login still may not.
+
 ## [3.13.0] - 2026-11-01
 
 > **Minor release – a clean code base for the next features.** The interface is unchanged apart from two requests of the same day: the row "Window to the outside" with the B explainer is removed (REQ-75), the A/B Interaction Interface needs the password (REQ-76), and a login per database with one account per user (REQ-77). The refactoring planned in 3.7.0 (REQ-61) is done: API routes are grouped by domain, both chats share one retrieval scope, ingestion is a package of small steps, every database is described in one place (registry) and the front-end views follow change events instead of calling each other. The REST API and the command line stay compatible; the one intended change in behaviour: the Document Chat, like the Graph Chat, now searches each selected database on its own. Checked against 3.12.0 on the same data: same routes, same answers of every GET endpoint (plus the registry fields), same interface state after the same clicks, guided tour and map window unchanged. This release also carries the licence, copyright and deployment changes merged after 3.12.0.

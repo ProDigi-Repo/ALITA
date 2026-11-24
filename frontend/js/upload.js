@@ -16,8 +16,8 @@ const AD_TYPE_DESC={
   guidance:'Q&A pages, FAQs, factsheets and explanations of authorities (not binding), one file each, e.g. a web page printed as PDF. ALITA splits them into topics and questions.',
   standard:'ISO, IEC, CEN, DIN … one file per standard. Check that the licence allows storing the full text.'};
 const AD_PIPE='After the upload ALITA reads every file and runs the full pipeline: summary, methods and keywords (LLM) → chunks and embeddings → rhetorical roles → knowledge graph → sorting into the existing clusters of the database (small databases are clustered anew; “Recompute clusters” does it on request) → citation network and links to legal provisions.';
-/* who may upload: admins (any database) and logged-in accounts (their own database) */
-function canUpload(){return IS_ADMIN||!!(ACCOUNT&&!ACCOUNT.all&&ACCOUNT.database)}
+/* who may upload: admins and the all-databases account (any database), group accounts (their own database) */
+function canUpload(){return IS_ADMIN||!!(ACCOUNT&&(ACCOUNT.all||ACCOUNT.database))}
 function ownDb(){return ACCOUNT&&!ACCOUNT.all?ACCOUNT.database:null}
 const AD={db:null,type:null,mode:'new'};
 function adOpen(type){

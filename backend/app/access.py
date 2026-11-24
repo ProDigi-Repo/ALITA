@@ -81,7 +81,9 @@ async def protect_request(request: Request, call_next: Callable[[Request], Await
         account_upload = request.state.account is not None and (
             (request.method, request.url.path) == ("POST", "/api/ingest")
             or (request.method == "DELETE" and request.url.path.startswith(("/api/documents/", "/api/projects/")))
-            or (request.method, request.url.path) == ("POST", "/api/clusters/rebuild"))   # REQ-92: own database only
+            or (request.method, request.url.path) == ("POST", "/api/clusters/rebuild")   # REQ-92: own database only
+            or (request.method == "POST" and request.url.path.startswith("/api/projects/")
+                and request.url.path.endswith("/progress")))   # REQ-119: "Describe stages with AI", own projects only
         if ((request.method, request.url.path) not in CHAT_ROUTES and not review_session_endpoint and not account_endpoint
                 and not account_upload and not request.state.is_admin):
             return denied(403, "Admin access required")
