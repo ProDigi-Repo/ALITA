@@ -5,7 +5,7 @@
    Loaded after upload.js (uses ownDb, canUpload). */
 function canDelete(d){
   if(!LIVE||!d)return false;
-  if(IS_ADMIN)return true;
+  if(IS_ADMIN||(typeof ACCOUNT!=='undefined'&&ACCOUNT&&ACCOUNT.all))return true;   // REQ-120: the all-databases account deletes everywhere
   const own=typeof ownDb==='function'?ownDb():null;
   return !!own&&(d.db||[]).includes(own);
 }
