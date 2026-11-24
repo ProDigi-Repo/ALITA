@@ -94,10 +94,22 @@ def assign_project(name: str, body: DatabaseAssignment):
 def project_progress(name: str, request: Request, stages: int = 5, recompute: bool = False):
     """REQ-10/16/17/18: version history in stages of insight – versions, kind of each change, stages with files and analyses."""
     from ..progress import project_progress as pp
-    if recompute and not request.state.is_admin:
-        raise HTTPException(403, "Admin access required")
-    _project_or_404(name)
+    if recompute:
+        _check_may_recompute_progress(request, name)
+    else:
+        _project_or_404(name)
     return pp(name, stages, recompute)
+
+
+def _check_may_recompute_progress(request: Request, name: str) -> None:
+    """REQ-119: admins and every logged-in account; a group account only for projects of its own database.
+    Readers without a login get 403 before the project is looked up."""
+    if not request.state.is_admin and getattr(request.state, "account", None) is None:
+        raise HTTPException(403, "Admin access required")
+    p = _project_or_404(name)
+    own_db = own_database(request)
+    if not request.state.is_admin and own_db and own_db not in (p.get("databases") or []):
+        raise HTTPException(403, "You can only describe projects of your own database")
 
 
 @router.post("/projects/{name}/progress")
@@ -105,7 +117,7 @@ async def project_progress_llm(name: str, body: ProgressRequest, request: Reques
     """Like GET, recomputed; with use_llm the AI also words the state of insight of each stage."""
     from ..progress import project_progress as pp
     from ..progress import summarize_stages
-    _project_or_404(name)
+    _check_may_recompute_progress(request, name)
     if not body.use_llm:
         from starlette.concurrency import run_in_threadpool
         return await run_in_threadpool(pp, name, body.stages, True)

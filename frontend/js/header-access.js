@@ -82,7 +82,7 @@ function applyMe(user){
 }
 /* uploads: admins, and users into their own database */
 function applyUploadRights(){
-  const may=IS_ADMIN||!!(ACCOUNT&&!ACCOUNT.all);   // REQ-84: every logged-in user uploads into their own database
+  const may=typeof canUpload==='function'?canUpload():IS_ADMIN||!!ACCOUNT;   // REQ-84: every logged-in account uploads (groups into their own database, all-databases account anywhere)
   const el=$('#openUpload');if(el)el.hidden=!may;
   if(typeof renderUpTile==='function')renderUpTile();
 }

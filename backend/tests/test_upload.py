@@ -526,3 +526,36 @@ def test_new_documents_and_versions_are_added_to_an_existing_project(live):
     r = client.post("/api/ingest", headers=KEY, data={"doc_type": "research_paper", "add_to_project": "Thesis"},
                     files=[("files", ("x.txt", b"x", "text/plain"))])
     assert r.status_code == 400
+
+
+def test_accounts_describe_the_stages_of_their_own_projects(live):
+    """REQ-119: "Describe stages with AI" (POST …/progress) and recomputing the progress are open to every logged-in
+    account – a group account only for projects of its own database; anonymous visitors still may not."""
+    import io
+    import zipfile
+
+    _, client, _ = live
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("Thesis/Manuscript_v1.txt", FIRE)
+        z.writestr("Thesis/Manuscript_v2.txt", FIRE + "More drills.\n")
+    _login(client, "charmander", "fire-secret-1")
+    r = client.post("/api/ingest", headers=KEY, data={"doc_type": "research_project"},
+                    files=[("files", ("Thesis.zip", buf.getvalue(), "application/zip"))])
+    assert _wait(client, r.json()["jobs"][0])["status"] == "done"
+    body = {"stages": 3, "use_llm": False}
+    assert client.post("/api/projects/Thesis/progress", headers=KEY, json=body).status_code == 200
+    assert client.get("/api/projects/Thesis/progress?recompute=true").status_code == 200
+
+    client.post("/api/logout")
+    client.cookies.clear()
+    assert client.post("/api/projects/Thesis/progress", headers=KEY, json=body).status_code == 403
+    assert client.get("/api/projects/Thesis/progress?recompute=true").status_code == 403
+
+    _login(client, "vulpix", "fox-secret-22")
+    assert client.post("/api/projects/Thesis/progress", headers=KEY, json=body).status_code in (403, 404)
+
+    client.post("/api/logout")
+    client.cookies.clear()
+    _login(client, "admin", "master-password")
+    assert client.post("/api/projects/Thesis/progress", headers=KEY, json=body).status_code == 200
