@@ -9,6 +9,7 @@ Since 1.0.0 the public API (REST endpoints, CLI, metadata fields) is stable: inc
 ## [Unreleased]
 
 ### Requirements
+- **REQ-120 The all-databases account can delete** – ✅ fixed: the bin in Documents and "Delete project" were shown only to admins (Cloudflare e-mail in `ADMIN_EMAILS`) and to group accounts for their own database, so the all-databases account (gengar) could not delete without an admin e-mail, although the backend already allowed it. Every logged-in account now deletes its own data: group accounts in their own database, the all-databases account everywhere.
 - **REQ-118 Every logged-in account can upload** – ✅ fixed: the all-databases account (e.g. the supervisors' admin login) saw the upload tile greyed out ("Log in with your user name …") unless its Cloudflare e-mail was also in `ADMIN_EMAILS`, although the backend already accepted its uploads. The upload tile and Documents → + Upload are now open for every logged-in account: group accounts upload into their own database, the all-databases account into any database.
 - **REQ-119 "Describe stages with AI" for every logged-in account** – ✅ fixed: the button on the project card was admin-only, so group accounts got "Admin access required" although the user guide tells them to use it. Describing and recomputing the stages of the progress of knowledge is now open to every logged-in account – a group account for projects of its own database only; visitors without a login still may not.
 
