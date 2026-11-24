@@ -91,18 +91,18 @@ def test_identity_comes_from_signed_claims(client, private_key):
     assert client.get("/api/me", headers=headers(private_key, email="ADMIN@example.org")).json()["is_admin"] is True
 
 
-def test_readers_cannot_call_any_mutating_route(client, private_key):
+def test_readers_cannot_call_other_mutating_routes(client, private_key):
     mutating = [(m, path) for m, path in route_table() if m not in {"GET", "HEAD", "OPTIONS"}]
-    assert ("POST", "/api/ingest") in mutating and len(mutating) >= 12   # the table really lists the routers' routes
+    assert access.UPLOAD_ROUTE in mutating and len(mutating) >= 12   # the table really lists the routers' routes
     for method, path in mutating:
-        if (method, path) not in access.CHAT_ROUTES and path not in accounts.SESSION_PATHS:
+        if ((method, path) not in access.CHAT_ROUTES | {access.UPLOAD_ROUTE} and path not in accounts.SESSION_PATHS):
             assert client.request(method, path, headers=headers(private_key)).status_code == 403, path
     assert client.post("/api/future-admin-action", headers=headers(private_key)).status_code == 403
 
 
-def test_admin_can_upload_and_readers_cannot(client, private_key):
-    # Missing form fields reach FastAPI validation only for admins; ingestion never runs.
-    assert client.post("/api/ingest", headers=headers(private_key)).status_code == 403
+def test_every_access_user_can_upload(client, private_key):
+    # Missing form fields reach FastAPI validation for readers and admins alike; ingestion never runs.
+    assert client.post("/api/ingest", headers=headers(private_key)).status_code == 422
     assert client.post("/api/ingest", headers=headers(private_key, email="admin@example.org")).status_code == 422
 
 

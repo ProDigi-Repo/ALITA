@@ -45,12 +45,12 @@ Keep the invitation code confidential; it is sent separately and not printed in 
 | --- | --- |
 | **B Interaction Interface** | Full-width knowledge map on the left; **Projects & clusters** and Graph Chat on the right |
 | **A/B Interaction Interface** | Document Chat and Graph Chat side by side, each with its cluster view above it (only with the password, since 3.13.0) |
-| **Documents** | Browse, search, filter and download files; open a document's details. Uploads are admin-only |
+| **Documents** | Browse, search, filter and download files; open a document's details. Authenticated workspace users can upload new documents |
 | **Release Notes** | What changed in each version (also via the version number in the header) |
 | **ISO 42001/EUAIACT Docs** | Compliance documentation |
 | **Technical Documentation** | Architecture and ontology reference |
 
-The database bar stays visible on every chat page: **ⓘ Cluster descriptions** explains all clusters and **Clear selection** resets databases and clusters. Admins upload new data in **Documents → + Upload**. Readers and reviewers can read and download all documents, but cannot upload or change data.
+The database bar stays visible on every chat page: **ⓘ Cluster descriptions** explains all clusters and **Clear selection** resets databases and clusters. Authenticated workspace users upload new data in **Documents → + Upload**. Invitation-code reviewers can read, download and chat, but cannot upload or change data.
 
 ## The B Interaction Interface
 
@@ -68,7 +68,7 @@ The database bar stays visible on every chat page: **ⓘ Cluster descriptions** 
 4. **ALITA avatar:** follows your cursor. The small **i** buttons on the page say hello and explain the view.
 5. **Database selection:** shows what is selected; it applies to A and B. **Cluster descriptions** explains all clusters and how the databases share them.
 6. **Database tiles:** click a tile to select or deselect it; it shows its number of documents and projects. **ⓘ** opens its contents and cluster descriptions.
-7. **Upload (admins only):** papers, notes or a project ZIP are uploaded in **Documents → + Upload** (the database bar no longer has an upload button).
+7. **Upload:** authenticated workspace users upload papers, notes or a project ZIP in **Documents → + Upload** (the database bar no longer has an upload button).
 8. *(Window to the outside – removed in 3.13.0; external challenge stays planned, REQ-20.)*
 
 **Map, projects and Graph Chat**
@@ -151,9 +151,9 @@ ALITA knows three more kinds of data: **Legal projects** (the versions of a law 
 - ALITA finds the citations by itself after every upload, from the reference lists of the documents – no language model, no cost. **⟳ Recompute** does it again by hand (e.g. after an update). Only works *inside* the collection are linked; external literature is not looked up.
 - Graph Chat answers citation questions from it, e.g. *"Which papers build on Heirati et al. 2024?"* or *"What is the most cited paper in Jasmine?"*.
 
-**Add documents (admins only)**
+**Add documents**
 
-Click **Documents → + Upload**. Choose the database, the kind of data (Research project as ZIP, Research papers, Research notes, Legal project as ZIP, Legal guidelines, Standards), optionally a date and a project to link, and tick *Generate summary and methods with the LLM* if wanted. Check the summary screen and click **Upload**.
+Every authenticated workspace user can click **Documents → + Upload**. Choose the database, the kind of data (Research project as ZIP, Research papers, Research notes, Legal project as ZIP, Legal guidelines, Standards), optionally a date and a project to link, and tick *Generate summary and methods with the LLM* if wanted. Check the summary screen and click **Upload**. Invitation-code reviewer sessions remain read/chat-only.
 
 Uploading uses your OpenRouter key and credits (see [Get an OpenRouter API key](#get-an-openrouter-api-key)). **Cost:** about €0.003 per 10-page paper with the LLM summary (100 papers ≈ €0.30); without it, only embeddings, below €0.001. ALITA shows the actual cost after each upload. *Estimate: 10 pages ≈ 8,000 tokens of text; summary, section labelling and embeddings ≈ 25,000 tokens; GPT-6 Luna at $0.10 / $0.50 per 1M input / output tokens ([OpenRouter](https://openrouter.ai/openai/gpt-6-luna), Oct 2026).*
 

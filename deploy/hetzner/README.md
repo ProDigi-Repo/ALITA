@@ -1,7 +1,7 @@
 # Hetzner: shared workspace with Cloudflare mail code
 
-Everyone who is admitted may read/download all documents and use both chats.
-Only `ADMIN_EMAILS` may upload, change metadata and run maintenance/recomputation calls.
+Everyone who is admitted may read/download all documents, use both chats and upload new documents.
+Only `ADMIN_EMAILS` may change existing data and run maintenance/recomputation calls.
 Every person brings their own OpenRouter key. There are no local user accounts.
 For anonymous review without an e-mail address there is an optional, separate
 [reviewer access with an invitation code](reviewers.md).
@@ -105,15 +105,15 @@ Do not delete the data volume to get around the password problem.
 
 ## 4. Data and acceptance
 
-No automatic `seed` on server start. Load data deliberately via the admin upload or the existing CLI.
+No automatic `seed` on server start. Load data deliberately via the web upload or the existing CLI.
 Existing data can be transferred with `migrate export/import`; copy `research/` separately.
 Embedding model and dimension must match the imported index (`.env.example` uses 1536 dimensions).
 
 Test before sending invitations:
 - Private window: `/`, `/api/documents`, `/api/export` and `/files/<valid-id>` lead to the login.
 - An e-mail that is not admitted does not get in. An admitted e-mail receives the mail code.
-- Normal user: read, open PDFs, both chats with their own key; uploads/changes return **403**.
-- Admin: upload works. Both chats stream visibly; without an OpenRouter key no model call.
+- Normal user: read, open PDFs, upload new documents and use both chats with their own key; changes to existing data and maintenance calls return **403**.
+- Admin: uploads and administrative changes work. Both chats stream visibly; without an OpenRouter key no model call.
 - External port test: 8080, 8000, 6333, 7474 and 7687 not reachable (IPv4/IPv6).
 - `docker compose ps` shows no host port mapping, at most internal container ports.
 
@@ -124,12 +124,12 @@ are removed on the first load: export any old chats you want to keep before an u
 
 ## 5. Deliberately lean limits and operation
 
-- Admin uploads: at most **50 MiB per HTTP request**, ZIP at most **1000 entries / 250 MiB unpacked**;
+- Web uploads: at most **50 MiB per HTTP request**, ZIP at most **1000 entries / 250 MiB unpacked**;
   no symlinks or unsafe ZIP paths. Load larger collections via SSH/CLI.
 - Only PDFs are shown inline; other originals as downloads. Same-origin API, no wildcard CORS.
 - Ingestion stays an in-process background job: **one backend worker**, no restarts during running jobs,
   large imports one after the other. No worker/queue rework in this PR.
-- No tenant isolation, no antivirus sandbox, no high availability. Uploads by trusted admins only.
+- No tenant isolation, no antivirus sandbox, no high availability. Admit only trusted workspace users because every admitted user may upload.
 - Backups before updates and regularly, encrypted, to a separate target: Qdrant snapshots,
   uploads (`app_data`), `research/`, configuration and Neo4j (or a tested rebuild from Qdrant).
   `migrate export` alone does **not** include `research/`. Pause writes for consistent backups.

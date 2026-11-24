@@ -65,7 +65,7 @@
 ## A request, end to end
 
 1. **nginx** serves the front end and proxies `/api` and `/files` to the backend.
-2. **`access.protect_request`** runs for every request. It establishes who is asking (Cloudflare e-mail, reviewer, account or local), refuses cross-site writes and non-admin writes, and calls `apply_account()` to decide the visible databases (`None` = all).
+2. **`access.protect_request`** runs for every request. It establishes who is asking (Cloudflare e-mail, reviewer, account or local), refuses cross-site writes and protects administrative writes; uploads are open to authenticated workspace users. It calls `apply_account()` to decide the visible databases (`None` = all).
 3. **`visibility.restrict()`** stores that set in a context variable for the duration of the request.
 4. The **route** in `routes/…` does its work. It never filters databases itself: `store.scroll_documents`, `store.search_chunks`, `store.get_document`, `legal_ingest.load_model` and the graph queries apply the visible set.
 5. Chat routes stream **Server-Sent Events** through `routes/common.sse()`: `meta` (sources, filters, scope), `delta` (answer text), `done` (final answer, usage) and `error` if the stream fails.
@@ -110,7 +110,7 @@ Entry points: `python -m app.ingestion <kind> [path]` (`cli.py`), the upload rou
 
 ### Uploads by users (REQ-84)
 
-Every logged-in account uploads into its own database (`access.py` lets `POST /api/ingest` through for accounts; `uploads.target_databases` refuses any other database and any other database's project with 403); admins choose one. The job reports its pipeline step with `jobs.step("…")` (reading, LLM summary, chunks/embeddings/graph, clustering, citation network, provision links), which the tile shows. The follow-ups in `ingestion/followups.py` run under `visibility.unrestricted()`: they rebuild data of the whole index and must not see only the uploader's database.
+Every authenticated Cloudflare Access user may upload and choose a visible database. Logged-in local accounts upload into their own database (`uploads.target_databases` refuses any other database and any other database's project with 403); invitation-code reviewers remain read/chat-only. The job reports its pipeline step with `jobs.step("…")` (reading, LLM summary, chunks/embeddings/graph, clustering, citation network, provision links), which the tile shows. The follow-ups in `ingestion/followups.py` run under `visibility.unrestricted()`: they rebuild data of the whole index and must not see only the uploader's database.
 
 ### Activity (REQ-87)
 
@@ -135,7 +135,7 @@ Views do not call each other. They subscribe to topics with `Store.on(topic, fn,
 ## How to …
 
 - **Add something that writes:** run it through the job queue (`await queued(request, kind, name, factory)` in a route) so it never overlaps an upload; see the section above.
-- **Add an API route:** add it to the matching router in `backend/app/routes/`; writes are admin-only unless listed in `access.py` (`CHAT_ROUTES`, session paths). Read data through `store`/`graph` so visibility applies. `test_access.py` walks `routes.route_table()`.
+- **Add an API route:** add it to the matching router in `backend/app/routes/`; writes are admin-only unless listed in `access.py` (`CHAT_ROUTES`, `UPLOAD_ROUTE`, session paths). Read data through `store`/`graph` so visibility applies. `test_access.py` walks `routes.route_table()`.
 - **Add a database:** one entry in `registry.py` (or `DATABASES`/`DATABASE_NAMES`/`PUBLIC_DATABASES` in `.env`), then `python tools/build_frontend.py data`; for a login, add an account with `python -m app.accounts`.
 - **Support a new file type:** add an extractor in `extract.py` and register it in `EXTRACTORS`; roles by name/extension live in `project_meta.py`.
 - **Add a front-end view:** new script after `state.js` in `index.html`; subscribe with `Store.on(...)` instead of being called by other views.

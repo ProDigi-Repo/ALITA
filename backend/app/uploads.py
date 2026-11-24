@@ -3,7 +3,7 @@
 The route (``routes/ingest.py``) only reads the form. Here:
 
 1. ``target_databases`` – where the upload may go. An account uploads only into its own database and links files only
-   to projects of that database (403 otherwise); admins choose.
+   to projects of that database (403 otherwise); unrestricted workspace users choose.
 2. ``stage_upload`` – every file is copied to ``<DATA_DIR>/incoming/<id>`` at once; ZIPs are checked there, so a bad
    archive fails the request instead of the job.
 3. ``job_factory`` – what the job does later, one at a time: extract into the shared folders (account uploads whose
@@ -40,7 +40,7 @@ class Staged:
 
 # ----------------------------------------------------------------- where an upload may go
 def target_databases(own_db: str | None, asked: list[str], project_name: str | None, doc_type: DocType) -> list[str] | None:
-    """Databases of an upload. ``own_db`` is the database of a (non-admin) account, None for admins; ``asked`` the
+    """Databases of an upload. ``own_db`` is the database of a restricted account, None for unrestricted users; ``asked`` the
     databases named in the form. REQ-86: accounts never write into another database or another database's project."""
     if not own_db:
         return asked
@@ -57,7 +57,7 @@ def target_databases(own_db: str | None, asked: list[str], project_name: str | N
 
 def free_name(kind: str, name: str, database: str | None, doc_type: DocType | None = None) -> str:
     """REQ-83: the project/file name for an upload into ``database`` – unchanged, unless the name already belongs to
-    another database; then " (DATABASE)" is added. Admin uploads (database None) keep their name."""
+    another database; then " (DATABASE)" is added. Unrestricted uploads (database None) keep their name."""
     if not database:
         return name
     from . import store, visibility
@@ -79,7 +79,7 @@ def free_name(kind: str, name: str, database: str | None, doc_type: DocType | No
 
 # ----------------------------------------------------------------- ZIP checks and staging
 def checked_zip_members(archive: zipfile.ZipFile) -> list[str]:
-    """Bound expansion and reject unsafe members before extracting an admin upload."""
+    """Bound expansion and reject unsafe members before extracting a ZIP upload."""
     entries = archive.infolist()
     if len(entries) > ZIP_MAX_ENTRIES or sum(entry.file_size for entry in entries) > ZIP_MAX_BYTES:
         raise HTTPException(413, "ZIP exceeds 1000 entries or 250 MiB uncompressed")

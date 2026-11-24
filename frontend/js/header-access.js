@@ -80,9 +80,9 @@ function applyMe(user){
   applyUploadRights();
   if(typeof renderDbLock==='function')renderDbLock();
 }
-/* uploads: admins, and users into their own database */
+/* uploads: every authenticated workspace user; invitation-code reviewers stay read/chat-only */
 function applyUploadRights(){
-  const may=IS_ADMIN||!!(ACCOUNT&&!ACCOUNT.all);   // REQ-84: every logged-in user uploads into their own database
+  const may=IS_ADMIN||AUTH_MODE==='cloudflare'||!!ACCOUNT;
   const el=$('#openUpload');if(el)el.hidden=!may;
   if(typeof renderUpTile==='function')renderUpTile();
 }

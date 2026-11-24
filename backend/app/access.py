@@ -12,8 +12,10 @@ from starlette.concurrency import run_in_threadpool
 from . import accounts, reviewers, visibility
 from .config import get_settings
 
-# Everything else that writes is admin-only, including future API routes.
+# Everything else that writes is admin-only, including future API routes. Uploads are available to every
+# authenticated workspace user; anonymous reviewers remain read/chat-only.
 CHAT_ROUTES = {("POST", path) for path in ("/api/chat", "/api/chat/stream", "/api/graph/stream")}
+UPLOAD_ROUTE = ("POST", "/api/ingest")
 
 
 @lru_cache(maxsize=4)
@@ -77,13 +79,17 @@ async def protect_request(request: Request, call_next: Callable[[Request], Await
         if (((origin is not None or review_host) and expected is not None and origin != expected)
                 or request.headers.get("sec-fetch-site") == "cross-site"):
             return denied(403, "Cross-site requests are not allowed")
-        # REQ-84/90: accounts upload and delete in their own database (the routes check the database)
-        account_upload = request.state.account is not None and (
-            (request.method, request.url.path) == ("POST", "/api/ingest")
-            or (request.method == "DELETE" and request.url.path.startswith(("/api/documents/", "/api/projects/")))
-            or (request.method, request.url.path) == ("POST", "/api/clusters/rebuild"))   # REQ-92: own database only
-        if ((request.method, request.url.path) not in CHAT_ROUTES and not review_session_endpoint and not account_endpoint
-                and not account_upload and not request.state.is_admin):
+        # REQ-84/90: accounts upload/delete/recluster in their own database (the routes check the database).
+        # Uploading itself is not an admin feature: every authenticated Access user may add documents. The separate
+        # reviewer host deliberately stays read/chat-only.
+        route = (request.method, request.url.path)
+        authenticated_upload = route == UPLOAD_ROUTE and not review_host and (
+            request.state.email is not None or request.state.account is not None)
+        account_write = request.state.account is not None and (
+            (request.method == "DELETE" and request.url.path.startswith(("/api/documents/", "/api/projects/")))
+            or route == ("POST", "/api/clusters/rebuild"))   # REQ-92: own database only
+        if (route not in CHAT_ROUTES and not review_session_endpoint and not account_endpoint
+                and not authenticated_upload and not account_write and not request.state.is_admin):
             return denied(403, "Admin access required")
     token = visibility.restrict(allowed)
     try:

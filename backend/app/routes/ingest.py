@@ -1,4 +1,4 @@
-"""Uploads (admins, or accounts into their own database – see access.py and app/uploads.py).
+"""Uploads (authenticated workspace users, or accounts into their own database – see access.py and app/uploads.py).
 
 The route reads the form and hands the files to ``app.uploads``: checked and staged at once, then one job per file in
 the queue (``app.jobs``), which extracts and ingests them one at a time. Job status and activity: ``routes/jobs.py``.

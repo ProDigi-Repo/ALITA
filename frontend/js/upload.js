@@ -1,9 +1,9 @@
 /* "Upload new data" (REQ-84): the wizard, the tile next to the database bar and the polling of upload jobs (REQ-83).
    Loaded after documents.js (uses LEGAL_T, D, loadDocs, uploadReport) and before activity.js/start.js.
-   Accounts upload into their own database, admins choose one; the server runs the whole pipeline on every file. */
+   Accounts upload into their own database; authenticated workspace users choose one. */
 /* ---------- Upload new data (REQ-84): one wizard for everybody who may upload ----------
    Opened from the tile next to the database bar and from Documents → + Upload. Accounts upload into their own
-   database (shown, not choosable), admins choose one. The server runs the whole pipeline on every file: text, LLM
+   database (shown, not choosable); workspace users choose one. The server runs the whole pipeline on every file: text, LLM
    summary and methods, chunks, embeddings, rhetorical roles, knowledge graph, clustering, citations, legal links. */
 const KIND_N=(t,n)=>({research_paper:'paper',research_notes:'note',legal_guideline:'guideline',standard:'standard',guidance:'guidance page',legal_project:'legal project'}[t]||'file')+(n>1?'s':'');
 const ZIP_T=t=>t==='research_project'||t==='legal_project';   // one ZIP per project (REQ-38: legal projects too)
@@ -16,12 +16,13 @@ const AD_TYPE_DESC={
   guidance:'Q&A pages, FAQs, factsheets and explanations of authorities (not binding), one file each, e.g. a web page printed as PDF. ALITA splits them into topics and questions.',
   standard:'ISO, IEC, CEN, DIN … one file per standard. Check that the licence allows storing the full text.'};
 const AD_PIPE='After the upload ALITA reads every file and runs the full pipeline: summary, methods and keywords (LLM) → chunks and embeddings → rhetorical roles → knowledge graph → sorting into the existing clusters of the database (small databases are clustered anew; “Recompute clusters” does it on request) → citation network and links to legal provisions.';
-/* who may upload: admins (any database) and logged-in accounts (their own database) */
-function canUpload(){return IS_ADMIN||!!(ACCOUNT&&!ACCOUNT.all&&ACCOUNT.database)}
+/* Every authenticated workspace user may upload. Invitation-code reviewers remain read/chat-only. */
+function canUpload(){return IS_ADMIN||AUTH_MODE==='cloudflare'||!!ACCOUNT}
+function canRecluster(){return IS_ADMIN||!!ACCOUNT}
 function ownDb(){return ACCOUNT&&!ACCOUNT.all?ACCOUNT.database:null}
 const AD={db:null,type:null,mode:'new'};
 function adOpen(type){
-  if(LIVE&&!canUpload()){toast(ACCOUNTS_ON?'Log in with your user name to upload your own data':'Uploading needs admin rights');return}
+  if(LIVE&&!canUpload()){toast(ACCOUNTS_ON?'Log in with your user name to upload your own data':'Uploading is not available in reviewer mode');return}
   const own=ownDb();
   AD.db=own||(SEL_DB.length===1?SEL_DB[0]:AD.db);
   if(type)AD.type=type;
@@ -134,7 +135,7 @@ function renderUpTile(){
     :!may?'Log in with your user name to upload your own files'
     :own?`into your database <b>${esc(dbName(own))}</b>`:'into a database of your choice';
   $('.uptile .up-hint').hidden=!(LIVE&&may);
-  $('#upRecluster').hidden=!(LIVE&&may);
+  $('#upRecluster').hidden=!(LIVE&&canRecluster());
 }
 /* REQ-92: "Recompute clusters" – uploads only sort new documents into the existing clusters; this computes them anew
    (accounts: their own database; admins: the selected databases, or all). */
